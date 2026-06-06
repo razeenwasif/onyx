@@ -99,6 +99,15 @@ impl Vault {
         Ok(())
     }
 
+    /// Recursively delete a folder and everything in it, then re-index.
+    pub fn delete_folder(&mut self, path: &Path) -> Result<()> {
+        if path.exists() {
+            fs::remove_dir_all(path)?;
+        }
+        self.refresh();
+        Ok(())
+    }
+
     pub fn rename_note(&mut self, from: &Path, to: &Path) -> Result<()> {
         if let Some(parent) = to.parent() {
             fs::create_dir_all(parent)?;

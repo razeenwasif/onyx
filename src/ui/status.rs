@@ -101,6 +101,7 @@ fn hint_for_focus(focus: Focus) -> &'static str {
         Focus::Help => "· Esc close",
         Focus::Settings => "· Esc close",
         Focus::Prompt => "· Enter confirm · Esc cancel",
+        Focus::Confirm => "· y confirm · n/Esc cancel",
         Focus::CommandLine => "· :q quit · :w save · :help",
     }
 }

@@ -2,6 +2,7 @@
 
 pub mod calendar;
 pub mod cmdline;
+pub mod confirm;
 pub mod editor_pane;
 pub mod file_tree;
 pub mod graph;
@@ -56,6 +57,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         Focus::Search => search::draw(frame, area, app),
         Focus::Help => help::draw(frame, area, app),
         Focus::Prompt => prompt::draw(frame, area, app),
+        Focus::Confirm => confirm::draw(frame, area, app),
         _ => {}
     }
     if app.help_open && app.focus != Focus::Help {

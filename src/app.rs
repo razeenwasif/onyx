@@ -50,6 +50,8 @@ pub enum Focus {
     Help,
     Settings,
     Prompt,
+    /// Yes/no confirmation dialog (e.g. before deleting).
+    Confirm,
     /// Vim-style ex command line (`:q`, `:w`, `:e file`, …).
     CommandLine,
 }
@@ -111,6 +113,21 @@ pub struct PromptState {
     /// Optional subject of the prompt (e.g. the file-tree node being renamed).
     /// When `None`, actions fall back to the current document.
     pub target: Option<PathBuf>,
+}
+
+/// A pending yes/no confirmation.
+#[derive(Debug, Default)]
+pub struct ConfirmState {
+    pub message: String,
+    pub action: ConfirmAction,
+}
+
+#[derive(Debug, Default, Clone)]
+pub enum ConfirmAction {
+    #[default]
+    None,
+    /// Delete a note or folder at this path.
+    Delete(PathBuf),
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -213,6 +230,7 @@ pub struct App {
     pub switcher: PaletteState,
     pub search: SearchState,
     pub prompt: PromptState,
+    pub confirm: ConfirmState,
     pub cmdline: CmdlineState,
     pub help_open: bool,
     pub graph_focus: Option<PathBuf>,
@@ -270,6 +288,7 @@ impl App {
             switcher: PaletteState::default(),
             search: SearchState::default(),
             prompt: PromptState::default(),
+            confirm: ConfirmState::default(),
             cmdline: CmdlineState::default(),
             help_open: false,
             graph_focus: None,
@@ -506,6 +525,53 @@ impl App {
         self.last_focus = self.focus;
         self.focus = Focus::Help;
         self.help_open = true;
+    }
+
+    /// Open a yes/no confirmation dialog for the given action.
+    pub fn start_confirm(&mut self, message: impl Into<String>, action: ConfirmAction) {
+        self.last_focus = self.focus;
+        self.confirm = ConfirmState {
+            message: message.into(),
+            action,
+        };
+        self.focus = Focus::Confirm;
+    }
+
+    /// Run the pending confirmation's action (called on "yes").
+    pub fn execute_confirm(&mut self) {
+        let action = std::mem::take(&mut self.confirm.action);
+        self.focus = self.last_focus;
+        match action {
+            ConfirmAction::None => {}
+            ConfirmAction::Delete(path) => self.delete_path(&path),
+        }
+    }
+
+    fn delete_path(&mut self, path: &Path) {
+        let is_dir = path.is_dir();
+        let rel = vault::note_relpath(&self.vault.root, path);
+        let res = if is_dir {
+            self.vault.delete_folder(path)
+        } else {
+            self.vault.delete_note(path)
+        };
+        match res {
+            Ok(()) => {
+                // Drop the open doc if it (or its folder) was deleted.
+                let cleared = self
+                    .doc
+                    .as_ref()
+                    .and_then(|d| d.path.as_ref())
+                    .map(|p| p == path || p.starts_with(path))
+                    .unwrap_or(false);
+                if cleared {
+                    self.doc = None;
+                }
+                self.tree_selected = self.tree_selected.saturating_sub(1);
+                self.set_status(format!("deleted {rel}"));
+            }
+            Err(e) => self.set_status(format!("delete failed: {e}")),
+        }
     }
 
     pub fn open_cmdline(&mut self) {
@@ -800,6 +866,11 @@ impl App {
         match self.focus {
             Focus::Palette | Focus::Switcher | Focus::Search | Focus::Help | Focus::Settings | Focus::Prompt => {
                 self.close_overlay();
+            }
+            Focus::Confirm => {
+                // Esc cancels the pending action.
+                self.confirm.action = ConfirmAction::None;
+                self.focus = self.last_focus;
             }
             Focus::CommandLine => {
                 self.cmdline.value.clear();

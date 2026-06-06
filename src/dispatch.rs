@@ -2,7 +2,7 @@
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::app::{self, App, Focus, PendingExternal, PromptAction, SidebarTab};
+use crate::app::{self, App, ConfirmAction, Focus, PendingExternal, PromptAction, SidebarTab};
 use crate::editor::Mode;
 use crate::external;
 use crate::theme::Theme;
@@ -23,6 +23,7 @@ pub fn on_key(app: &mut App, key: KeyEvent) {
         Focus::Search => search_keys(app, key),
         Focus::Help => help_keys(app, key),
         Focus::Prompt => prompt_keys(app, key),
+        Focus::Confirm => confirm_keys(app, key),
         Focus::CommandLine => cmdline_keys(app, key),
         Focus::FileTree => filetree_keys(app, key),
         Focus::Quicknote => quicknote_keys(app, key),
@@ -56,6 +57,7 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
                 | Focus::Switcher
                 | Focus::Search
                 | Focus::Prompt
+                | Focus::Confirm
                 | Focus::CommandLine
                 | Focus::Quicknote // quicknote is a live text field
         );
@@ -75,10 +77,10 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
         return false;
     }
 
-    // Don't let global ctrl- shortcuts steal from text-entry overlays.
+    // Don't let global ctrl- shortcuts steal from text-entry/modal overlays.
     let in_text_overlay = matches!(
         app.focus,
-        Focus::Palette | Focus::Switcher | Focus::Search | Focus::Prompt
+        Focus::Palette | Focus::Switcher | Focus::Search | Focus::Prompt | Focus::Confirm
     );
 
     match key.code {
@@ -220,19 +222,16 @@ fn filetree_keys(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Char('d') => {
             if let Some(node) = selected_node(app) {
-                if !node.is_dir {
-                    let _ = app.vault.delete_note(&node.path);
-                    if app
-                        .doc
-                        .as_ref()
-                        .and_then(|d| d.path.as_ref())
-                        .map(|p| p == &node.path)
-                        .unwrap_or(false)
-                    {
-                        app.doc = None;
-                    }
-                    app.set_status(format!("deleted {}", node.name));
-                }
+                let what = if node.is_dir { "folder" } else { "note" };
+                let extra = if node.is_dir {
+                    " and everything in it"
+                } else {
+                    ""
+                };
+                app.start_confirm(
+                    format!("Delete {what} '{}'{extra}?", node.name),
+                    ConfirmAction::Delete(node.path),
+                );
             }
         }
         KeyCode::Char('r') => {
@@ -674,13 +673,7 @@ fn run_command(app: &mut App, id: CommandId) {
                 &initial,
             );
         }
-        CommandId::DeleteNote => {
-            if let Some(p) = app.doc.as_ref().and_then(|d| d.path.clone()) {
-                let _ = app.vault.delete_note(&p);
-                app.doc = None;
-                app.set_status("deleted note");
-            }
-        }
+        CommandId::DeleteNote => confirm_delete_current(app),
         CommandId::RenameNote => {
             if let Some(p) = app.doc.as_ref().and_then(|d| d.path.clone()) {
                 start_prompt(
@@ -794,6 +787,31 @@ fn start_prompt(app: &mut App, label: &str, action: PromptAction, initial: &str)
     app.prompt.value = initial.to_string();
     app.prompt.action = action;
     app.prompt.target = None;
+}
+
+// -----------------------------------------------------------------------------
+// Confirm dialog
+// -----------------------------------------------------------------------------
+
+fn confirm_keys(app: &mut App, key: KeyEvent) {
+    match key.code {
+        // Only an explicit "y" confirms; anything else cancels (safe default).
+        KeyCode::Char('y') | KeyCode::Char('Y') => app.execute_confirm(),
+        _ => {
+            app.confirm.action = ConfirmAction::None;
+            app.focus = app.last_focus;
+        }
+    }
+}
+
+/// Ask to delete the currently-open note (used by `:delete` and the palette).
+fn confirm_delete_current(app: &mut App) {
+    if let Some(p) = app.doc.as_ref().and_then(|d| d.path.clone()) {
+        let name = vault::note_basename(&p);
+        app.start_confirm(format!("Delete note '{name}'?"), ConfirmAction::Delete(p));
+    } else {
+        app.set_status("no note to delete");
+    }
 }
 
 fn prompt_keys(app: &mut App, key: KeyEvent) {
@@ -1079,16 +1097,7 @@ fn run_ex_command(app: &mut App, raw: &str) {
                 app.run_search();
             }
         }
-        "delete" | "rm" => {
-            if let Some(p) = app.doc.as_ref().and_then(|d| d.path.clone()) {
-                if let Err(e) = app.vault.delete_note(&p) {
-                    app.set_status(format!("delete failed: {e}"));
-                } else {
-                    app.doc = None;
-                    app.set_status("deleted note");
-                }
-            }
-        }
+        "delete" | "rm" => confirm_delete_current(app),
         "rename" => {
             if args.is_empty() {
                 app.set_status("usage: :rename <new-name>");
