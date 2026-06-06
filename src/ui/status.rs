@@ -85,17 +85,19 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
 
 fn hint_for_focus(focus: Focus) -> &'static str {
     match focus {
-        Focus::FileTree => "· j/k move · Enter open · Space expand · d delete · r rename",
+        Focus::FileTree => {
+            "· j/k move · Enter open · Space expand · n new · m folder · r rename · d delete"
+        }
         Focus::Quicknote => "· type to edit · autosaves · Tab/Esc leave",
         Focus::Todo => "· j/k move · Space toggle · a add · e edit · d delete",
         Focus::Editor => "· i insert · Ctrl-S save · Ctrl-Enter follow link · Ctrl-/ help",
         Focus::Preview => "· read-only preview · Tab returns to editor",
-        Focus::Sidebar => "· Tab cycle · Enter jump · n/N change tab",
+        Focus::Sidebar => "· Tab cycle · n/p change tab · Enter jump",
         Focus::Calendar => "· h/j/k/l move · o open day · Enter fullscreen · t today",
         Focus::Palette => "· type to filter · Enter run · Esc cancel",
         Focus::Switcher => "· type to filter · Enter open · Esc cancel",
         Focus::Search => "· type to search · Enter focus results · Esc cancel",
-        Focus::Graph => "· Enter fullscreen · o open node · Esc exit",
+        Focus::Graph => "· a scope · Enter fullscreen · o open node · Esc exit",
         Focus::Help => "· Esc close",
         Focus::Settings => "· Esc close",
         Focus::Prompt => "· Enter confirm · Esc cancel",
