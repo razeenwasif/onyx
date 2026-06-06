@@ -107,6 +107,9 @@ pub struct PromptState {
     pub label: String,
     pub value: String,
     pub action: PromptAction,
+    /// Optional subject of the prompt (e.g. the file-tree node being renamed).
+    /// When `None`, actions fall back to the current document.
+    pub target: Option<PathBuf>,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -292,6 +295,34 @@ impl App {
     /// Persist the todo list to `.onyx/todos.md`.
     pub fn save_todos(&mut self) {
         let _ = self.todos.save(&self.vault.todos_path());
+    }
+
+    /// Swap to a different vault, resetting all vault-derived state (open doc,
+    /// file-tree selection, expanded folders, graph focus, and the per-vault
+    /// quicknote/todo side panes). Persists the new vault as `last_vault`.
+    pub fn switch_vault(&mut self, new_vault: Vault, path: PathBuf) {
+        // Flush the current vault's side-pane state before leaving it.
+        self.save_quicknote();
+        self.save_todos();
+
+        self.vault = new_vault;
+        self.config.last_vault = Some(path);
+        let _ = self.config.save();
+
+        self.doc = None;
+        self.graph_focus = None;
+        self.fullscreen = None;
+        self.tree_selected = 0;
+        self.sidebar_selected = 0;
+        self.expanded_dirs.clear();
+        self.expanded_dirs.insert(self.vault.root.clone());
+
+        let qn = std::fs::read_to_string(self.vault.quicknote_path()).unwrap_or_default();
+        self.quicknote = QuicknoteState::new(qn);
+        self.todos = TodoList::load(&self.vault.todos_path());
+
+        self.focus = Focus::FileTree;
+        self.set_status(format!("vault: {}", self.vault.root.display()));
     }
 
     pub fn set_status<S: Into<String>>(&mut self, msg: S) {

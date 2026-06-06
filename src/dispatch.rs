@@ -177,11 +177,10 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
 fn filetree_keys(app: &mut App, key: KeyEvent) {
     let len = visible_tree_len(app);
     match key.code {
-        KeyCode::Char('j') | KeyCode::Down => {
-            if len > 0 {
+        KeyCode::Char('j') | KeyCode::Down
+            if len > 0 => {
                 app.tree_selected = (app.tree_selected + 1).min(len - 1);
             }
-        }
         KeyCode::Char('k') | KeyCode::Up => {
             app.tree_selected = app.tree_selected.saturating_sub(1);
         }
@@ -236,6 +235,8 @@ fn filetree_keys(app: &mut App, key: KeyEvent) {
                         PromptAction::Rename,
                         &vault::note_basename(&node.path),
                     );
+                    // Rename the *selected* node, not whatever doc is open.
+                    app.prompt.target = Some(node.path);
                 }
             }
         }
@@ -411,10 +412,10 @@ fn editor_normal(app: &mut App, key: KeyEvent) {
             doc.buffer.delete_to_eol();
             doc.dirty = true;
         }
-        KeyCode::Char('u') => {
-            doc.history.undo(&mut doc.buffer);
-            doc.dirty = true;
-        }
+        KeyCode::Char('u')
+            if doc.history.undo(&mut doc.buffer) => {
+                doc.dirty = true;
+            }
         KeyCode::Tab => app.toggle_pane_focus(true),
         KeyCode::BackTab => app.toggle_pane_focus(false),
         _ => {}
@@ -733,12 +734,11 @@ fn search_keys(app: &mut App, key: KeyEvent) {
         match key.code {
             KeyCode::Tab => app.search.editing_query = true,
             KeyCode::Up => app.search.selected = app.search.selected.saturating_sub(1),
-            KeyCode::Down => {
-                if !app.search.results.is_empty() {
+            KeyCode::Down
+                if !app.search.results.is_empty() => {
                     app.search.selected =
                         (app.search.selected + 1).min(app.search.results.len() - 1);
                 }
-            }
             KeyCode::Enter => {
                 if let Some(hit) = app.search.results.get(app.search.selected).cloned() {
                     app.close_overlay();
@@ -764,6 +764,7 @@ fn start_prompt(app: &mut App, label: &str, action: PromptAction, initial: &str)
     app.prompt.label = label.to_string();
     app.prompt.value = initial.to_string();
     app.prompt.action = action;
+    app.prompt.target = None;
 }
 
 fn prompt_keys(app: &mut App, key: KeyEvent) {
@@ -796,13 +797,26 @@ fn apply_prompt(app: &mut App, action: PromptAction, value: String) {
             }
         }
         PromptAction::Rename => {
-            if let Some(p) = app.doc.as_ref().and_then(|d| d.path.clone()) {
+            // Rename the prompt's subject (the selected file-tree node) if set,
+            // otherwise fall back to the currently-open document.
+            let from = app
+                .prompt
+                .target
+                .take()
+                .or_else(|| app.doc.as_ref().and_then(|d| d.path.clone()));
+            if let Some(p) = from {
                 let parent = p.parent().unwrap_or_else(|| std::path::Path::new("."));
                 let target = parent.join(format!("{}.md", vault::sanitize_title(v)));
                 if let Err(e) = app.vault.rename_note(&p, &target) {
                     app.set_status(format!("rename failed: {e}"));
-                } else if let Some(doc) = app.doc.as_mut() {
-                    doc.path = Some(target.clone());
+                } else {
+                    // Keep the open document's path in sync only if it's the one
+                    // we renamed.
+                    if let Some(doc) = app.doc.as_mut() {
+                        if doc.path.as_deref() == Some(p.as_path()) {
+                            doc.path = Some(target.clone());
+                        }
+                    }
                     app.set_status(format!("renamed to {}", target.display()));
                 }
             }
@@ -812,29 +826,7 @@ fn apply_prompt(app: &mut App, action: PromptAction, value: String) {
             app.open_search();
             app.run_search();
         }
-        PromptAction::OpenVault => {
-            let path = std::path::PathBuf::from(v);
-            match crate::vault::Vault::open(&path) {
-                Ok(new_vault) => {
-                    app.vault = new_vault;
-                    app.config.last_vault = Some(path.clone());
-                    let _ = app.config.save();
-                    app.doc = None;
-                    app.set_status(format!("opened vault {}", path.display()));
-                }
-                Err(_) => {
-                    match crate::vault::Vault::create(&path) {
-                        Ok(new_vault) => {
-                            app.vault = new_vault;
-                            app.config.last_vault = Some(path.clone());
-                            let _ = app.config.save();
-                            app.set_status(format!("created vault {}", path.display()));
-                        }
-                        Err(e) => app.set_status(format!("open failed: {e}")),
-                    }
-                }
-            }
-        }
+        PromptAction::OpenVault => open_vault_path(app, v),
         PromptAction::AddTodo => {
             app.todos.add(v.to_string());
             app.save_todos();
@@ -1170,24 +1162,11 @@ fn apply_set(app: &mut App, args: &str) {
 
 fn open_vault_path(app: &mut App, path: &str) {
     let pb = std::path::PathBuf::from(path);
-    match crate::vault::Vault::open(&pb) {
-        Ok(v) => {
-            app.vault = v;
-            app.config.last_vault = Some(pb.clone());
-            let _ = app.config.save();
-            app.doc = None;
-            app.set_status(format!("opened vault {}", pb.display()));
-        }
-        Err(_) => match crate::vault::Vault::create(&pb) {
-            Ok(v) => {
-                app.vault = v;
-                app.config.last_vault = Some(pb.clone());
-                let _ = app.config.save();
-                app.doc = None;
-                app.set_status(format!("created vault {}", pb.display()));
-            }
-            Err(e) => app.set_status(format!("vault failed: {e}")),
-        },
+    // Try to open an existing vault; otherwise create one. Either way
+    // `switch_vault` resets all vault-derived state (doc, tree, side panes).
+    match crate::vault::Vault::open(&pb).or_else(|_| crate::vault::Vault::create(&pb)) {
+        Ok(v) => app.switch_vault(v, pb),
+        Err(e) => app.set_status(format!("vault failed: {e}")),
     }
 }
 

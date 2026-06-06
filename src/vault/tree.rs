@@ -66,11 +66,10 @@ impl FileTree {
             if path == root {
                 continue;
             }
-            if entry.file_type().is_some_and(|t| t.is_file()) {
-                if is_note(path) {
+            if entry.file_type().is_some_and(|t| t.is_file())
+                && is_note(path) {
                     all.push(path.to_path_buf());
                 }
-            }
         }
         all.sort();
 

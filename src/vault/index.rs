@@ -12,6 +12,9 @@ use super::tree::FileTree;
 #[allow(dead_code)]
 pub struct NoteMeta {
     pub title: String,
+    /// Raw link targets as written (note name or `folder/name`), pre-resolution.
+    /// Backlinks recompute from these so folder context isn't lost.
+    pub targets: Vec<String>,
     pub outgoing: Vec<PathBuf>,
     pub unresolved: Vec<String>,
     pub tags: Vec<String>,
@@ -82,11 +85,13 @@ impl NoteIndex {
 
         let title = first_heading_or_basename(content, path);
 
-        // Store metadata with empty outgoing for now.
+        // Store metadata with the raw targets; resolution happens below and in
+        // recompute_backlinks (which re-resolves from `targets`).
         self.notes.insert(
             path.to_path_buf(),
             NoteMeta {
                 title,
+                targets: link_targets.clone(),
                 outgoing: Vec::new(),
                 unresolved: Vec::new(),
                 tags: tags.clone(),
@@ -128,13 +133,10 @@ impl NoteIndex {
             if let Some(meta) = self.notes.get(src).cloned() {
                 let mut resolved: Vec<PathBuf> = Vec::new();
                 let mut unresolved: Vec<String> = Vec::new();
-                for target in meta
-                    .outgoing
-                    .iter()
-                    .map(|p| crate::vault::note_basename(p))
-                    .chain(meta.unresolved.iter().cloned())
-                {
-                    if let Some(p) = self.resolve_internal(&target) {
+                // Re-resolve from the raw targets so folder-qualified links keep
+                // their context (e.g. `Folder/B` won't collapse to a bare `B`).
+                for target in meta.targets.iter().cloned() {
+                    if let Some(p) = self.resolve(src, &target) {
                         // Skip self-links and duplicates (a note linked both as
                         // a wikilink and a markdown link counts once).
                         if &p != src && !resolved.contains(&p) {
@@ -288,7 +290,7 @@ impl NoteIndex {
     /// All note paths in the vault, sorted by recency (most recent first).
     pub fn recent_notes(&self) -> Vec<(PathBuf, &NoteMeta)> {
         let mut all: Vec<_> = self.notes.iter().map(|(p, m)| (p.clone(), m)).collect();
-        all.sort_by(|a, b| b.1.mtime.cmp(&a.1.mtime));
+        all.sort_by_key(|x| std::cmp::Reverse(x.1.mtime));
         all
     }
 
@@ -335,4 +337,40 @@ fn first_heading_or_basename(content: &str, path: &Path) -> String {
         }
     }
     crate::vault::note_basename(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::vault::tree::FileTree;
+    use std::fs;
+
+    fn write(p: &Path, s: &str) {
+        fs::create_dir_all(p.parent().unwrap()).unwrap();
+        fs::write(p, s).unwrap();
+    }
+
+    /// Finding #2: a folder-qualified link must resolve to the note in that
+    /// folder, not collapse to a same-named note elsewhere after recompute.
+    #[test]
+    fn folder_qualified_link_keeps_context() {
+        let root = std::env::temp_dir().join(format!("onyx-idx-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        write(&root.join("B.md"), "top-level B");
+        write(&root.join("Folder/B.md"), "nested B");
+        write(&root.join("A.md"), "see [Folder/B](Folder/B.md)\n");
+
+        let tree = FileTree::scan(&root);
+        let idx = NoteIndex::build(&root, &tree);
+
+        let a = root.join("A.md");
+        let meta = idx.notes.get(&a).expect("A indexed");
+        assert_eq!(
+            meta.outgoing,
+            vec![root.join("Folder/B.md")],
+            "link to Folder/B should resolve to the nested note, not top-level B.md"
+        );
+
+        let _ = fs::remove_dir_all(&root);
+    }
 }

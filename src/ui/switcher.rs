@@ -36,7 +36,7 @@ pub fn filtered(app: &App, query: &str) -> Vec<PathBuf> {
             scored.push((best, path));
         }
     }
-    scored.sort_by(|a, b| b.0.cmp(&a.0));
+    scored.sort_by_key(|x| std::cmp::Reverse(x.0));
     scored.into_iter().map(|(_, p)| p).take(200).collect()
 }
 

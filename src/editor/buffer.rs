@@ -4,6 +4,8 @@
 //! `Vec<String>` keeps mutations cheap to reason about and trivially serializable.
 //! Lines never contain `\n`.
 
+use std::fmt;
+
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
@@ -44,10 +46,6 @@ impl Buffer {
             cursor: Cursor::origin(),
             goal_col: 0,
         }
-    }
-
-    pub fn to_string(&self) -> String {
-        self.lines.join("\n")
     }
 
     pub fn line(&self, i: usize) -> &str {
@@ -327,6 +325,21 @@ impl Buffer {
         let removed = line[bs..].to_string();
         line.truncate(bs);
         removed
+    }
+}
+
+impl fmt::Display for Buffer {
+    /// Render the buffer back to a single string (lines joined by `\n`).
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut first = true;
+        for line in &self.lines {
+            if !first {
+                f.write_str("\n")?;
+            }
+            f.write_str(line)?;
+            first = false;
+        }
+        Ok(())
     }
 }
 

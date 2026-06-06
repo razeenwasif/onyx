@@ -287,11 +287,7 @@ impl<'t> Renderer<'t> {
             return;
         }
 
-        let effective_style = if self.heading_level.is_some() {
-            self.style
-        } else {
-            self.style
-        };
+        let effective_style = self.style;
 
         // Highlight wikilinks and tags inside text by simple substring scan
         // on the raw text fragment. (cmark emits link targets as plain text

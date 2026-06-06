@@ -1,6 +1,7 @@
 //! Left sidebar — the vault file tree.
 
 use ratatui::layout::Rect;
+use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem, ListState};
 use ratatui::Frame;
@@ -57,11 +58,12 @@ fn render_node<'a>(
     theme: &crate::theme::Theme,
 ) -> ListItem<'a> {
     let indent = "  ".repeat(node.depth.saturating_sub(1));
+    // Folders show an expand/collapse chevron; notes show a doc glyph.
     let icon = if node.is_dir {
         if app.expanded_dirs.contains(&node.path) {
-            ""
+            "▾"
         } else {
-            ""
+            "▸"
         }
     } else {
         "󰈙"
@@ -75,16 +77,18 @@ fn render_node<'a>(
     } else {
         name
     };
+    let is_current = !node.is_dir
+        && app
+            .doc
+            .as_ref()
+            .and_then(|d| d.path.as_ref())
+            .map(|p| p == &node.path)
+            .unwrap_or(false);
     let style = if node.is_dir {
         theme.s_accent()
-    } else if app
-        .doc
-        .as_ref()
-        .and_then(|d| d.path.as_ref())
-        .map(|p| p == &node.path)
-        .unwrap_or(false)
-    {
-        theme.s_accent()
+    } else if is_current {
+        // The open note is highlighted bold to set it apart from folders.
+        theme.s_accent().add_modifier(Modifier::BOLD)
     } else {
         theme.s_normal()
     };

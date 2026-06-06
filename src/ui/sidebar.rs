@@ -148,7 +148,7 @@ fn draw_outline(frame: &mut Frame, area: Rect, app: &App) {
             continue;
         }
         let hashes = trimmed.chars().take_while(|c| *c == '#').count();
-        if hashes >= 1 && hashes <= 6 && trimmed.chars().nth(hashes) == Some(' ') {
+        if (1..=6).contains(&hashes) && trimmed.chars().nth(hashes) == Some(' ') {
             let title = trimmed[hashes + 1..].trim();
             let indent = "  ".repeat(hashes.saturating_sub(1));
             items.push(ListItem::new(Line::from(vec![

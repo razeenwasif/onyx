@@ -69,7 +69,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
         let label = format!("{:>2}", d);
         row.push(Span::styled(label, style));
         row.push(Span::raw(" "));
-        if (lead + d as usize) % 7 == 0 {
+        if (lead + d as usize).is_multiple_of(7) {
             lines.push(Line::from(std::mem::take(&mut row)));
         }
     }

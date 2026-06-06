@@ -132,6 +132,7 @@ impl Config {
     /// Overridable for tests / throwaway sessions:
     /// - `ONYX_CONFIG`     — full path to a config file; its parent is the dir.
     /// - `ONYX_CONFIG_DIR` — a directory to hold `config.toml`.
+    ///
     /// Otherwise `$XDG_CONFIG_HOME/onyx` (or the platform equivalent).
     pub fn config_dir() -> PathBuf {
         if let Some(path) = std::env::var_os("ONYX_CONFIG") {
