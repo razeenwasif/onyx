@@ -33,6 +33,8 @@ pub struct GraphSim {
     /// The note the sim was built around (to detect when a rebuild is needed).
     pub built_for: Option<PathBuf>,
     pub global: bool,
+    /// Frames simulated since build (lets the passive pane settle then freeze).
+    pub steps: u32,
     rng: u64,
 }
 
@@ -54,6 +56,7 @@ impl GraphSim {
         center: usize,
         built_for: Option<PathBuf>,
         global: bool,
+        pin_center: bool,
     ) -> Self {
         let n = node_paths.len().max(1);
         let mut degree = vec![0u32; node_paths.len()];
@@ -65,14 +68,16 @@ impl GraphSim {
                 degree[b] += 1;
             }
         }
-        // Seed positions on a circle so the first frame is already spread out.
+        // Seed positions on a spiral so the first frame is already spread out
+        // (a plain circle makes large vaults start as a thin ring).
         let nodes = node_paths
             .into_iter()
             .enumerate()
             .map(|(i, path)| {
-                let pinned = i == center;
-                let angle = (i as f32) * std::f32::consts::TAU / n as f32;
-                let r = if pinned { 0.0 } else { 10.0 };
+                let pinned = pin_center && i == center;
+                let t = i as f32;
+                let angle = t * 2.399_963; // golden angle → even spiral
+                let r = if pinned { 0.0 } else { 1.5 * (t + 1.0).sqrt() };
                 SimNode {
                     x: angle.cos() * r,
                     y: angle.sin() * r,
@@ -84,12 +89,14 @@ impl GraphSim {
                 }
             })
             .collect();
+        let _ = n;
         Self {
             nodes,
             edges,
             center,
             built_for,
             global,
+            steps: 0,
             rng: 0x9E3779B97F4A7C15,
         }
     }
@@ -111,6 +118,7 @@ impl GraphSim {
         if n == 0 {
             return;
         }
+        self.steps = self.steps.saturating_add(1);
         let mut fx = vec![0f32; n];
         let mut fy = vec![0f32; n];
 

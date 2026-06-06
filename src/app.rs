@@ -273,7 +273,7 @@ impl App {
             help_open: false,
             graph_focus: None,
             graph_sim: None,
-            graph_global: false,
+            graph_global: true,
             calendar: CalendarState::today(),
             quicknote: QuicknoteState::new(quicknote_text),
             todos,
@@ -557,15 +557,25 @@ impl App {
             return;
         }
         let center = self.graph_center_path();
+        // Rebuild on scope change; in *local* mode also when the center note
+        // changes. The global "earth" is kept stable across note switches.
         let stale = match &self.graph_sim {
             None => true,
-            Some(sim) => sim.global != self.graph_global || sim.built_for != center,
+            Some(sim) => {
+                sim.global != self.graph_global || (!self.graph_global && sim.built_for != center)
+            }
         };
         if stale {
             self.graph_sim = Some(self.build_graph_sim(center));
         }
+        // Animate continuously while focused/fullscreen; the passive sidebar
+        // pane settles over a few hundred frames then freezes (no idle CPU).
+        const SETTLE_MAX: u32 = 400;
+        let animating = self.graph_animating();
         if let Some(sim) = self.graph_sim.as_mut() {
-            sim.step();
+            if animating || sim.steps < SETTLE_MAX {
+                sim.step();
+            }
         }
     }
 
@@ -582,7 +592,11 @@ impl App {
     }
 
     fn build_graph_sim(&self, center: Option<PathBuf>) -> GraphSim {
-        const MAX_NODES: usize = 160;
+        // Local graphs stay small for readability; the global "earth" shows the
+        // whole vault (bounded only to keep the O(n²) sim snappy on huge vaults).
+        let local_cap = 160usize;
+        let global_cap = 1500usize;
+        let max_nodes = if self.graph_global { global_cap } else { local_cap };
         let mut paths: Vec<PathBuf> = Vec::new();
         let mut seen: HashSet<PathBuf> = HashSet::new();
 
@@ -594,7 +608,8 @@ impl App {
         }
 
         if self.graph_global {
-            // Whole vault, most-connected first, capped for legibility/perf.
+            // Whole vault. Sort by degree so that, if we ever hit the cap, the
+            // most-connected notes are kept.
             let mut ranked: Vec<(usize, PathBuf)> = self
                 .vault
                 .index
@@ -609,7 +624,7 @@ impl App {
                 .collect();
             ranked.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
             for (_, p) in ranked {
-                if paths.len() >= MAX_NODES {
+                if paths.len() >= max_nodes {
                     break;
                 }
                 if seen.insert(p.clone()) {
@@ -624,7 +639,7 @@ impl App {
                 let mut next = Vec::new();
                 for n in &frontier {
                     for nb in self.note_neighbors(n, cap) {
-                        if paths.len() >= MAX_NODES {
+                        if paths.len() >= max_nodes {
                             break;
                         }
                         if seen.insert(nb.clone()) {
@@ -634,7 +649,7 @@ impl App {
                     }
                 }
                 frontier = next;
-                if paths.len() >= MAX_NODES {
+                if paths.len() >= max_nodes {
                     break;
                 }
             }
@@ -676,7 +691,9 @@ impl App {
             .as_ref()
             .and_then(|c| idx_of.get(c).copied())
             .unwrap_or(0);
-        GraphSim::new(paths, edges, center_idx, center, self.graph_global)
+        // Pin the centered note only in local mode; the global earth floats free.
+        let pin_center = !self.graph_global;
+        GraphSim::new(paths, edges, center_idx, center, self.graph_global, pin_center)
     }
 
     pub fn focus_quicknote(&mut self) {
