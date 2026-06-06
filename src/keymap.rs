@@ -55,6 +55,7 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: "t",           action: "Jump to today",            group: "Calendar" },
 
     KeyHelp { keys: "Enter",       action: "Fullscreen graph",         group: "Graph" },
+    KeyHelp { keys: "a",           action: "Toggle local / all-notes scope", group: "Graph" },
     KeyHelp { keys: "o",           action: "Open centered note",       group: "Graph" },
     KeyHelp { keys: "Esc",         action: "Exit fullscreen / pane",   group: "Graph" },
 

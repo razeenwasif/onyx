@@ -6,6 +6,7 @@ mod dispatch;
 mod editor;
 mod error;
 mod external;
+mod graph_sim;
 mod keymap;
 mod markdown;
 mod theme;
@@ -165,9 +166,14 @@ fn event_loop(
     app: &mut App,
 ) -> anyhow::Result<()> {
     let tick = Duration::from_millis(150);
+    // Frame interval while the graph is animating (≈14 fps).
+    let anim_frame = Duration::from_millis(70);
     let mut last_tick = Instant::now();
 
     loop {
+        // Advance the force-directed graph one frame when it's on screen.
+        app.tick_graph();
+
         term.draw(|f| ui::draw(f, app))?;
         if app.should_quit {
             // Flush side-pane state on the way out.
@@ -176,7 +182,9 @@ fn event_loop(
             return Ok(());
         }
 
-        let timeout = tick.saturating_sub(last_tick.elapsed());
+        // Poll for one frame interval (shorter while actively viewing the
+        // graph so it moves smoothly). The save tick keeps its 150ms cadence.
+        let timeout = if app.graph_animating() { anim_frame } else { tick };
         if crossterm::event::poll(timeout)? {
             match crossterm::event::read()? {
                 Event::Key(key) if key.kind != KeyEventKind::Release => {

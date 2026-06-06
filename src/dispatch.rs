@@ -1178,6 +1178,8 @@ fn graph_keys(app: &mut App, key: KeyEvent) {
     match key.code {
         // Enter (un)fullscreens the graph pane.
         KeyCode::Enter => app.toggle_fullscreen(),
+        // `a` toggles local ↔ whole-vault scope.
+        KeyCode::Char('a') => app.toggle_graph_scope(),
         // `o` opens the centered note.
         KeyCode::Char('o') => {
             if let Some(p) = app.graph_focus.clone() {

@@ -5,8 +5,7 @@
 //! note (or the most-linked note if none is open). Edges are drawn with
 //! line-character approximations.
 
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
@@ -51,96 +50,62 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App, focused: bool) {
         return;
     }
 
-    // Pick the center node.
-    let center_path: Option<PathBuf> = app
-        .graph_focus
-        .clone()
-        .or_else(|| app.doc.as_ref().and_then(|d| d.path.clone()))
-        .or_else(|| most_connected(app));
-
-    let Some(center_path) = center_path else {
-        let p = Paragraph::new("Graph: no notes yet.").style(theme.s_subtle());
+    // The force-directed simulation (built/stepped by App::tick_graph).
+    let Some(sim) = app.graph_sim.as_ref() else {
+        let p = Paragraph::new("Graph: building…").style(theme.s_subtle());
         frame.render_widget(p, inner);
         return;
     };
-
-    // BFS up to 2 hops from center. Edges are links (out + back) and, since many
-    // vaults connect notes by tags rather than links, notes that share a tag.
-    let mut layers: Vec<Vec<PathBuf>> = vec![vec![center_path.clone()]];
-    let mut seen: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
-    seen.insert(center_path.clone());
-    // Fewer tag-neighbours on the inner ring keeps the hairball legible.
-    let tag_cap = [10usize, 4];
-    for hop in 0..2 {
-        let mut next = Vec::new();
-        for n in &layers[hop] {
-            for neighbor in neighbors(app, n, tag_cap[hop]) {
-                if seen.insert(neighbor.clone()) {
-                    next.push(neighbor);
-                }
-            }
-        }
-        if next.is_empty() {
-            break;
-        }
-        // Cap each ring for legibility.
-        next.truncate(16);
-        layers.push(next);
+    if sim.nodes.is_empty() {
+        let p = Paragraph::new("Graph: no notes yet.").style(theme.s_subtle());
+        frame.render_widget(p, inner);
+        return;
     }
 
-    // Layout: layer 0 at center, layer 1 ring at r1, layer 2 ring at r2.
+    // Map simulation coordinates → cell grid. The centered node sits at the
+    // origin and is placed at the grid center; everything scales to fit, with a
+    // 2× horizontal factor so dots look round in the ~2:1 terminal cell aspect.
     let cx = width / 2;
     let cy = height / 2;
-    let r1 = (height.min(width) / 4).max(3);
-    let r2 = (height.min(width) / 2 - 2).max(r1 + 2);
+    let aspect = 2.0f32;
+    let maxr = sim.max_radius();
+    let scale_x = (width as f32 / 2.0 - 1.0) / (maxr * aspect).max(1.0);
+    let scale_y = (height as f32 / 2.0 - 1.0) / maxr.max(1.0);
+    let scale = scale_x.min(scale_y).max(0.01);
+    let to_cell = |x: f32, y: f32| -> (i32, i32) {
+        let col = cx + (x * aspect * scale).round() as i32;
+        let row = cy + (y * scale).round() as i32;
+        (col.clamp(0, width - 1), row.clamp(0, height - 1))
+    };
 
-    let mut positions: HashMap<PathBuf, (i32, i32)> = HashMap::new();
-    positions.insert(center_path.clone(), (cx, cy));
-
-    for (li, layer) in layers.iter().enumerate().skip(1) {
-        let n = layer.len() as i32;
-        let radius = if li == 1 { r1 } else { r2 };
-        for (i, p) in layer.iter().enumerate() {
-            let angle = (i as f32) * std::f32::consts::TAU / n.max(1) as f32;
-            let x = cx + (angle.cos() * radius as f32 * 2.0) as i32; // x*2 to compensate cell aspect
-            let y = cy + (angle.sin() * radius as f32) as i32;
-            positions.insert(p.clone(), (x.clamp(1, width - 2), y.clamp(1, height - 1)));
-        }
-    }
-
-    // Build a character grid + style overlay.
     let mut grid: Vec<Vec<char>> = vec![vec![' '; width as usize]; height as usize];
     let mut styles: Vec<Vec<Option<Style>>> = vec![vec![None; width as usize]; height as usize];
 
-    // Draw edges between layer 0↔1 and 1↔2. Link edges use the subtle colour;
-    // tag-only edges use a dim tag colour so the two are distinguishable.
+    // Edges first (so dots paint over them). Link edges subtle, tag edges tinted.
     let tag_edge_style = Style::default().fg(theme.tag.to_color());
-    for li in 0..layers.len().saturating_sub(1) {
-        for a in &layers[li] {
-            for b in &layers[li + 1] {
-                let kind = edge_kind(app, a, b);
-                let style = match kind {
-                    EdgeKind::None => continue,
-                    EdgeKind::Link => theme.s_subtle(),
-                    EdgeKind::Tag => tag_edge_style,
-                };
-                if let (Some(&pa), Some(&pb)) = (positions.get(a), positions.get(b)) {
-                    draw_line(&mut grid, &mut styles, pa, pb, style);
-                }
-            }
-        }
+    for &(a, b, kind) in &sim.edges {
+        let (Some(na), Some(nb)) = (sim.nodes.get(a), sim.nodes.get(b)) else {
+            continue;
+        };
+        let style = match kind {
+            crate::graph_sim::EdgeKind::Link => theme.s_subtle(),
+            crate::graph_sim::EdgeKind::Tag => tag_edge_style,
+        };
+        draw_line(
+            &mut grid,
+            &mut styles,
+            to_cell(na.x, na.y),
+            to_cell(nb.x, nb.y),
+            style,
+        );
     }
 
-    // Draw nodes as colored dots (Obsidian-style — no labels). Each node's
-    // colour comes from its subject (see `node_color`). The centered note is
-    // drawn larger/brighter so it stands out.
-    for (path, &(x, y)) in &positions {
-        if y < 0 || y >= height || x < 0 || x >= width {
-            continue;
-        }
-        let is_center = path == &center_path;
-        let color = node_color(app, path);
-        let (glyph, style) = if is_center {
+    // Nodes as colored dots — no labels (Obsidian-style). Higher-degree nodes
+    // use a bolder glyph; the centered note is reversed so it pops.
+    for (i, nd) in sim.nodes.iter().enumerate() {
+        let (x, y) = to_cell(nd.x, nd.y);
+        let color = node_color(app, &nd.path);
+        let (glyph, style) = if i == sim.center {
             (
                 '◉',
                 Style::default()
@@ -148,7 +113,8 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App, focused: bool) {
                     .add_modifier(Modifier::BOLD | Modifier::REVERSED),
             )
         } else {
-            ('●', Style::default().fg(color).add_modifier(Modifier::BOLD))
+            let glyph = if nd.degree >= 5 { '⬤' } else { '●' };
+            (glyph, Style::default().fg(color).add_modifier(Modifier::BOLD))
         };
         grid[y as usize][x as usize] = glyph;
         styles[y as usize][x as usize] = Some(style);
@@ -174,15 +140,20 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App, focused: bool) {
         lines.push(Line::from(spans));
     }
 
-    // Header line with title (the centered note + a hint).
+    // Header line: scope + centered note + count + hints.
+    let center_node = &sim.nodes[sim.center];
+    let scope = if sim.global { "all notes" } else { "local" };
     let header = Line::from(vec![
-        Span::styled("◉ ", Style::default().fg(node_color(app, &center_path))),
+        Span::styled("◉ ", Style::default().fg(node_color(app, &center_node.path))),
         Span::styled(
-            vault::note_basename(&center_path),
+            vault::note_basename(&center_node.path),
             theme.s_accent().add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            format!("   {} nodes   (Enter: fullscreen · o: open · Esc: back)", positions.len()),
+            format!(
+                "   {} nodes · {scope}   (a: scope · Enter: fullscreen · o: open · Esc: back)",
+                sim.nodes.len()
+            ),
             theme.s_subtle(),
         ),
     ]);
@@ -195,19 +166,6 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App, focused: bool) {
     }
     let p = Paragraph::new(all).style(theme.s_normal());
     frame.render_widget(p, inner);
-}
-
-fn most_connected(app: &App) -> Option<PathBuf> {
-    let mut best: Option<(usize, PathBuf)> = None;
-    for (p, m) in &app.vault.index.notes {
-        let deg = m.outgoing.len() + app.vault.index.backlinks_for(p).len();
-        match &best {
-            None => best = Some((deg, p.clone())),
-            Some((d, _)) if deg > *d => best = Some((deg, p.clone())),
-            _ => {}
-        }
-    }
-    best.map(|(_, p)| p)
 }
 
 /// Colour a node by its subject, matching its tags + folder path against the
@@ -263,55 +221,6 @@ fn legend_lines(theme: &crate::theme::Theme) -> Vec<Line<'static>> {
         rows.push(Line::from(spans));
     }
     rows
-}
-
-#[derive(Clone, Copy, PartialEq)]
-enum EdgeKind {
-    None,
-    Link,
-    Tag,
-}
-
-/// Classify the edge between two notes: a real link beats a shared-tag edge.
-fn edge_kind(app: &App, a: &PathBuf, b: &PathBuf) -> EdgeKind {
-    let idx = &app.vault.index;
-    let linked = idx.notes.get(a).map(|m| m.outgoing.contains(b)).unwrap_or(false)
-        || idx.notes.get(b).map(|m| m.outgoing.contains(a)).unwrap_or(false);
-    if linked {
-        EdgeKind::Link
-    } else if idx.shares_tag(a, b) {
-        EdgeKind::Tag
-    } else {
-        EdgeKind::None
-    }
-}
-
-/// Neighbours of a note for graph expansion: linked notes (out + back) first,
-/// then up to `tag_cap` notes that share a tag. De-duplicated, link-priority.
-fn neighbors(app: &App, path: &PathBuf, tag_cap: usize) -> Vec<PathBuf> {
-    let idx = &app.vault.index;
-    let mut out: Vec<PathBuf> = Vec::new();
-    let mut seen: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
-    seen.insert(path.clone());
-
-    if let Some(meta) = idx.notes.get(path) {
-        for p in &meta.outgoing {
-            if seen.insert(p.clone()) {
-                out.push(p.clone());
-            }
-        }
-    }
-    for p in idx.backlinks_for(path) {
-        if seen.insert(p.clone()) {
-            out.push(p);
-        }
-    }
-    for p in idx.shared_tag_notes(path, tag_cap) {
-        if seen.insert(p.clone()) {
-            out.push(p);
-        }
-    }
-    out
 }
 
 fn draw_line(

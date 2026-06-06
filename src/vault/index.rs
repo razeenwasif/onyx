@@ -217,14 +217,6 @@ impl NoteIndex {
             .unwrap_or_default()
     }
 
-    /// True if two notes share at least one tag.
-    pub fn shares_tag(&self, a: &Path, b: &Path) -> bool {
-        match (self.notes.get(a), self.notes.get(b)) {
-            (Some(ma), Some(mb)) => ma.tags.iter().any(|t| mb.tags.contains(t)),
-            _ => false,
-        }
-    }
-
     /// Notes that share at least one tag with `path` (excluding itself),
     /// ordered by how many tags they share (most first), capped at `limit`.
     pub fn shared_tag_notes(&self, path: &Path, limit: usize) -> Vec<PathBuf> {

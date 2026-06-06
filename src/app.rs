@@ -1,6 +1,6 @@
 //! Top-level application state and event dispatch.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use chrono::{Datelike, Local, NaiveDate};
@@ -9,6 +9,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::config::Config;
 use crate::editor::{Buffer, Document, Mode};
 use crate::error::Result;
+use crate::graph_sim::{EdgeKind, GraphSim};
 use crate::theme::Theme;
 use crate::todo::TodoList;
 use crate::vault::{self, Vault};
@@ -214,6 +215,10 @@ pub struct App {
     pub cmdline: CmdlineState,
     pub help_open: bool,
     pub graph_focus: Option<PathBuf>,
+    /// Force-directed simulation backing the graph view (built lazily).
+    pub graph_sim: Option<GraphSim>,
+    /// Whether the graph shows the whole vault (true) or a local neighborhood.
+    pub graph_global: bool,
     pub calendar: CalendarState,
 
     // Left-column side panes.
@@ -267,6 +272,8 @@ impl App {
             cmdline: CmdlineState::default(),
             help_open: false,
             graph_focus: None,
+            graph_sim: None,
+            graph_global: false,
             calendar: CalendarState::today(),
             quicknote: QuicknoteState::new(quicknote_text),
             todos,
@@ -346,6 +353,10 @@ impl App {
         self.focus = Focus::Editor;
         self.set_status(format!("Opened {}", vault::note_relpath(&self.vault.root, &path)));
         self.graph_focus = Some(path);
+        // Re-center the (local) graph on the newly-opened note.
+        if !self.graph_global {
+            self.graph_sim = None;
+        }
         self.sidebar_selected = 0;
         Ok(())
     }
@@ -499,6 +510,173 @@ impl App {
         if self.graph_focus.is_none() {
             self.graph_focus = self.doc.as_ref().and_then(|d| d.path.clone());
         }
+    }
+
+    pub fn toggle_graph_scope(&mut self) {
+        self.graph_global = !self.graph_global;
+        self.graph_sim = None; // rebuild with the new scope
+    }
+
+    /// True when a graph is currently on screen (pane or fullscreen).
+    pub fn graph_visible(&self) -> bool {
+        if self.fullscreen == Some(FullPane::Graph) {
+            return true;
+        }
+        self.fullscreen.is_none() && self.show_right && self.show_graph_pane
+    }
+
+    /// True when the graph should animate at the faster frame rate — i.e. the
+    /// user is actively looking at it (focused or fullscreen). The passive
+    /// sidebar pane still drifts, but only at the app's idle redraw cadence.
+    pub fn graph_animating(&self) -> bool {
+        self.fullscreen == Some(FullPane::Graph) || self.focus == Focus::Graph
+    }
+
+    /// The note the graph is centered on.
+    pub fn graph_center_path(&self) -> Option<PathBuf> {
+        self.graph_focus
+            .clone()
+            .or_else(|| self.doc.as_ref().and_then(|d| d.path.clone()))
+            .or_else(|| self.most_connected_note())
+    }
+
+    fn most_connected_note(&self) -> Option<PathBuf> {
+        let mut best: Option<(usize, PathBuf)> = None;
+        for (p, m) in &self.vault.index.notes {
+            let deg = m.outgoing.len() + self.vault.index.backlinks_for(p).len();
+            if best.as_ref().map(|(d, _)| deg > *d).unwrap_or(true) {
+                best = Some((deg, p.clone()));
+            }
+        }
+        best.map(|(_, p)| p)
+    }
+
+    /// Step the graph simulation one frame, building/rebuilding it as needed.
+    pub fn tick_graph(&mut self) {
+        if !self.graph_visible() {
+            return;
+        }
+        let center = self.graph_center_path();
+        let stale = match &self.graph_sim {
+            None => true,
+            Some(sim) => sim.global != self.graph_global || sim.built_for != center,
+        };
+        if stale {
+            self.graph_sim = Some(self.build_graph_sim(center));
+        }
+        if let Some(sim) = self.graph_sim.as_mut() {
+            sim.step();
+        }
+    }
+
+    /// Link + capped tag neighbors of a note (for graph expansion).
+    fn note_neighbors(&self, p: &Path, tag_cap: usize) -> Vec<PathBuf> {
+        let idx = &self.vault.index;
+        let mut out: Vec<PathBuf> = Vec::new();
+        if let Some(m) = idx.notes.get(p) {
+            out.extend(m.outgoing.iter().cloned());
+        }
+        out.extend(idx.backlinks_for(p));
+        out.extend(idx.shared_tag_notes(p, tag_cap));
+        out
+    }
+
+    fn build_graph_sim(&self, center: Option<PathBuf>) -> GraphSim {
+        const MAX_NODES: usize = 160;
+        let mut paths: Vec<PathBuf> = Vec::new();
+        let mut seen: HashSet<PathBuf> = HashSet::new();
+
+        if let Some(c) = &center {
+            if self.vault.index.notes.contains_key(c) {
+                paths.push(c.clone());
+                seen.insert(c.clone());
+            }
+        }
+
+        if self.graph_global {
+            // Whole vault, most-connected first, capped for legibility/perf.
+            let mut ranked: Vec<(usize, PathBuf)> = self
+                .vault
+                .index
+                .notes
+                .iter()
+                .map(|(p, m)| {
+                    (
+                        m.outgoing.len() + self.vault.index.backlinks_for(p).len() + m.tags.len(),
+                        p.clone(),
+                    )
+                })
+                .collect();
+            ranked.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+            for (_, p) in ranked {
+                if paths.len() >= MAX_NODES {
+                    break;
+                }
+                if seen.insert(p.clone()) {
+                    paths.push(p);
+                }
+            }
+        } else if center.is_some() {
+            // Local: BFS two hops with generous neighbor caps.
+            let mut frontier = vec![paths[0].clone()];
+            for hop in 0..2 {
+                let cap = if hop == 0 { 20 } else { 6 };
+                let mut next = Vec::new();
+                for n in &frontier {
+                    for nb in self.note_neighbors(n, cap) {
+                        if paths.len() >= MAX_NODES {
+                            break;
+                        }
+                        if seen.insert(nb.clone()) {
+                            paths.push(nb.clone());
+                            next.push(nb);
+                        }
+                    }
+                }
+                frontier = next;
+                if paths.len() >= MAX_NODES {
+                    break;
+                }
+            }
+        }
+
+        // Index map for edge building.
+        let idx_of: HashMap<&PathBuf, usize> =
+            paths.iter().enumerate().map(|(i, p)| (p, i)).collect();
+        let mut edge_set: HashSet<(usize, usize)> = HashSet::new();
+        let mut edges: Vec<(usize, usize, EdgeKind)> = Vec::new();
+
+        // Link edges.
+        for (i, p) in paths.iter().enumerate() {
+            if let Some(m) = self.vault.index.notes.get(p) {
+                for dst in &m.outgoing {
+                    if let Some(&j) = idx_of.get(dst) {
+                        let key = if i < j { (i, j) } else { (j, i) };
+                        if i != j && edge_set.insert(key) {
+                            edges.push((key.0, key.1, EdgeKind::Link));
+                        }
+                    }
+                }
+            }
+        }
+        // Tag edges, capped per node to avoid a hairball.
+        let tag_cap = if self.graph_global { 3 } else { 6 };
+        for (i, p) in paths.iter().enumerate() {
+            for nb in self.vault.index.shared_tag_notes(p, tag_cap) {
+                if let Some(&j) = idx_of.get(&nb) {
+                    let key = if i < j { (i, j) } else { (j, i) };
+                    if i != j && !edge_set.contains(&key) && edge_set.insert(key) {
+                        edges.push((key.0, key.1, EdgeKind::Tag));
+                    }
+                }
+            }
+        }
+
+        let center_idx = center
+            .as_ref()
+            .and_then(|c| idx_of.get(c).copied())
+            .unwrap_or(0);
+        GraphSim::new(paths, edges, center_idx, center, self.graph_global)
     }
 
     pub fn focus_quicknote(&mut self) {
