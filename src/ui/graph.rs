@@ -6,10 +6,10 @@
 //! line-character approximations.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
@@ -17,14 +17,33 @@ use ratatui::Frame;
 use crate::app::App;
 use crate::vault;
 
+/// Subject → colour, from the vault's GRAPH_COLORS_SETUP scheme. Used for the
+/// node dots and the legend.
+const SUBJECTS: &[(&str, (u8, u8, u8))] = &[
+    ("Physics", (0x2E, 0x86, 0xDE)),
+    ("Math", (0x52, 0xC4, 0x1A)),
+    ("ML", (0xFF, 0x95, 0x00)),
+    ("Data Sci", (0x13, 0xC2, 0xC2)),
+    ("SWE", (0x72, 0x2E, 0xD1)),
+    ("Systems", (0x00, 0x3D, 0xA5)),
+    ("Infra", (0xFF, 0x4D, 0x4F)),
+    ("Interview", (0xFF, 0x85, 0xC0)),
+    ("Lang", (0x5B, 0x21, 0xB6)),
+    ("Projects", (0xFA, 0xAD, 0x14)),
+    ("Resources", (0x20, 0xB2, 0xAA)),
+];
+
 pub fn draw(frame: &mut Frame, area: Rect, app: &App, focused: bool) {
     let theme = &app.theme;
     let block = super::pane_block("Graph", focused, theme);
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
+    // Reserve one row for the header, plus a 2-row colour legend when the pane
+    // is large enough (i.e. fullscreen).
+    let legend_rows: i32 = if inner.height >= 20 && inner.width >= 60 { 2 } else { 0 };
     let width = inner.width as i32;
-    let height = inner.height as i32;
+    let height = inner.height as i32 - 1 - legend_rows;
     if width < 16 || height < 6 {
         let p = Paragraph::new("Graph: pane too small.\nEnter = fullscreen.")
             .style(theme.s_subtle());
@@ -112,39 +131,27 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App, focused: bool) {
         }
     }
 
-    // Draw nodes.
+    // Draw nodes as colored dots (Obsidian-style — no labels). Each node's
+    // colour comes from its subject (see `node_color`). The centered note is
+    // drawn larger/brighter so it stands out.
     for (path, &(x, y)) in &positions {
         if y < 0 || y >= height || x < 0 || x >= width {
             continue;
         }
-        let label = vault::note_basename(path);
-        let label = if label.len() > 14 {
-            format!("{}…", &label[..14])
-        } else {
-            label
-        };
         let is_center = path == &center_path;
-        let style = if is_center {
-            Style::default()
-                .fg(theme.bg.to_color())
-                .bg(theme.accent.to_color())
-                .add_modifier(Modifier::BOLD)
+        let color = node_color(app, path);
+        let (glyph, style) = if is_center {
+            (
+                '◉',
+                Style::default()
+                    .fg(color)
+                    .add_modifier(Modifier::BOLD | Modifier::REVERSED),
+            )
         } else {
-            Style::default()
-                .fg(theme.fg.to_color())
-                .bg(theme.bg_alt.to_color())
+            ('●', Style::default().fg(color).add_modifier(Modifier::BOLD))
         };
-        let label_x = (x - (label.len() as i32) / 2).max(0).min(width - label.len() as i32 - 1);
-        for (i, ch) in label.chars().enumerate() {
-            let xi = (label_x + i as i32) as usize;
-            if y as usize >= height as usize {
-                break;
-            }
-            if xi < width as usize {
-                grid[y as usize][xi] = ch;
-                styles[y as usize][xi] = Some(style);
-            }
-        }
+        grid[y as usize][x as usize] = glyph;
+        styles[y as usize][x as usize] = Some(style);
     }
 
     // Render to lines.
@@ -167,9 +174,9 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App, focused: bool) {
         lines.push(Line::from(spans));
     }
 
-    // Header line with title.
+    // Header line with title (the centered note + a hint).
     let header = Line::from(vec![
-        Span::styled("◆ ", theme.s_accent()),
+        Span::styled("◉ ", Style::default().fg(node_color(app, &center_path))),
         Span::styled(
             vault::note_basename(&center_path),
             theme.s_accent().add_modifier(Modifier::BOLD),
@@ -180,9 +187,12 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App, focused: bool) {
         ),
     ]);
 
-    let mut all = Vec::with_capacity(lines.len() + 1);
+    let mut all = Vec::with_capacity(lines.len() + 1 + legend_rows as usize);
     all.push(header);
     all.extend(lines);
+    if legend_rows > 0 {
+        all.extend(legend_lines(theme));
+    }
     let p = Paragraph::new(all).style(theme.s_normal());
     frame.render_widget(p, inner);
 }
@@ -198,6 +208,61 @@ fn most_connected(app: &App) -> Option<PathBuf> {
         }
     }
     best.map(|(_, p)| p)
+}
+
+/// Colour a node by its subject, matching its tags + folder path against the
+/// GRAPH_COLORS_SETUP scheme. First matching rule wins (most specific first).
+fn node_color(app: &App, path: &Path) -> Color {
+    // Haystack: relative path (folders) + the note's tags, all lowercased.
+    let mut hay = vault::note_relpath(&app.vault.root, path).to_lowercase();
+    if let Some(meta) = app.vault.index.notes.get(path) {
+        for t in &meta.tags {
+            hay.push(' ');
+            hay.push_str(&t.to_lowercase());
+        }
+    }
+
+    // (keywords, rgb). Cross-cutting thematic accents first, then subjects.
+    type ColorRule = (&'static [&'static str], (u8, u8, u8));
+    const RULES: &[ColorRule] = &[
+        (&["gravitational"], (0x00, 0x3D, 0xA5)),
+        (&["neural"], (0xFF, 0x95, 0x00)),
+        (&["probabilistic"], (0x2E, 0x86, 0xDE)),
+        (&["cryptograph", "crypto"], (0xFF, 0x4D, 0x4F)),
+        (&["optimization", "optimisation"], (0xFA, 0xAD, 0x14)),
+        (&["algorithm"], (0xFF, 0x85, 0xC0)),
+        (&["machine learning", "ml/", "quantization"], (0xFF, 0x95, 0x00)),
+        (&["data science", "data-science"], (0x13, 0xC2, 0xC2)),
+        (&["physics"], (0x2E, 0x86, 0xDE)),
+        (&["mathematic", "math"], (0x52, 0xC4, 0x1A)),
+        (&["software engineering", "software-engineering"], (0x72, 0x2E, 0xD1)),
+        (&["systems & architecture", "architecture", "systems"], (0x00, 0x3D, 0xA5)),
+        (&["computer networks", "network", "infrastructure"], (0xFF, 0x4D, 0x4F)),
+        (&["interview"], (0xFF, 0x85, 0xC0)),
+        (&["markup", "programming language", "languages"], (0x5B, 0x21, 0xB6)),
+        (&["project", "tinyml", "birdclef", "plantclef", "prism"], (0xFA, 0xAD, 0x14)),
+        (&["resource"], (0x20, 0xB2, 0xAA)),
+    ];
+    for (keys, (r, g, b)) in RULES {
+        if keys.iter().any(|k| hay.contains(k)) {
+            return Color::Rgb(*r, *g, *b);
+        }
+    }
+    app.theme.fg_subtle.to_color()
+}
+
+/// Two compact legend rows mapping dot colours to subjects.
+fn legend_lines(theme: &crate::theme::Theme) -> Vec<Line<'static>> {
+    let mut rows: Vec<Line<'static>> = Vec::new();
+    for chunk in SUBJECTS.chunks(6) {
+        let mut spans: Vec<Span<'static>> = Vec::new();
+        for (name, (r, g, b)) in chunk {
+            spans.push(Span::styled("● ", Style::default().fg(Color::Rgb(*r, *g, *b))));
+            spans.push(Span::styled(format!("{name}   "), theme.s_subtle()));
+        }
+        rows.push(Line::from(spans));
+    }
+    rows
 }
 
 #[derive(Clone, Copy, PartialEq)]
