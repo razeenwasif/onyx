@@ -1,0 +1,35 @@
+[package]
+name = "onyx"
+version = "0.1.0"
+edition = "2021"
+authors = ["Onyx contributors"]
+description = "A modern, premium markdown notes TUI — an Obsidian-inspired terminal vault."
+license = "MIT"
+default-run = "onyx"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = { version = "0.28", features = ["event-stream"] }
+pulldown-cmark = { version = "0.12", default-features = false }
+walkdir = "2.5"
+ignore = "0.4"
+regex = "1.11"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+notify = "6.1"
+anyhow = "1"
+thiserror = "1"
+dirs = "5"
+unicode-width = "0.2"
+unicode-segmentation = "1.12"
+fuzzy-matcher = "0.3"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 1

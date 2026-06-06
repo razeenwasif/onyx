@@ -1,0 +1,163 @@
+//! Vault — the root folder of markdown notes, plus the in-memory index.
+
+pub mod index;
+pub mod tree;
+pub mod watcher;
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use crate::error::{OnyxError, Result};
+
+#[allow(unused_imports)]
+pub use index::{NoteIndex, NoteMeta};
+pub use tree::FileTree;
+
+/// Owns the on-disk root, the file tree, and the link/tag index.
+#[derive(Debug)]
+pub struct Vault {
+    pub root: PathBuf,
+    pub tree: FileTree,
+    pub index: NoteIndex,
+}
+
+impl Vault {
+    pub fn open(root: impl Into<PathBuf>) -> Result<Self> {
+        let root = root.into();
+        let root = root.canonicalize().unwrap_or(root);
+        if !root.exists() {
+            return Err(OnyxError::VaultNotFound(root));
+        }
+        let tree = FileTree::scan(&root);
+        let index = NoteIndex::build(&root, &tree);
+        Ok(Self { root, tree, index })
+    }
+
+    pub fn create(root: impl Into<PathBuf>) -> Result<Self> {
+        let root = root.into();
+        fs::create_dir_all(&root)?;
+        let welcome = root.join("Welcome.md");
+        if !welcome.exists() {
+            fs::write(
+                &welcome,
+                "# Welcome to your Onyx vault\n\n\
+                This is a fresh markdown vault. A few things to try:\n\n\
+                - Press `Ctrl-N` to make a new note.\n\
+                - Type a [[Wikilink]] to connect notes.\n\
+                - Add `#tags` to organize them.\n\
+                - Press `Ctrl-P` for the command palette, `Ctrl-O` for quick switcher.\n\
+                - Toggle the preview with `Ctrl-E` and graph view with `Ctrl-G`.\n\n\
+                Happy writing!\n",
+            )?;
+        }
+        Self::open(root)
+    }
+
+    pub fn refresh(&mut self) {
+        self.tree = FileTree::scan(&self.root);
+        self.index = NoteIndex::build(&self.root, &self.tree);
+    }
+
+    /// Hidden per-vault data directory (`.onyx/`). The file-tree scanner skips
+    /// hidden dirs, so these files never appear as notes or in the graph.
+    pub fn data_dir(&self) -> PathBuf {
+        self.root.join(".onyx")
+    }
+
+    pub fn quicknote_path(&self) -> PathBuf {
+        self.data_dir().join("quicknote.md")
+    }
+
+    pub fn todos_path(&self) -> PathBuf {
+        self.data_dir().join("todos.md")
+    }
+
+    pub fn read_note(&self, path: &Path) -> Result<String> {
+        Ok(fs::read_to_string(path)?)
+    }
+
+    pub fn write_note(&mut self, path: &Path, content: &str) -> Result<()> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(path, content)?;
+        // Re-index just this note.
+        self.index.update_note(&self.root, path, content);
+        // Make sure file tree contains it.
+        if !self.tree.contains(path) {
+            self.tree = FileTree::scan(&self.root);
+        }
+        Ok(())
+    }
+
+    pub fn delete_note(&mut self, path: &Path) -> Result<()> {
+        if path.exists() {
+            fs::remove_file(path)?;
+        }
+        self.tree = FileTree::scan(&self.root);
+        self.index.remove_note(path);
+        Ok(())
+    }
+
+    pub fn rename_note(&mut self, from: &Path, to: &Path) -> Result<()> {
+        if let Some(parent) = to.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::rename(from, to)?;
+        self.refresh();
+        Ok(())
+    }
+
+    /// Resolve a wikilink target (case-insensitive, optionally `folder/name`)
+    /// to a concrete path on disk inside this vault. None if no match.
+    pub fn resolve_link(&self, target: &str) -> Option<PathBuf> {
+        self.index.resolve(&self.root, target)
+    }
+
+    /// Path for a new note with the given title (in vault root).
+    pub fn path_for_new_note(&self, title: &str) -> PathBuf {
+        let safe = sanitize_title(title);
+        let base = self.root.join(format!("{safe}.md"));
+        if !base.exists() {
+            return base;
+        }
+        // Append a counter.
+        for n in 2..10_000 {
+            let candidate = self.root.join(format!("{safe} {n}.md"));
+            if !candidate.exists() {
+                return candidate;
+            }
+        }
+        base
+    }
+}
+
+pub fn sanitize_title(s: &str) -> String {
+    let trimmed = s.trim();
+    if trimmed.is_empty() {
+        return "Untitled".to_string();
+    }
+    let mut out = String::with_capacity(trimmed.len());
+    for c in trimmed.chars() {
+        match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '\0' => out.push('-'),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// Convenience: filename without `.md` extension.
+pub fn note_basename(path: &Path) -> String {
+    path.file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("untitled")
+        .to_string()
+}
+
+/// Path relative to the vault root, using forward slashes.
+pub fn note_relpath(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_else(|_| path.to_string_lossy().to_string())
+}
