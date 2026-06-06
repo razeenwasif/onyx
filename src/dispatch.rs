@@ -208,7 +208,16 @@ fn filetree_keys(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Tab => app.toggle_pane_focus(true),
         KeyCode::BackTab => app.toggle_pane_focus(false),
-        KeyCode::Char('n') => start_prompt(app, "New note title", PromptAction::NewNote, ""),
+        KeyCode::Char('n') => {
+            // New note relative to the selected folder (or the selected note's
+            // folder); typing more `/`-segments nests further.
+            let prefix = selected_dir_prefix(app);
+            start_prompt(app, "New note (path)", PromptAction::NewNote, &prefix);
+        }
+        KeyCode::Char('m') => {
+            let prefix = selected_dir_prefix(app);
+            start_prompt(app, "New folder (path)", PromptAction::NewFolder, &prefix);
+        }
         KeyCode::Char('d') => {
             if let Some(node) = selected_node(app) {
                 if !node.is_dir {
@@ -247,6 +256,26 @@ fn filetree_keys(app: &mut App, key: KeyEvent) {
 fn visible_tree_len(app: &App) -> usize {
     let exp = TreeExp(&app.expanded_dirs);
     app.vault.tree.flatten(&exp).len()
+}
+
+/// Vault-relative folder of the current file-tree selection, as a `"Folder/"`
+/// prefix for new-note/-folder prompts (empty string at the vault root).
+fn selected_dir_prefix(app: &App) -> String {
+    let Some(node) = selected_node(app) else {
+        return String::new();
+    };
+    let dir = if node.is_dir {
+        Some(node.path.clone())
+    } else {
+        node.path.parent().map(|p| p.to_path_buf())
+    };
+    if let Some(d) = dir {
+        let rel = vault::note_relpath(&app.vault.root, &d);
+        if !rel.is_empty() {
+            return format!("{rel}/");
+        }
+    }
+    String::new()
 }
 
 struct TreeExp<'a>(&'a std::collections::HashSet<std::path::PathBuf>);
@@ -796,6 +825,12 @@ fn apply_prompt(app: &mut App, action: PromptAction, value: String) {
                 app.set_status(format!("create failed: {e}"));
             }
         }
+        PromptAction::NewFolder => {
+            if let Err(e) = app.create_folder(v) {
+                app.set_status(format!("mkdir failed: {e}"));
+            }
+            app.focus = Focus::FileTree;
+        }
         PromptAction::Rename => {
             // Rename the prompt's subject (the selected file-tree node) if set,
             // otherwise fall back to the currently-open document.
@@ -1023,6 +1058,13 @@ fn run_ex_command(app: &mut App, raw: &str) {
         "calendar" | "cal" => app.open_calendar(),
         "todo" | "todos" => app.focus_todo(),
         "quicknote" | "scratch" | "qn" => app.focus_quicknote(),
+        "mkdir" | "newfolder" => {
+            if args.is_empty() {
+                app.set_status("usage: :mkdir <folder/path>");
+            } else if let Err(e) = app.create_folder(args) {
+                app.set_status(format!("mkdir failed: {e}"));
+            }
+        }
         "preview" => {
             app.show_preview = !app.show_preview;
         }

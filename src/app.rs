@@ -119,6 +119,7 @@ pub enum PromptAction {
     #[default]
     None,
     NewNote,
+    NewFolder,
     Rename,
     Search,
     OpenVault,
@@ -381,14 +382,34 @@ impl App {
 
     pub fn create_note(&mut self, title: &str) -> Result<()> {
         let path = self.vault.path_for_new_note(title);
-        let body = format!("# {}\n\n", title.trim());
+        // Title the note by its file name (not the folder path).
+        let heading = vault::note_basename(&path);
+        let body = format!("# {heading}\n\n");
         self.vault.write_note(&path, &body)?;
+        // Reveal the new note's folder in the tree.
+        if let Some(parent) = path.parent() {
+            self.expanded_dirs.insert(parent.to_path_buf());
+        }
         self.open_note(path)?;
         // Place cursor at end and switch to insert mode for immediate writing.
         if let Some(doc) = self.doc.as_mut() {
             doc.buffer.move_doc_end();
             doc.mode = Mode::Insert;
         }
+        Ok(())
+    }
+
+    /// Create an (empty) folder at a vault-relative path and reveal it.
+    pub fn create_folder(&mut self, rel: &str) -> Result<()> {
+        let path = self.vault.create_folder(rel)?;
+        self.expanded_dirs.insert(path.clone());
+        if let Some(parent) = path.parent() {
+            self.expanded_dirs.insert(parent.to_path_buf());
+        }
+        self.set_status(format!(
+            "created folder {}",
+            vault::note_relpath(&self.vault.root, &path)
+        ));
         Ok(())
     }
 

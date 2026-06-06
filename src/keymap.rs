@@ -32,6 +32,8 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: "Enter",       action: "Open note (file tree)",    group: "File tree" },
     KeyHelp { keys: "Space",       action: "Expand/collapse folder",   group: "File tree" },
     KeyHelp { keys: "j / k",       action: "Down / up",                group: "File tree" },
+    KeyHelp { keys: "n",           action: "New note (in selected folder)", group: "File tree" },
+    KeyHelp { keys: "m",           action: "New folder (in selected folder)", group: "File tree" },
     KeyHelp { keys: "d",           action: "Delete selected note",     group: "File tree" },
     KeyHelp { keys: "r",           action: "Rename selected note",     group: "File tree" },
 
@@ -77,7 +79,8 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: ":w",          action: "Write (save) current note",group: "Ex commands (vim)" },
     KeyHelp { keys: ":wq  :x",     action: "Save and quit",            group: "Ex commands (vim)" },
     KeyHelp { keys: ":e <name>",   action: "Edit / open a note",       group: "Ex commands (vim)" },
-    KeyHelp { keys: ":new <title>",action: "Create a new note",        group: "Ex commands (vim)" },
+    KeyHelp { keys: ":new <path>", action: "Create a note (Folder/Name ok)", group: "Ex commands (vim)" },
+    KeyHelp { keys: ":mkdir <path>",action: "Create a folder",          group: "Ex commands (vim)" },
     KeyHelp { keys: ":help",       action: "Open this help",           group: "Ex commands (vim)" },
     KeyHelp { keys: ":today",      action: "Open today's daily note",  group: "Ex commands (vim)" },
     KeyHelp { keys: ":graph",      action: "Open graph view",          group: "Ex commands (vim)" },

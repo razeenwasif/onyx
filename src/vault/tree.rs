@@ -54,6 +54,7 @@ pub struct FileTree {
 impl FileTree {
     pub fn scan(root: &Path) -> Self {
         let mut all: Vec<PathBuf> = Vec::new();
+        let mut dirs: Vec<PathBuf> = Vec::new();
         let walker = WalkBuilder::new(root)
             .hidden(true)
             .git_ignore(true)
@@ -66,15 +67,22 @@ impl FileTree {
             if path == root {
                 continue;
             }
-            if entry.file_type().is_some_and(|t| t.is_file())
-                && is_note(path) {
-                    all.push(path.to_path_buf());
-                }
+            let ft = entry.file_type();
+            if ft.is_some_and(|t| t.is_dir()) {
+                dirs.push(path.to_path_buf());
+            } else if ft.is_some_and(|t| t.is_file()) && is_note(path) {
+                all.push(path.to_path_buf());
+            }
         }
         all.sort();
+        dirs.sort();
 
-        // Build tree by grouping under common ancestors.
+        // Build tree: directories first (so empty folders still appear), then
+        // notes grouped under their ancestors.
         let mut root_node = TreeNode::dir(root.to_path_buf(), 0);
+        for dir in &dirs {
+            ensure_dir(&mut root_node, root, dir);
+        }
         for note in &all {
             insert(&mut root_node, root, note);
         }
@@ -118,6 +126,33 @@ fn is_note(path: &Path) -> bool {
         path.extension().and_then(|s| s.to_str()),
         Some("md") | Some("markdown") | Some("mdx")
     )
+}
+
+/// Ensure every directory component of `dir` exists as a node in the tree.
+fn ensure_dir(root: &mut TreeNode, vault_root: &Path, dir: &Path) {
+    let rel = match dir.strip_prefix(vault_root) {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    let mut current = root;
+    let mut acc = vault_root.to_path_buf();
+    for comp in rel.components() {
+        acc.push(comp.as_os_str());
+        let idx = current
+            .children
+            .iter()
+            .position(|n| n.is_dir && n.path == acc);
+        let next_idx = match idx {
+            Some(i) => i,
+            None => {
+                current
+                    .children
+                    .push(TreeNode::dir(acc.clone(), current.depth + 1));
+                current.children.len() - 1
+            }
+        };
+        current = &mut current.children[next_idx];
+    }
 }
 
 fn insert(root: &mut TreeNode, vault_root: &Path, note: &Path) {

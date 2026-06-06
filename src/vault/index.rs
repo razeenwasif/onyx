@@ -342,6 +342,28 @@ mod tests {
         fs::write(p, s).unwrap();
     }
 
+    /// Subfolder-aware note paths: `Projects/Idea` → `<root>/Projects/Idea.md`.
+    #[test]
+    fn new_note_path_supports_subfolders() {
+        let root = std::env::temp_dir().join(format!("onyx-mk-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let vault = crate::vault::Vault::open(&root).unwrap();
+
+        let p = vault.path_for_new_note("Projects/Idea");
+        assert_eq!(p, root.join("Projects").join("Idea.md"));
+
+        // Plain titles still land in the root.
+        let q = vault.path_for_new_note("Scratch");
+        assert_eq!(q, root.join("Scratch.md"));
+
+        // `..` / extra slashes are stripped, can't escape the vault.
+        let r = vault.path_for_new_note("../../etc/passwd");
+        assert!(r.starts_with(&root));
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
     /// Finding #2: a folder-qualified link must resolve to the note in that
     /// folder, not collapse to a same-named note elsewhere after recompute.
     #[test]

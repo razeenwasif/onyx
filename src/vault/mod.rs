@@ -114,22 +114,79 @@ impl Vault {
         self.index.resolve(&self.root, target)
     }
 
-    /// Path for a new note with the given title (in vault root).
+    /// Path for a new note. `title` may include `/` to place the note in a
+    /// subfolder (`Projects/Idea` → `<vault>/Projects/Idea.md`); intermediate
+    /// folders are created when the note is written.
     pub fn path_for_new_note(&self, title: &str) -> PathBuf {
-        let safe = sanitize_title(title);
-        let base = self.root.join(format!("{safe}.md"));
+        let rel = sanitize_relpath(title);
+        let base = ensure_md_ext(self.root.join(&rel));
         if !base.exists() {
             return base;
         }
-        // Append a counter.
+        // Append a counter, keeping the note in its folder.
+        let parent = base
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| self.root.clone());
+        let stem = base
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Untitled")
+            .to_string();
         for n in 2..10_000 {
-            let candidate = self.root.join(format!("{safe} {n}.md"));
+            let candidate = parent.join(format!("{stem} {n}.md"));
             if !candidate.exists() {
                 return candidate;
             }
         }
         base
     }
+
+    /// Create an (empty) folder at a vault-relative path, creating intermediate
+    /// directories. Returns the created path.
+    pub fn create_folder(&mut self, rel: &str) -> Result<PathBuf> {
+        let path = self.root.join(sanitize_relpath(rel));
+        fs::create_dir_all(&path)?;
+        self.tree = FileTree::scan(&self.root);
+        Ok(path)
+    }
+}
+
+/// Sanitize a possibly-nested title into a safe vault-relative path (without an
+/// extension). Splits on `/` and `\`, drops `.`/`..`/empty components, and
+/// strips illegal characters from each component.
+pub fn sanitize_relpath(s: &str) -> PathBuf {
+    let mut out = PathBuf::new();
+    for comp in s.split(['/', '\\']) {
+        let c = comp.trim();
+        if c.is_empty() || c == "." || c == ".." {
+            continue;
+        }
+        out.push(sanitize_title(c));
+    }
+    if out.as_os_str().is_empty() {
+        out.push("Untitled");
+    }
+    out
+}
+
+/// Ensure a path ends in a markdown extension (`.md` if it has none).
+fn ensure_md_ext(path: PathBuf) -> PathBuf {
+    let is_md = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| matches!(e, "md" | "markdown" | "mdx"))
+        .unwrap_or(false);
+    if is_md {
+        return path;
+    }
+    let mut p = path;
+    let name = p
+        .file_name()
+        .map(|n| format!("{}.md", n.to_string_lossy()))
+        .unwrap_or_else(|| "Untitled.md".to_string());
+    p.set_file_name(name);
+    p
 }
 
 pub fn sanitize_title(s: &str) -> String {
