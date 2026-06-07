@@ -9,18 +9,15 @@ Running list of work to do. Newest items at the top of "Open". Move items to "Do
 Top tier shipped (dirty-flag rendering, preview render cache, incremental
 backlinks, history byte cap, panic hook), **Barnes-Hut graph repulsion**
 (O(n log n); ~4× at 678 nodes, ~10× at 1500), **graph render-buffer reuse**
-(field written straight into ratatui's buffer), and **file-tree flatten cache**
-(visible rows cached, keyed by `FileTree::gen` + expand generation). Remaining,
-to do **in order**:
+(field written straight into ratatui's buffer), **file-tree flatten cache**
+(visible rows cached, keyed by `FileTree::gen` + expand generation), and
+**non-blocking search** (background worker, `regex::bytes` case-insensitive,
+streamed over a channel). Remaining, to do **in order**:
 
-1. **Search: faster + non-blocking** — `run_search` re-reads every file and
-   lowercases every line per submit. Use `grep-searcher`/`memchr`, optionally a
-   cached lowercase index, and run on a background thread for large vaults.
-   ← **next**
-2. **Path/tag interning** — biggest *memory* win: replace the many
+1. **Path/tag interning** — biggest *memory* win: replace the many
    `HashMap<PathBuf,…>` / `Vec<PathBuf>` / `HashSet<PathBuf>` with a `NoteId(u32)`
    into one `Vec<PathBuf>`, and intern repeated tag strings. Cuts allocations and
-   `PathBuf`-clone churn (`backlinks_for`, graph build, etc.).
+   `PathBuf`-clone churn (`backlinks_for`, graph build, etc.).  ← **next (last)**
 
 ---
 
@@ -157,6 +154,11 @@ to do **in order**:
   visible rows (`Vec<TreeRow>`), rebuilt only when `FileTree::gen` changes (any
   rescan) or a folder is expanded/collapsed (`expanded_gen`). Was re-walked 3×
   per keypress (`draw` + `visible_tree_len` + `selected_node`).
+- **Non-blocking search** — `run_search` spawns a worker thread that scans note
+  bytes with a `regex::bytes` case-insensitive matcher (no per-line
+  `to_lowercase`/`String`) and streams `SearchMsg::Hit/Done` over an `mpsc`
+  channel; `drain_search` applies them each loop tick. Epoch + `Arc<AtomicU64>`
+  supersede/cancel stale searches. UI no longer freezes on big vaults.
 
 ### Folders + confirm-delete  (2026-06-07)
 

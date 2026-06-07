@@ -3,6 +3,9 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{self, Receiver};
+use std::sync::Arc;
 
 use chrono::{Datelike, Local, NaiveDate};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -208,6 +211,13 @@ pub struct SearchHit {
     pub preview: String,
 }
 
+/// Messages from the background search worker, tagged with the search epoch so
+/// stale results (from a superseded query) can be discarded.
+pub enum SearchMsg {
+    Hit(u64, SearchHit),
+    Done(u64),
+}
+
 #[derive(Debug)]
 pub struct CalendarState {
     pub cursor: NaiveDate,
@@ -254,6 +264,11 @@ pub struct App {
     pub palette: PaletteState,
     pub switcher: PaletteState,
     pub search: SearchState,
+    // Background search: epoch identifies the current query; `search_gen` is the
+    // shared cancellation token the worker checks; results stream over `search_rx`.
+    pub search_epoch: u64,
+    pub search_gen: Arc<AtomicU64>,
+    pub search_rx: Option<Receiver<SearchMsg>>,
     pub prompt: PromptState,
     pub confirm: ConfirmState,
     pub cmdline: CmdlineState,
@@ -322,6 +337,9 @@ impl App {
             palette: PaletteState::default(),
             switcher: PaletteState::default(),
             search: SearchState::default(),
+            search_epoch: 0,
+            search_gen: Arc::new(AtomicU64::new(0)),
+            search_rx: None,
             prompt: PromptState::default(),
             confirm: ConfirmState::default(),
             cmdline: CmdlineState::default(),
@@ -920,35 +938,81 @@ impl App {
     }
 
     pub fn close_overlay(&mut self) {
+        // Leaving the search overlay cancels any in-flight worker.
+        if self.focus == Focus::Search {
+            self.cancel_search();
+        }
         self.help_open = false;
         self.focus = self.last_focus;
     }
 
+    /// Kick off a vault-wide content search on a background thread. Results
+    /// stream back via `search_rx` and are applied by `drain_search`, so the UI
+    /// never blocks (even on large vaults).
     pub fn run_search(&mut self) {
         let q = self.search.query.trim().to_string();
         self.search.results.clear();
+        self.search.selected = 0;
         if q.is_empty() {
+            self.search_rx = None;
             return;
         }
-        let needle = q.to_lowercase();
-        let notes: Vec<PathBuf> = self.vault.tree.notes.clone();
-        for path in notes {
-            if let Ok(content) = std::fs::read_to_string(&path) {
-                for (i, line) in content.lines().enumerate() {
-                    if line.to_lowercase().contains(&needle) {
-                        let preview = line.trim().chars().take(160).collect::<String>();
-                        self.search.results.push(SearchHit {
-                            path: path.clone(),
-                            line: i,
-                            preview,
-                        });
-                        if self.search.results.len() > 500 {
-                            return;
+        // New epoch supersedes any in-flight worker (which checks `search_gen`).
+        self.search_epoch = self.search_epoch.wrapping_add(1);
+        let epoch = self.search_epoch;
+        self.search_gen.store(epoch, Ordering::Relaxed);
+
+        let (tx, rx) = mpsc::channel();
+        self.search_rx = Some(rx);
+        let paths = self.vault.tree.notes.clone();
+        let gen = self.search_gen.clone();
+        std::thread::spawn(move || search_worker(q, paths, epoch, gen, tx));
+        self.needs_redraw = true;
+    }
+
+    /// Drain any results the search worker has produced (called each loop tick).
+    pub fn drain_search(&mut self) {
+        let mut changed = false;
+        let mut done = false;
+        if let Some(rx) = &self.search_rx {
+            loop {
+                match rx.try_recv() {
+                    Ok(SearchMsg::Hit(e, hit)) => {
+                        if e == self.search_epoch && self.search.results.len() < SEARCH_CAP {
+                            self.search.results.push(hit);
+                            changed = true;
                         }
+                    }
+                    Ok(SearchMsg::Done(e)) => {
+                        if e == self.search_epoch {
+                            done = true;
+                        }
+                    }
+                    Err(mpsc::TryRecvError::Empty) => break,
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        done = true;
+                        break;
                     }
                 }
             }
         }
+        if done {
+            self.search_rx = None;
+        }
+        if changed || done {
+            self.needs_redraw = true;
+        }
+    }
+
+    pub fn search_in_flight(&self) -> bool {
+        self.search_rx.is_some()
+    }
+
+    /// Abandon any in-flight search (worker stops at its next file check).
+    pub fn cancel_search(&mut self) {
+        self.search_epoch = self.search_epoch.wrapping_add(1);
+        self.search_gen.store(self.search_epoch, Ordering::Relaxed);
+        self.search_rx = None;
     }
 
     #[allow(dead_code)]
@@ -1018,6 +1082,63 @@ pub fn key_char(ev: &KeyEvent) -> Option<char> {
     } else {
         None
     }
+}
+
+/// Max search results retained.
+const SEARCH_CAP: usize = 500;
+
+/// Background vault search. Builds a case-insensitive byte regex from the
+/// (literal) query and scans each note's bytes line-by-line — no per-line
+/// `to_lowercase`/`String` allocation. Bails as soon as a newer search starts
+/// (`gen != epoch`) or the cap is hit.
+fn search_worker(
+    query: String,
+    paths: Vec<PathBuf>,
+    epoch: u64,
+    gen: Arc<AtomicU64>,
+    tx: mpsc::Sender<SearchMsg>,
+) {
+    let re = match regex::bytes::RegexBuilder::new(&regex::escape(&query))
+        .case_insensitive(true)
+        .build()
+    {
+        Ok(r) => r,
+        Err(_) => {
+            let _ = tx.send(SearchMsg::Done(epoch));
+            return;
+        }
+    };
+    let mut count = 0usize;
+    'files: for path in paths {
+        if gen.load(Ordering::Relaxed) != epoch {
+            return; // superseded — drop silently
+        }
+        let Ok(data) = std::fs::read(&path) else {
+            continue;
+        };
+        for (i, line) in data.split(|&b| b == b'\n').enumerate() {
+            if re.is_match(line) {
+                let preview: String = String::from_utf8_lossy(line)
+                    .trim()
+                    .chars()
+                    .take(160)
+                    .collect();
+                let hit = SearchHit {
+                    path: path.clone(),
+                    line: i,
+                    preview,
+                };
+                if tx.send(SearchMsg::Hit(epoch, hit)).is_err() {
+                    return; // receiver gone
+                }
+                count += 1;
+                if count >= SEARCH_CAP {
+                    break 'files;
+                }
+            }
+        }
+    }
+    let _ = tx.send(SearchMsg::Done(epoch));
 }
 
 /// Today as `NaiveDate` (timezone-aware via local).

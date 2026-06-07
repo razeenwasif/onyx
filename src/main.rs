@@ -190,6 +190,8 @@ fn event_loop(
         // Advance the force-directed graph one frame when it's on screen
         // (sets needs_redraw when it actually moves).
         app.tick_graph();
+        // Apply any results from the background search worker.
+        app.drain_search();
 
         // Redraw once when a status toast expires, to clear it.
         let status_visible = app.current_status().is_some();
@@ -211,7 +213,7 @@ fn event_loop(
 
         // Choose how long to block: animating → fast; a toast is up → medium;
         // otherwise sleep until input arrives.
-        let timeout = if app.graph_should_step() {
+        let timeout = if app.graph_should_step() || app.search_in_flight() {
             anim_frame
         } else if status_visible {
             toast_poll

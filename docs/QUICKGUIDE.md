@@ -178,6 +178,9 @@ pub struct App {
     // overlay states
     pub palette, switcher: PaletteState,
     pub search: SearchState,
+    pub search_epoch: u64,              // background-search generation
+    pub search_gen: Arc<AtomicU64>,    // worker cancellation token
+    pub search_rx: Option<Receiver<SearchMsg>>, // streamed results
     pub prompt: PromptState,            // {label, value, action, target}
     pub confirm: ConfirmState,          // {message, action} — yes/no dialog
     pub cmdline: CmdlineState,          // vim `:` ex line + history
@@ -551,7 +554,7 @@ Add it to `Config` (`src/config.rs`) with `#[serde(default)]` and a `Default` im
 
 These are properties of the codebase you should preserve unless you're explicitly redesigning:
 
-- **One App, one event loop.** Don't introduce a second mutable owner of vault state. If you need background work (search indexing, file watching), use a channel and drain it on tick (see the placeholder in `event_loop`).
+- **One App, one event loop.** Don't introduce a second mutable owner of vault state. For background work, follow the **search pattern**: spawn a worker thread, stream results over an `mpsc` channel tagged with an epoch, drain it each loop tick (`App::drain_search`), and discard stale results via an `Arc<AtomicU64>` cancellation token. While a worker is in flight the loop polls fast so results stream in.
 - **Renderers don't `read()` files.** All disk I/O goes through `Vault`. The preview re-renders from the in-memory `Buffer`; backlinks come from `NoteIndex`. If a renderer hits the filesystem, it'll cause hitches at 60Hz.
 - **Redraw is dirty-gated.** The loop repaints only when `App::needs_redraw` is set (or the graph is animating). If you add state that changes what's on screen *without* a keypress, set `needs_redraw` (e.g. `set_status` does). Otherwise the change won't show until the next input.
 - **Don't re-walk the file tree.** Use `App::visible_tree()` (cached `Vec<TreeRow>`) for the flattened, visible rows; never call `FileTree::flatten` directly in hot paths. It invalidates on rescan (`FileTree::gen`, bumped by every `scan()`) and on expand/collapse (`expanded_gen`, via `App::invalidate_tree_view`).
