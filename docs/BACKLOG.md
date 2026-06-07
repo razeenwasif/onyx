@@ -7,20 +7,18 @@ Running list of work to do. Newest items at the top of "Open". Move items to "Do
 ### Performance pass (remaining, in order)
 
 Top tier shipped (dirty-flag rendering, preview render cache, incremental
-backlinks, history byte cap, panic hook) and **Barnes-Hut graph repulsion**
-(O(n log n); ~4× at 678 nodes, ~10× at 1500). Remaining, to do **in order**:
+backlinks, history byte cap, panic hook), **Barnes-Hut graph repulsion**
+(O(n log n); ~4× at 678 nodes, ~10× at 1500), and **graph render-buffer reuse**
+(the field is written straight into ratatui's buffer — no per-frame grid/lines/
+spans). Remaining, to do **in order**:
 
-1. **Graph render-buffer reuse** — `ui/graph.rs` allocates `Vec<Vec<char>>` +
-   `Vec<Vec<Option<Style>>>` + spans/lines every frame. Reuse a flat
-   `Vec<Cell>`-style buffer (store scratch on `App`/`GraphSim`) so the animating
-   graph doesn't churn allocations.  ← **next**
-2. **File-tree flatten cache** — `tree.flatten()` runs at 3 sites (draw +
+1. **File-tree flatten cache** — `tree.flatten()` runs at 3 sites (draw +
    `visible_tree_len` + `selected_node`) per key. Cache the visible node list,
-   invalidate on expand/collapse and `vault.refresh()`.
-3. **Search: faster + non-blocking** — `run_search` re-reads every file and
+   invalidate on expand/collapse and `vault.refresh()`.  ← **next**
+2. **Search: faster + non-blocking** — `run_search` re-reads every file and
    lowercases every line per submit. Use `grep-searcher`/`memchr`, optionally a
    cached lowercase index, and run on a background thread for large vaults.
-4. **Path/tag interning** — biggest *memory* win: replace the many
+3. **Path/tag interning** — biggest *memory* win: replace the many
    `HashMap<PathBuf,…>` / `Vec<PathBuf>` / `HashSet<PathBuf>` with a `NoteId(u32)`
    into one `Vec<PathBuf>`, and intern repeated tag strings. Cuts allocations and
    `PathBuf`-clone churn (`backlinks_for`, graph build, etc.).
@@ -152,6 +150,10 @@ backlinks, history byte cap, panic hook) and **Barnes-Hut graph repulsion**
   THETA=0.85; exact O(n²) kept under 96 nodes. ~0.57 ms/frame @678, 1.48 ms @1500.
 - **Compact graph** — sidebar pane renders tiny `·` dots so the whole graph fits;
   fullscreen keeps bold degree-scaled dots.
+- **Graph render-buffer reuse** — `ui/graph.rs` writes the node field straight
+  into `frame.buffer_mut()` (`put_cell` / `draw_line_buf`), eliminating the
+  per-frame `Vec<Vec<char>>` + `Vec<Vec<Option<Style>>>` + lines/spans (~130
+  allocs/frame → 0; header/legend remain small Paragraphs).
 
 ### Folders + confirm-delete  (2026-06-07)
 
