@@ -4,6 +4,29 @@ Running list of work to do. Newest items at the top of "Open". Move items to "Do
 
 ## Open
 
+### Performance pass (remaining, in order)
+
+Top tier shipped (dirty-flag rendering, preview render cache, incremental
+backlinks, history byte cap, panic hook) and **Barnes-Hut graph repulsion**
+(O(n log n); ~4× at 678 nodes, ~10× at 1500). Remaining, to do **in order**:
+
+1. **Graph render-buffer reuse** — `ui/graph.rs` allocates `Vec<Vec<char>>` +
+   `Vec<Vec<Option<Style>>>` + spans/lines every frame. Reuse a flat
+   `Vec<Cell>`-style buffer (store scratch on `App`/`GraphSim`) so the animating
+   graph doesn't churn allocations.  ← **next**
+2. **File-tree flatten cache** — `tree.flatten()` runs at 3 sites (draw +
+   `visible_tree_len` + `selected_node`) per key. Cache the visible node list,
+   invalidate on expand/collapse and `vault.refresh()`.
+3. **Search: faster + non-blocking** — `run_search` re-reads every file and
+   lowercases every line per submit. Use `grep-searcher`/`memchr`, optionally a
+   cached lowercase index, and run on a background thread for large vaults.
+4. **Path/tag interning** — biggest *memory* win: replace the many
+   `HashMap<PathBuf,…>` / `Vec<PathBuf>` / `HashSet<PathBuf>` with a `NoteId(u32)`
+   into one `Vec<PathBuf>`, and intern repeated tag strings. Cuts allocations and
+   `PathBuf`-clone churn (`backlinks_for`, graph build, etc.).
+
+---
+
 ### Google Calendar sync into the calendar pane
 
 **Context.** The calendar pane (`Ctrl-K` / `:calendar`) only knows about daily notes today — a cell is highlighted if a daily note exists for that date. The ask is to also surface Google Calendar events so the pane doubles as an agenda, and/or to two-way sync events with notes.
@@ -111,6 +134,31 @@ Running list of work to do. Newest items at the top of "Open". Move items to "Do
 ---
 
 ## Done
+
+### Performance: top tier + Barnes-Hut  (2026-06-07)
+
+- **Dirty-flag rendering** — `App::needs_redraw` gates `term.draw`; idle blocks on
+  input (idle CPU ~0). Fast poll only while the graph animates.
+- **Preview render cache** — `App::preview_cache` keyed by note/revision/width/
+  theme; markdown re-parsed only on change. Added `Buffer::revision`.
+- **Incremental backlinks** — editing an existing note updates only its own edges
+  (O(note)); new notes still do a full recompute. `resolve_targets` helper;
+  `remove_note` split into `unindex_note_meta` + backlink cleanup.
+- **Passive graph pre-settle** — sidebar graph laid out in one batch, then frozen
+  (no startup animation churn); only focused/fullscreen animates.
+- **History byte cap** (~4 MiB) + redo-clear fix. **Panic hook** restores the
+  terminal on crash.
+- **Barnes-Hut repulsion** (`graph_sim.rs`) — quadtree O(n log n), reused arena,
+  THETA=0.85; exact O(n²) kept under 96 nodes. ~0.57 ms/frame @678, 1.48 ms @1500.
+- **Compact graph** — sidebar pane renders tiny `·` dots so the whole graph fits;
+  fullscreen keeps bold degree-scaled dots.
+
+### Folders + confirm-delete  (2026-06-07)
+
+- Subfolder notes (`:new Folder/Name`, `Ctrl-N`), `:mkdir` + file-tree `m`, empty
+  folders shown in the tree, new note/folder relative to the selected folder.
+- Yes/no confirmation before deleting notes/folders (`Focus::Confirm`); folder
+  delete is recursive.
 
 ### Tag-aware graph + frontmatter tags + markdown-link indexing  (2026-06-06)
 

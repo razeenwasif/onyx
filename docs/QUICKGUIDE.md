@@ -12,7 +12,7 @@ Onyx is a single-binary Rust TUI for editing a vault of markdown notes. It is:
 
 - **Single-threaded.** One event loop, one terminal, one frame at a time.
 - **Stateless on disk between sessions** except for `~/.config/onyx/config.toml` and the vault itself.
-- **Immediate-mode rendered.** Every keypress re-renders the whole screen from `App` state. No retained widget tree, no diffing in user code (ratatui handles cell-level diffing internally).
+- **Immediate-mode, dirty-gated.** The whole screen is rebuilt from `App` state, but only when something changed (`App::needs_redraw`) or the graph is animating — an idle Onyx blocks on input and uses ~no CPU. ratatui still diffs at the cell level. Two render-time caches exist: the preview's rendered markdown (keyed by note/revision/width/theme) and the graph's force-directed layout (persisted in `App::graph_sim`).
 - **Plain-text first.** A note is just a `.md` file on disk. The index is rebuilt from disk; it is never the source of truth.
 
 The stack:
@@ -33,46 +33,53 @@ The stack:
 
 ```
 src/
-├── main.rs              — entry, CLI parse, terminal setup, event loop
+├── main.rs              — entry, CLI parse, terminal setup, event loop, panic hook
 ├── app.rs               — App state struct + the only place state lives
 ├── dispatch.rs          — key router: every keybinding lands here
-├── config.rs            — TOML config load/save
+├── config.rs            — TOML config load/save (+ ONYX_CONFIG override)
 ├── theme.rs             — color palettes and Style helpers
 ├── keymap.rs            — static glossary used by the help overlay
+├── todo.rs              — todo checklist model (.onyx/todos.md)
+├── graph_sim.rs         — force-directed sim + Barnes-Hut quadtree
+├── external.rs          — suspend TUI, run fzf/yazi, resume
 ├── error.rs             — OnyxError + Result alias
 │
 ├── editor/
 │   ├── mod.rs           — Document = path + buffer + history + mode
-│   ├── buffer.rs        — Vec<String> text buffer, grapheme-aware cursor
-│   ├── history.rs       — snapshot-based undo/redo with coalescing
+│   ├── buffer.rs        — Vec<String> text buffer, grapheme cursor, revision
+│   ├── history.rs       — snapshot undo/redo, coalesced, byte-capped
 │   └── modes.rs         — Normal | Insert | Visual | OpPending
 │
 ├── vault/
-│   ├── mod.rs           — Vault facade: open/create, read/write/delete
-│   ├── tree.rs          — recursive file tree using `ignore`
-│   ├── index.rs         — wikilink/tag/backlink in-memory index
+│   ├── mod.rs           — Vault facade: open/create, read/write/delete, folders
+│   ├── tree.rs          — recursive file tree (notes + empty dirs)
+│   ├── index.rs         — link/tag/backlink index (incremental update)
 │   └── watcher.rs       — optional fs watcher (notify) — wired but unused
 │
 ├── markdown/
 │   ├── mod.rs           — re-exports
-│   ├── parse.rs         — [[wikilinks]] + #tags regex extraction
+│   ├── parse.rs         — [[wikilinks]], [md](links), #tags + frontmatter tags
 │   └── render.rs        — pulldown-cmark events → ratatui Text
 │
 └── ui/
-    ├── mod.rs           — compositor: top-level draw(), layout split
+    ├── mod.rs           — compositor: draw(), left/right columns, fullscreen
     ├── title_bar.rs     — top row: name, vault path, stats
-    ├── status.rs        — bottom row: mode, cursor, hints
-    ├── file_tree.rs     — left pane (tree of notes)
+    ├── status.rs        — bottom row: mode, cursor, focus hints
+    ├── file_tree.rs     — Files pane (left column, top)
+    ├── quicknote.rs     — Quicknote scratch pane (left column)
+    ├── todo.rs          — Todo checklist pane (left column)
     ├── editor_pane.rs   — center pane (the editor itself)
-    ├── preview.rs       — right-of-center pane (rendered preview)
-    ├── sidebar.rs       — far-right tabbed panel
+    ├── preview.rs       — rendered preview (cached)
+    ├── sidebar.rs       — right column: tabs + graph + calendar panes
     ├── calendar.rs      — month grid for daily notes
+    ├── graph.rs         — force-directed graph (dots+colors; compact/fullscreen)
     ├── palette.rs       — Ctrl-P command palette overlay
     ├── switcher.rs      — Ctrl-O quick note switcher overlay
     ├── search.rs        — Ctrl-Shift-F full-vault search overlay
-    ├── graph.rs         — Ctrl-G ASCII graph view
     ├── help.rs          — Ctrl-/ keybinding overlay
-    └── prompt.rs        — generic "type a value" overlay
+    ├── prompt.rs        — generic "type a value" overlay
+    ├── confirm.rs       — yes/no confirmation dialog (delete)
+    └── cmdline.rs       — vim `:` ex command line
 ```
 
 The shape to internalize: **state in `app.rs`, decisions in `dispatch.rs`, pixels in `ui/`.** Anything you add should slot into one of those three.
@@ -122,27 +129,25 @@ The whole program in one walk-through:
    - Constructs the `CrosstermBackend` + `Terminal`, calls `term.clear()`.
    - Hands control to `event_loop()`. Guarantees that no matter how the loop exits, the terminal is restored.
 
-3. **`event_loop()`** (`src/main.rs:161`)
+3. **`event_loop()`** (`src/main.rs`)
    - The only loop in the program. Each iteration:
-     1. `term.draw(|f| ui::draw(f, app))` — paint a frame.
-     2. If `app.should_quit`, return.
-     3. `crossterm::event::poll(timeout)` waits up to one tick (150 ms).
-     4. On a key event, call `dispatch::on_key(app, key)`.
-     5. Loop.
-   - Tick is a placeholder for periodic work (autosave, watcher drain). Today nothing runs on tick.
+     1. `app.tick_graph()` — advance the force-directed graph if it's on screen (sets `needs_redraw` when it moves).
+     2. Redraw (`term.draw(|f| ui::draw(f, app))`) **only if `app.needs_redraw`** (then clear the flag), plus one redraw when a status toast expires.
+     3. If `app.should_quit`, flush side panes and return.
+     4. `crossterm::event::poll(timeout)` where `timeout` = ~70 ms while the graph animates, ~200 ms while a toast is up, else **block ~indefinitely** until input (idle = ~0 CPU).
+     5. On a key event: `dispatch::on_key`, set `needs_redraw`, opportunistically `save_quicknote`. On resize: set `needs_redraw`. Drain any queued external program (fzf/yazi).
 
-4. **`dispatch::on_key()`** (`src/dispatch.rs:13`)
-   - First runs `global_shortcut` (`:35`) for Esc + the `Ctrl-*` chords.
-   - If not consumed, routes to a focus-specific handler — `filetree_keys`, `editor_keys`, `sidebar_keys`, `calendar_keys`, `palette_keys`, `switcher_keys`, `search_keys`, `prompt_keys`, `help_keys`, `graph_keys`. One handler per `Focus` variant.
-   - Mutates `App` in place. Never touches the terminal directly. Never re-renders; the loop re-renders next iteration.
+4. **`dispatch::on_key()`** (`src/dispatch.rs`)
+   - First runs `global_shortcut` for Esc + the `:` ex-line trigger + `Ctrl-*` chords.
+   - If not consumed, routes to a focus-specific handler — one per `Focus` variant (`filetree_keys`, `quicknote_keys`, `todo_keys`, `editor_keys`, `sidebar_keys`, `calendar_keys`, `graph_keys`, `palette_keys`, `switcher_keys`, `search_keys`, `prompt_keys`, `confirm_keys`, `cmdline_keys`, `help_keys`).
+   - Mutates `App` in place. Never touches the terminal directly.
 
-5. **`ui::draw()`** (`src/ui/mod.rs:23`)
-   - Splits the frame vertically into title (1 row), body, status (1 row).
-   - Calls `title_bar::draw` and `status::draw`.
-   - If `app.show_graph`, the body becomes the graph view (full-bleed). Otherwise `draw_body` (`:59`) splits the body horizontally into left sidebar / center / right sidebar, and the center further into editor / preview if `show_preview`.
-   - Finally, if a modal overlay is active (`Focus::Palette`, `Switcher`, `Search`, `Help`, `Prompt`), it's painted on top via `Clear` + a centered rect.
+5. **`ui::draw()`** (`src/ui/mod.rs`)
+   - Splits the frame vertically into title (1 row), body, status/cmdline (1 row).
+   - `match app.fullscreen`: `Graph`/`Calendar` fill the body; otherwise `draw_body` splits into left column / center / right column.
+   - Modal overlays (`Palette`, `Switcher`, `Search`, `Help`, `Prompt`, `Confirm`) paint on top via `Clear` + a centered rect.
 
-There is **no separate update step**. The render reads `App` directly. Every render computes from scratch.
+The render reads `App` directly; the only "update step" is `tick_graph` (graph physics). Everything else is event-driven.
 
 ---
 
@@ -159,24 +164,39 @@ pub struct App {
     pub last_focus: Focus,        // restore target after closing an overlay
 
     // layout toggles (snapshotted from / to config)
-    pub show_left, show_right, show_preview, show_graph: bool,
-    pub sidebar_tab: SidebarTab,
+    pub show_left, show_right, show_preview: bool,
+    pub show_graph_pane, show_calendar, show_quicknote, show_todo: bool,
+    pub fullscreen: Option<FullPane>,   // Graph or Calendar filling the body
+    pub sidebar_tab: SidebarTab,        // Backlinks | Outline | Tags
 
     // file tree state
     pub tree_selected: usize,
     pub expanded_dirs: HashSet<PathBuf>,
 
     // overlay states
-    pub palette: PaletteState,    // {query, selected}
-    pub switcher: PaletteState,
-    pub search: SearchState,      // {query, results, selected, editing_query}
-    pub prompt: PromptState,      // {label, value, action}
+    pub palette, switcher: PaletteState,
+    pub search: SearchState,
+    pub prompt: PromptState,            // {label, value, action, target}
+    pub confirm: ConfirmState,          // {message, action} — yes/no dialog
+    pub cmdline: CmdlineState,          // vim `:` ex line + history
     pub help_open: bool,
+
+    // graph
     pub graph_focus: Option<PathBuf>,
+    pub graph_sim: Option<GraphSim>,    // force-directed layout (persisted)
+    pub graph_global: bool,             // whole-vault "earth" vs local
+
+    // left-column side panes
+    pub quicknote: QuicknoteState,      // scratch buffer → .onyx/quicknote.md
+    pub todos: TodoList,                // checklist → .onyx/todos.md
     pub calendar: CalendarState,
 
     pub sidebar_selected: usize,
     pub status_msg: Option<(String, Instant)>,  // transient toast
+    pub pending_external: Option<PendingExternal>, // fzf/yazi to run
+    pub needs_redraw: bool,             // dirty-render gate
+    pub theme_gen: u64,                 // bumped on theme change (preview cache key)
+    pub preview_cache: RefCell<Option<PreviewCache>>,
     pub should_quit: bool,
 }
 ```
@@ -407,9 +427,9 @@ Two passes, two purposes:
 
 We intentionally don't run the full CommonMark parser per-keystroke for the editor — that's too slow and visually distracting (it re-flows as you type). Inline highlighting handles headings, lists, wikilinks, tags, code spans, bold/italic on a line-by-line basis.
 
-The preview pane re-parses the whole buffer on every frame. This is fine for typical notes; if it ever isn't, the right move is caching the rendered `Text` in `Document` keyed by buffer revision, not optimizing the parser.
+The preview pane caches its rendered `Text` on `App::preview_cache` (a `RefCell`), keyed by `(note path, buffer revision, width, theme_gen)`. The whole-buffer CommonMark parse runs only when one of those changes — not on cursor moves, graph ticks, or idle redraws. `Buffer::revision` is bumped by every mutating buffer method (and by undo/redo apply).
 
-Wikilinks and tags are not CommonMark constructs. They're extracted by regex in `markdown::parse` and woven into the rendered text in `render::split_into_segments` (`src/markdown/render.rs:295`). When indexing, `extract_links` / `extract_tags` are called on each note's content in `NoteIndex::ingest` (`src/vault/index.rs:50`).
+Wikilinks and tags are not CommonMark constructs. They're extracted by regex in `markdown::parse` and woven into the rendered text in `render::split_into_segments`. When indexing, `extract_links` / `extract_md_links` / `extract_all_tags` (inline `#tags` **and** YAML frontmatter `tags:`) are called on each note's content in `NoteIndex::ingest`.
 
 ---
 
@@ -417,20 +437,13 @@ Wikilinks and tags are not CommonMark constructs. They're extracted by regex in 
 
 When `Vault::open` runs:
 
-1. `FileTree::scan(root)` walks the tree using `ignore::WalkBuilder` (respects `.gitignore`).
-2. `NoteIndex::build(root, tree)` reads each `.md` file and calls `ingest()` per note, which:
-   - records basename → path and relpath → path lookup tables;
-   - extracts wikilinks and tags;
-   - tries to resolve each wikilink to a path (`resolve_internal`, `src/vault/index.rs:142`); unresolved ones are kept for later.
-3. After the first pass, `recompute_backlinks()` (`src/vault/index.rs:108`) runs a second pass — by now every note is in the lookups, so previously-unresolved links can resolve. It also rebuilds the inverse map (`backlinks: HashMap<PathBuf, Vec<PathBuf>>`).
+1. `FileTree::scan(root)` walks the tree using `ignore::WalkBuilder` (respects `.gitignore`, skips hidden dirs like `.onyx/`). It collects both notes **and** directories, so empty folders appear in the tree.
+2. `NoteIndex::build(root, tree)` reads each `.md` file and calls `ingest()` per note, which records basename/relpath lookups, extracts links (`[[wikilinks]]` **and** `[text](note.md)` markdown links) and tags (inline `#tags` **and** YAML frontmatter `tags:`), stores the raw targets, and resolves what it can.
+3. `recompute_backlinks()` then re-resolves every note's raw targets (now that all notes are indexed) and rebuilds the inverse map `backlinks: HashMap<PathBuf, Vec<PathBuf>>`.
 
-Link resolution is **case-insensitive** and tries two strategies in order:
-1. Match the full `folder/sub/name` (with extension stripped).
-2. Match by basename alone — first match wins if there are duplicates.
+Link resolution (`resolve` → `resolve_internal`) is **case-insensitive** and tries, in order: full `folder/sub/name` (extension stripped), then basename, then the last path component as a basename. Duplicate basenames in different folders resolve to the first — link by relative path to disambiguate.
 
-This mirrors Obsidian's default behavior closely enough that imported vaults Just Work. Edge case: if a vault has two notes with the same basename in different folders, only one resolves by basename — link by relative path to disambiguate.
-
-The single ingestion entry point is `update_note(root, path, content)` (`src/vault/index.rs:222`). After any file write, call it; backlinks are recomputed automatically.
+The ingestion entry point is `update_note(root, path, content)` — call it after any file write. It's **incremental for existing notes**: it removes the note's old outgoing edges, re-indexes just that note, and adds its new edges (O(note)). A *brand-new* note falls back to a full `recompute_backlinks` (it may resolve other notes' previously-unresolved links). `remove_note` = `unindex_note_meta` + backlink-graph cleanup.
 
 ---
 
@@ -456,10 +469,17 @@ autosave_idle_ms = 2500
 
 [layout]
 sidebar_left_width = 26
-sidebar_right_width = 28
+sidebar_right_width = 30
 show_preview = true
 show_left_sidebar = true
 show_right_sidebar = true
+show_graph_pane = true     # graph in right column
+show_calendar = true       # calendar docked bottom-right
+show_quicknote = true      # scratch pane, left column
+show_todo = true           # checklist pane, left column
+quicknote_height = 7
+todo_height = 9
+calendar_height = 13
 
 [custom_theme]
 name = "My Theme"
@@ -531,7 +551,8 @@ These are properties of the codebase you should preserve unless you're explicitl
 
 - **One App, one event loop.** Don't introduce a second mutable owner of vault state. If you need background work (search indexing, file watching), use a channel and drain it on tick (see the placeholder in `event_loop`).
 - **Renderers don't `read()` files.** All disk I/O goes through `Vault`. The preview re-renders from the in-memory `Buffer`; backlinks come from `NoteIndex`. If a renderer hits the filesystem, it'll cause hitches at 60Hz.
-- **No retained widgets.** Every render builds new `Span`/`Line`/`Text` values. Don't cache widget instances — cache *data* if you must (e.g. a rendered `Text` per buffer revision).
+- **Redraw is dirty-gated.** The loop repaints only when `App::needs_redraw` is set (or the graph is animating). If you add state that changes what's on screen *without* a keypress, set `needs_redraw` (e.g. `set_status` does). Otherwise the change won't show until the next input.
+- **No retained widgets, but cache derived data.** Render builds fresh `Span`/`Line`/`Text` each frame; don't cache widget instances. Heavy derived data *is* cached behind a revision/key — the preview `Text` (`App::preview_cache`) and the graph layout (`App::graph_sim`). Follow that pattern.
 - **Wikilink resolution is centralized.** `NoteIndex::resolve` is the only function that knows the matching rules. Don't reimplement them in renderers or dispatch.
 - **The Buffer cursor is in grapheme clusters, not bytes or codepoints.** Conversions happen in `col_to_byte` / `byte_to_col`. New buffer ops must stay in grapheme space at the public API.
 

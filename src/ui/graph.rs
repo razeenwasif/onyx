@@ -78,6 +78,9 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App, focused: bool) {
         (col.clamp(0, width - 1), row.clamp(0, height - 1))
     };
 
+    // The narrow sidebar pane renders in "compact" style (tiny dots).
+    let compact = inner.width < 50;
+
     let mut grid: Vec<Vec<char>> = vec![vec![' '; width as usize]; height as usize];
     let mut styles: Vec<Vec<Option<Style>>> = vec![vec![None; width as usize]; height as usize];
 
@@ -100,8 +103,10 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App, focused: bool) {
         );
     }
 
-    // Nodes as colored dots — no labels (Obsidian-style). Higher-degree nodes
-    // use a bolder glyph; the centered note is reversed so it pops.
+    // Nodes as colored dots — no labels (Obsidian-style). In the small sidebar
+    // pane (`compact`) every node is a tiny `·` so the whole graph fits and the
+    // dotted edges read as thin lines; fullscreen uses bolder, degree-scaled
+    // glyphs. The centered note always stands out.
     for (i, nd) in sim.nodes.iter().enumerate() {
         let (x, y) = to_cell(nd.x, nd.y);
         let color = node_color(app, &nd.path);
@@ -112,6 +117,8 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App, focused: bool) {
                     .fg(color)
                     .add_modifier(Modifier::BOLD | Modifier::REVERSED),
             )
+        } else if compact {
+            ('·', Style::default().fg(color).add_modifier(Modifier::BOLD))
         } else {
             let glyph = if nd.degree >= 5 { '⬤' } else { '●' };
             (glyph, Style::default().fg(color).add_modifier(Modifier::BOLD))
