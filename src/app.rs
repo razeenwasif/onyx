@@ -16,6 +16,15 @@ use crate::theme::Theme;
 use crate::todo::TodoList;
 use crate::vault::{self, Vault};
 
+/// A flattened, visible file-tree row (owned, so it can be cached).
+#[derive(Clone)]
+pub struct TreeRow {
+    pub path: PathBuf,
+    pub name: String,
+    pub depth: usize,
+    pub is_dir: bool,
+}
+
 /// Cached rendered preview, keyed by the inputs that affect it. Lets the
 /// preview re-parse markdown only when the note content, width, or theme change.
 pub struct PreviewCache {
@@ -236,6 +245,10 @@ pub struct App {
     // File tree state
     pub tree_selected: usize,
     pub expanded_dirs: HashSet<PathBuf>,
+    // Bumped on expand/collapse; with FileTree::gen this is the flattened
+    // file-tree view cache key.
+    pub expanded_gen: u64,
+    pub tree_view_cache: RefCell<Option<(u64, u64, Vec<TreeRow>)>>,
 
     // Overlays
     pub palette: PaletteState,
@@ -304,6 +317,8 @@ impl App {
             last_focus: Focus::FileTree,
             tree_selected: 0,
             expanded_dirs: expanded,
+            expanded_gen: 0,
+            tree_view_cache: RefCell::new(None),
             palette: PaletteState::default(),
             switcher: PaletteState::default(),
             search: SearchState::default(),
@@ -333,6 +348,51 @@ impl App {
     /// passive panes are pre-settled once and then static.
     pub fn graph_should_step(&self) -> bool {
         self.graph_animating()
+    }
+
+    /// Bump the expand/collapse generation (invalidates the flattened view).
+    pub fn invalidate_tree_view(&mut self) {
+        self.expanded_gen = self.expanded_gen.wrapping_add(1);
+    }
+
+    /// The flattened, visible file-tree rows. Cached and rebuilt only when the
+    /// tree is rescanned (`FileTree::gen`) or a folder is expanded/collapsed
+    /// (`expanded_gen`) — instead of re-walking the tree on every access.
+    pub fn visible_tree(&self) -> std::cell::Ref<'_, Vec<TreeRow>> {
+        let key = (self.vault.tree.gen, self.expanded_gen);
+        {
+            let mut cache = self.tree_view_cache.borrow_mut();
+            let stale = cache
+                .as_ref()
+                .map(|(g, e, _)| (*g, *e) != key)
+                .unwrap_or(true);
+            if stale {
+                let rows = self.build_tree_view();
+                *cache = Some((key.0, key.1, rows));
+            }
+        }
+        std::cell::Ref::map(self.tree_view_cache.borrow(), |o| &o.as_ref().unwrap().2)
+    }
+
+    fn build_tree_view(&self) -> Vec<TreeRow> {
+        struct Exp<'a>(&'a HashSet<PathBuf>);
+        impl crate::vault::tree::ExpansionSet for Exp<'_> {
+            fn is_expanded(&self, p: &Path) -> bool {
+                self.0.contains(p)
+            }
+        }
+        let exp = Exp(&self.expanded_dirs);
+        self.vault
+            .tree
+            .flatten(&exp)
+            .into_iter()
+            .map(|n| TreeRow {
+                path: n.path.clone(),
+                name: n.name.clone(),
+                depth: n.depth,
+                is_dir: n.is_dir,
+            })
+            .collect()
     }
 
     /// Persist the quicknote buffer to `.onyx/quicknote.md` if dirty.

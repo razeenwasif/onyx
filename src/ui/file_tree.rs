@@ -6,17 +6,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem, ListState};
 use ratatui::Frame;
 
-use crate::app::{App, Focus};
-use crate::vault::tree::{ExpansionSet, TreeNode};
-use std::collections::HashSet;
-use std::path::{Path, PathBuf};
-
-struct Expansion<'a>(&'a HashSet<PathBuf>);
-impl<'a> ExpansionSet for Expansion<'a> {
-    fn is_expanded(&self, path: &Path) -> bool {
-        self.0.contains(path)
-    }
-}
+use crate::app::{App, Focus, TreeRow};
 
 pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
     let focused = app.focus == Focus::FileTree;
@@ -28,39 +18,31 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
+    let rows = app.visible_tree(); // cached flattened view
     let theme = &app.theme;
-    let exp = Expansion(&app.expanded_dirs);
-    let nodes = app.vault.tree.flatten(&exp);
-    let items: Vec<ListItem> = nodes
-        .iter()
-        .enumerate()
-        .map(|(i, node)| render_node(i, node, app, theme))
-        .collect();
+    let items: Vec<ListItem> = rows.iter().map(|row| render_row(row, app, theme)).collect();
+    let len = items.len();
+    drop(rows);
 
-    if app.tree_selected >= items.len() {
-        app.tree_selected = items.len().saturating_sub(1);
+    if app.tree_selected >= len {
+        app.tree_selected = len.saturating_sub(1);
     }
     let mut state = ListState::default();
-    if !items.is_empty() {
+    if len > 0 {
         state.select(Some(app.tree_selected));
     }
 
     let list = List::new(items)
-        .highlight_style(theme.s_selection())
+        .highlight_style(app.theme.s_selection())
         .highlight_symbol(" ▸ ");
     frame.render_stateful_widget(list, inner, &mut state);
 }
 
-fn render_node<'a>(
-    _i: usize,
-    node: &TreeNode,
-    app: &App,
-    theme: &crate::theme::Theme,
-) -> ListItem<'a> {
-    let indent = "  ".repeat(node.depth.saturating_sub(1));
+fn render_row<'a>(row: &TreeRow, app: &App, theme: &crate::theme::Theme) -> ListItem<'a> {
+    let indent = "  ".repeat(row.depth.saturating_sub(1));
     // Folders show an expand/collapse chevron; notes show a doc glyph.
-    let icon = if node.is_dir {
-        if app.expanded_dirs.contains(&node.path) {
+    let icon = if row.is_dir {
+        if app.expanded_dirs.contains(&row.path) {
             "▾"
         } else {
             "▸"
@@ -68,23 +50,23 @@ fn render_node<'a>(
     } else {
         "󰈙"
     };
-    let name = node.name.clone();
-    let name = if !node.is_dir {
-        name.trim_end_matches(".md")
+    let name = if !row.is_dir {
+        row.name
+            .trim_end_matches(".md")
             .trim_end_matches(".markdown")
             .trim_end_matches(".mdx")
             .to_string()
     } else {
-        name
+        row.name.clone()
     };
-    let is_current = !node.is_dir
+    let is_current = !row.is_dir
         && app
             .doc
             .as_ref()
             .and_then(|d| d.path.as_ref())
-            .map(|p| p == &node.path)
+            .map(|p| p == &row.path)
             .unwrap_or(false);
-    let style = if node.is_dir {
+    let style = if row.is_dir {
         theme.s_accent()
     } else if is_current {
         // The open note is highlighted bold to set it apart from folders.
@@ -99,9 +81,7 @@ fn render_node<'a>(
     ]))
 }
 
-/// Currently-selected tree node, given flattened ordering.
-pub fn selected_node(app: &App) -> Option<TreeNode> {
-    let exp = Expansion(&app.expanded_dirs);
-    let nodes = app.vault.tree.flatten(&exp);
-    nodes.get(app.tree_selected).map(|n| (*n).clone())
+/// Currently-selected file-tree row, given flattened ordering.
+pub fn selected_node(app: &App) -> Option<TreeRow> {
+    app.visible_tree().get(app.tree_selected).cloned()
 }

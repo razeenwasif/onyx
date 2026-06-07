@@ -172,6 +172,8 @@ pub struct App {
     // file tree state
     pub tree_selected: usize,
     pub expanded_dirs: HashSet<PathBuf>,
+    pub expanded_gen: u64,              // + FileTree::gen = visible-rows cache key
+    pub tree_view_cache: RefCell<Option<(u64, u64, Vec<TreeRow>)>>,
 
     // overlay states
     pub palette, switcher: PaletteState,
@@ -552,6 +554,7 @@ These are properties of the codebase you should preserve unless you're explicitl
 - **One App, one event loop.** Don't introduce a second mutable owner of vault state. If you need background work (search indexing, file watching), use a channel and drain it on tick (see the placeholder in `event_loop`).
 - **Renderers don't `read()` files.** All disk I/O goes through `Vault`. The preview re-renders from the in-memory `Buffer`; backlinks come from `NoteIndex`. If a renderer hits the filesystem, it'll cause hitches at 60Hz.
 - **Redraw is dirty-gated.** The loop repaints only when `App::needs_redraw` is set (or the graph is animating). If you add state that changes what's on screen *without* a keypress, set `needs_redraw` (e.g. `set_status` does). Otherwise the change won't show until the next input.
+- **Don't re-walk the file tree.** Use `App::visible_tree()` (cached `Vec<TreeRow>`) for the flattened, visible rows; never call `FileTree::flatten` directly in hot paths. It invalidates on rescan (`FileTree::gen`, bumped by every `scan()`) and on expand/collapse (`expanded_gen`, via `App::invalidate_tree_view`).
 - **No retained widgets, but cache derived data.** Render builds fresh `Span`/`Line`/`Text` each frame; don't cache widget instances. Heavy derived data *is* cached behind a revision/key — the preview `Text` (`App::preview_cache`) and the graph layout (`App::graph_sim`). The animating graph goes a step further and writes its node field **straight into `frame.buffer_mut()`** (`ui/graph.rs` `put_cell`/`draw_line_buf`) instead of building `Text`, since it's the per-frame hot path — use that pattern only where allocation churn actually matters.
 - **Wikilink resolution is centralized.** `NoteIndex::resolve` is the only function that knows the matching rules. Don't reimplement them in renderers or dispatch.
 - **The Buffer cursor is in grapheme clusters, not bytes or codepoints.** Conversions happen in `col_to_byte` / `byte_to_col`. New buffer ops must stay in grapheme space at the public API.

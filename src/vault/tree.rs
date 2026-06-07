@@ -49,10 +49,16 @@ pub struct FileTree {
     pub root: TreeNode,
     /// All notes (markdown files) in the vault, sorted by path.
     pub notes: Vec<PathBuf>,
+    /// Unique generation, bumped on every `scan()`. Used to invalidate caches
+    /// (e.g. the flattened-view cache) — any structural change rescans.
+    pub gen: u64,
 }
 
 impl FileTree {
     pub fn scan(root: &Path) -> Self {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static GEN: AtomicU64 = AtomicU64::new(1);
+        let gen = GEN.fetch_add(1, Ordering::Relaxed);
         let mut all: Vec<PathBuf> = Vec::new();
         let mut dirs: Vec<PathBuf> = Vec::new();
         let walker = WalkBuilder::new(root)
@@ -91,6 +97,7 @@ impl FileTree {
         Self {
             root: root_node,
             notes: all,
+            gen,
         }
     }
 

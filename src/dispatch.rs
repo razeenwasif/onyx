@@ -253,8 +253,7 @@ fn filetree_keys(app: &mut App, key: KeyEvent) {
 }
 
 fn visible_tree_len(app: &App) -> usize {
-    let exp = TreeExp(&app.expanded_dirs);
-    app.vault.tree.flatten(&exp).len()
+    app.visible_tree().len()
 }
 
 /// Vault-relative folder of the current file-tree selection, as a `"Folder/"`
@@ -277,17 +276,11 @@ fn selected_dir_prefix(app: &App) -> String {
     String::new()
 }
 
-struct TreeExp<'a>(&'a std::collections::HashSet<std::path::PathBuf>);
-impl<'a> crate::vault::tree::ExpansionSet for TreeExp<'a> {
-    fn is_expanded(&self, path: &std::path::Path) -> bool {
-        self.0.contains(path)
-    }
-}
-
 fn toggle_expand(app: &mut App, path: std::path::PathBuf) {
     if !app.expanded_dirs.remove(&path) {
         app.expanded_dirs.insert(path);
     }
+    app.invalidate_tree_view();
 }
 
 // -----------------------------------------------------------------------------
