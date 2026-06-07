@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::markdown::parse::{extract_all_tags, extract_links, extract_md_links};
 
@@ -15,26 +16,33 @@ pub struct NoteMeta {
     /// Raw link targets as written (note name or `folder/name`), pre-resolution.
     /// Backlinks recompute from these so folder context isn't lost.
     pub targets: Vec<String>,
-    pub outgoing: Vec<PathBuf>,
+    pub outgoing: Vec<Arc<Path>>,
     pub unresolved: Vec<String>,
-    pub tags: Vec<String>,
+    pub tags: Vec<Arc<str>>,
     pub mtime: Option<std::time::SystemTime>,
     pub size: u64,
     pub word_count: usize,
 }
 
+/// Paths and tags are *interned* as `Arc<Path>` / `Arc<str>`: each unique value
+/// is allocated once and shared across every map by cheap refcount-bump clones,
+/// instead of duplicating `PathBuf`/`String` heap copies in each map. Public
+/// methods still return owned `PathBuf`/`String` so callers are unaffected.
 #[derive(Debug, Default)]
 pub struct NoteIndex {
     /// path → metadata.
-    pub notes: HashMap<PathBuf, NoteMeta>,
+    pub notes: HashMap<Arc<Path>, NoteMeta>,
     /// note basename (lowercased, no extension) → all paths sharing that name.
-    by_basename: HashMap<String, Vec<PathBuf>>,
+    by_basename: HashMap<String, Vec<Arc<Path>>>,
     /// "folder/path/name" lowercased → exact path.
-    by_relpath: HashMap<String, PathBuf>,
+    by_relpath: HashMap<String, Arc<Path>>,
     /// path → notes linking *to* this path.
-    backlinks: HashMap<PathBuf, Vec<PathBuf>>,
+    backlinks: HashMap<Arc<Path>, Vec<Arc<Path>>>,
     /// tag → notes containing it.
-    by_tag: BTreeMap<String, HashSet<PathBuf>>,
+    by_tag: BTreeMap<Arc<str>, HashSet<Arc<Path>>>,
+    /// Interners: one shared `Arc` per unique path / tag.
+    path_interner: HashMap<Arc<Path>, ()>,
+    tag_interner: HashMap<Arc<str>, ()>,
 }
 
 impl NoteIndex {
@@ -49,18 +57,34 @@ impl NoteIndex {
         idx
     }
 
+    /// Return the shared `Arc<Path>` for `p`, allocating once on first sight.
+    fn intern_path(&mut self, p: &Path) -> Arc<Path> {
+        if let Some((k, _)) = self.path_interner.get_key_value(p) {
+            return k.clone();
+        }
+        let a: Arc<Path> = Arc::from(p);
+        self.path_interner.insert(a.clone(), ());
+        a
+    }
+
+    /// Return the shared `Arc<str>` for tag `s`, allocating once on first sight.
+    fn intern_tag(&mut self, s: &str) -> Arc<str> {
+        if let Some((k, _)) = self.tag_interner.get_key_value(s) {
+            return k.clone();
+        }
+        let a: Arc<str> = Arc::from(s);
+        self.tag_interner.insert(a.clone(), ());
+        a
+    }
+
     fn ingest(&mut self, root: &Path, path: &Path, content: &str) {
         let links = extract_links(content);
-        let tags = extract_all_tags(content);
+        let tag_strs = extract_all_tags(content);
+        let id = self.intern_path(path); // canonical Arc<Path> for this note
 
         // Build basename/relpath lookups *for this note* before resolving its links.
-        // (Other notes are added by their own ingest call — resolution may be
-        // partial during initial build; we recompute backlinks once at the end.)
         let basename = super::note_basename(path).to_lowercase();
-        self.by_basename
-            .entry(basename.clone())
-            .or_default()
-            .push(path.to_path_buf());
+        self.by_basename.entry(basename).or_default().push(id.clone());
         let relpath = super::note_relpath(root, path).to_lowercase();
         // Drop extension from the key so [[folder/note]] resolves.
         let relpath_no_ext = relpath
@@ -69,23 +93,22 @@ impl NoteIndex {
             .or_else(|| relpath.strip_suffix(".mdx"))
             .unwrap_or(&relpath)
             .to_string();
-        self.by_relpath.insert(relpath_no_ext, path.to_path_buf());
+        self.by_relpath.insert(relpath_no_ext, id.clone());
 
-        // First pass — collect targets without resolution; we resolve below.
-        // Both `[[wikilinks]]` and inline `[text](note.md)` links count as edges.
-        let mut link_targets: Vec<String> = links.iter().map(|l| l.note_name().to_string()).collect();
+        // First pass — collect raw targets; resolved below + in recompute.
+        let mut link_targets: Vec<String> =
+            links.iter().map(|l| l.note_name().to_string()).collect();
         link_targets.extend(extract_md_links(content));
 
         let mtime = fs::metadata(path).ok().and_then(|m| m.modified().ok());
         let size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
         let word_count = content.split_whitespace().count();
-
         let title = first_heading_or_basename(content, path);
 
-        // Store metadata with the raw targets; resolution happens below and in
-        // recompute_backlinks (which re-resolves from `targets`).
+        let tags: Vec<Arc<str>> = tag_strs.iter().map(|t| self.intern_tag(t)).collect();
+
         self.notes.insert(
-            path.to_path_buf(),
+            id.clone(),
             NoteMeta {
                 title,
                 targets: link_targets.clone(),
@@ -98,19 +121,13 @@ impl NoteIndex {
             },
         );
 
-        // Resolve outgoing links (skip self-links, de-duplicate). May be partial
-        // during the initial full build; recompute_backlinks fixes it up.
         let (outgoing, unresolved) = self.resolve_targets(path, &link_targets);
 
-        // Tags.
         for t in &tags {
-            self.by_tag
-                .entry(t.clone())
-                .or_default()
-                .insert(path.to_path_buf());
+            self.by_tag.entry(t.clone()).or_default().insert(id.clone());
         }
 
-        if let Some(meta) = self.notes.get_mut(path) {
+        if let Some(meta) = self.notes.get_mut(&id) {
             meta.outgoing = outgoing;
             meta.unresolved = unresolved;
         }
@@ -119,12 +136,12 @@ impl NoteIndex {
     /// Resolve a note's raw link targets into (outgoing paths, unresolved names),
     /// skipping self-links and duplicates. Folder context is preserved (a
     /// `Folder/B` target won't collapse to a bare `B`).
-    fn resolve_targets(&self, src: &Path, targets: &[String]) -> (Vec<PathBuf>, Vec<String>) {
-        let mut resolved: Vec<PathBuf> = Vec::new();
+    fn resolve_targets(&self, src: &Path, targets: &[String]) -> (Vec<Arc<Path>>, Vec<String>) {
+        let mut resolved: Vec<Arc<Path>> = Vec::new();
         let mut unresolved: Vec<String> = Vec::new();
         for target in targets {
-            if let Some(p) = self.resolve(src, target) {
-                if p.as_path() != src && !resolved.contains(&p) {
+            if let Some(p) = self.resolve_arc(target) {
+                if p.as_ref() != src && !resolved.contains(&p) {
                     resolved.push(p);
                 }
             } else if !unresolved.contains(target) {
@@ -136,9 +153,8 @@ impl NoteIndex {
 
     fn recompute_backlinks(&mut self) {
         self.backlinks.clear();
-        let paths: Vec<PathBuf> = self.notes.keys().cloned().collect();
-        for src in &paths {
-            // Re-resolve from the raw targets now that every note is indexed.
+        let ids: Vec<Arc<Path>> = self.notes.keys().cloned().collect();
+        for src in &ids {
             let targets = match self.notes.get(src) {
                 Some(m) => m.targets.clone(),
                 None => continue,
@@ -158,7 +174,7 @@ impl NoteIndex {
         }
     }
 
-    fn resolve_internal(&self, target: &str) -> Option<PathBuf> {
+    fn resolve_internal(&self, target: &str) -> Option<Arc<Path>> {
         let lc = target.to_lowercase();
         if let Some(p) = self.by_relpath.get(&lc) {
             return Some(p.clone());
@@ -178,9 +194,8 @@ impl NoteIndex {
         None
     }
 
-    /// Resolve a wikilink target to a concrete path inside the vault.
-    /// Accepts `Name`, `Folder/Name`, with optional `.md` extension.
-    pub fn resolve(&self, _root: &Path, target: &str) -> Option<PathBuf> {
+    /// Resolve a target to its interned `Arc<Path>` (extension-insensitive).
+    fn resolve_arc(&self, target: &str) -> Option<Arc<Path>> {
         let cleaned = target
             .trim()
             .trim_end_matches(".md")
@@ -189,14 +204,23 @@ impl NoteIndex {
         self.resolve_internal(cleaned)
     }
 
+    /// Resolve a wikilink target to a concrete path inside the vault.
+    /// Accepts `Name`, `Folder/Name`, with optional `.md` extension.
+    pub fn resolve(&self, _root: &Path, target: &str) -> Option<PathBuf> {
+        self.resolve_arc(target).map(|a| a.to_path_buf())
+    }
+
     pub fn backlinks_for(&self, path: &Path) -> Vec<PathBuf> {
-        self.backlinks.get(path).cloned().unwrap_or_default()
+        self.backlinks
+            .get(path)
+            .map(|v| v.iter().map(|p| p.to_path_buf()).collect())
+            .unwrap_or_default()
     }
 
     pub fn all_tags(&self) -> Vec<(String, usize)> {
         self.by_tag
             .iter()
-            .map(|(t, set)| (t.clone(), set.len()))
+            .map(|(t, set)| (t.to_string(), set.len()))
             .collect()
     }
 
@@ -204,7 +228,7 @@ impl NoteIndex {
         self.by_tag
             .get(tag)
             .map(|s| {
-                let mut v: Vec<_> = s.iter().cloned().collect();
+                let mut v: Vec<PathBuf> = s.iter().map(|p| p.to_path_buf()).collect();
                 v.sort();
                 v
             })
@@ -217,20 +241,24 @@ impl NoteIndex {
         let Some(meta) = self.notes.get(path) else {
             return Vec::new();
         };
-        let mut counts: HashMap<PathBuf, usize> = HashMap::new();
+        let mut counts: HashMap<Arc<Path>, usize> = HashMap::new();
         for t in &meta.tags {
             if let Some(members) = self.by_tag.get(t) {
                 for m in members {
-                    if m.as_path() != path {
+                    if m.as_ref() != path {
                         *counts.entry(m.clone()).or_insert(0) += 1;
                     }
                 }
             }
         }
-        let mut ranked: Vec<(PathBuf, usize)> = counts.into_iter().collect();
+        let mut ranked: Vec<(Arc<Path>, usize)> = counts.into_iter().collect();
         // Most shared tags first; stable tiebreak by path for determinism.
         ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-        ranked.into_iter().take(limit).map(|(p, _)| p).collect()
+        ranked
+            .into_iter()
+            .take(limit)
+            .map(|(p, _)| p.to_path_buf())
+            .collect()
     }
 
     pub fn update_note(&mut self, root: &Path, path: &Path, content: &str) {
@@ -252,7 +280,7 @@ impl NoteIndex {
             .unwrap_or_default();
         for dst in &old_out {
             if let Some(v) = self.backlinks.get_mut(dst) {
-                v.retain(|s| s != path);
+                v.retain(|s| s.as_ref() != path);
             }
         }
 
@@ -262,14 +290,15 @@ impl NoteIndex {
         self.ingest(root, path, content);
 
         // 3. Add the note's new outgoing edges back into the backlink map.
+        let id = self.intern_path(path);
         let new_out = self
             .notes
-            .get(path)
+            .get(&id)
             .map(|m| m.outgoing.clone())
             .unwrap_or_default();
         for dst in &new_out {
             let v = self.backlinks.entry(dst.clone()).or_default();
-            v.push(path.to_path_buf());
+            v.push(id.clone());
             v.sort();
             v.dedup();
         }
@@ -291,7 +320,7 @@ impl NoteIndex {
         }
         let basename = crate::vault::note_basename(path).to_lowercase();
         if let Some(v) = self.by_basename.get_mut(&basename) {
-            v.retain(|p| p != path);
+            v.retain(|p| p.as_ref() != path);
             if v.is_empty() {
                 self.by_basename.remove(&basename);
             }
@@ -300,7 +329,7 @@ impl NoteIndex {
         let to_remove: Vec<String> = self
             .by_relpath
             .iter()
-            .filter(|(_, v)| v.as_path() == path)
+            .filter(|(_, v)| v.as_ref() == path)
             .map(|(k, _)| k.clone())
             .collect();
         for k in to_remove {
@@ -313,20 +342,20 @@ impl NoteIndex {
         // Remove this note's inbound list and scrub it from every other list.
         self.backlinks.remove(path);
         for v in self.backlinks.values_mut() {
-            v.retain(|p| p != path);
+            v.retain(|p| p.as_ref() != path);
         }
     }
 
     /// All note paths in the vault, sorted by recency (most recent first).
     pub fn recent_notes(&self) -> Vec<(PathBuf, &NoteMeta)> {
-        let mut all: Vec<_> = self.notes.iter().map(|(p, m)| (p.clone(), m)).collect();
+        let mut all: Vec<_> = self.notes.iter().map(|(p, m)| (p.to_path_buf(), m)).collect();
         all.sort_by_key(|x| std::cmp::Reverse(x.1.mtime));
         all
     }
 
     /// All note paths sorted alphabetically.
     pub fn all_notes(&self) -> Vec<(PathBuf, &NoteMeta)> {
-        let mut all: Vec<_> = self.notes.iter().map(|(p, m)| (p.clone(), m)).collect();
+        let mut all: Vec<_> = self.notes.iter().map(|(p, m)| (p.to_path_buf(), m)).collect();
         all.sort_by(|a, b| a.0.cmp(&b.0));
         all
     }
@@ -407,7 +436,15 @@ mod tests {
             "new backlink A→C should exist"
         );
         // A's own inbound backlinks (none) stay intact; outgoing updated.
-        assert_eq!(idx.notes.get(&a).unwrap().outgoing, vec![c.clone()]);
+        let out: Vec<PathBuf> = idx
+            .notes
+            .get(&a as &Path)
+            .unwrap()
+            .outgoing
+            .iter()
+            .map(|p| p.to_path_buf())
+            .collect();
+        assert_eq!(out, vec![c.clone()]);
 
         let _ = fs::remove_dir_all(&root);
     }
@@ -448,9 +485,10 @@ mod tests {
         let idx = NoteIndex::build(&root, &tree);
 
         let a = root.join("A.md");
-        let meta = idx.notes.get(&a).expect("A indexed");
+        let meta = idx.notes.get(a.as_path()).expect("A indexed");
+        let out: Vec<PathBuf> = meta.outgoing.iter().map(|p| p.to_path_buf()).collect();
         assert_eq!(
-            meta.outgoing,
+            out,
             vec![root.join("Folder/B.md")],
             "link to Folder/B should resolve to the nested note, not top-level B.md"
         );

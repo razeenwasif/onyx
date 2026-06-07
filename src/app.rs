@@ -741,7 +741,7 @@ impl App {
         for (p, m) in &self.vault.index.notes {
             let deg = m.outgoing.len() + self.vault.index.backlinks_for(p).len();
             if best.as_ref().map(|(d, _)| deg > *d).unwrap_or(true) {
-                best = Some((deg, p.clone()));
+                best = Some((deg, p.to_path_buf()));
             }
         }
         best.map(|(_, p)| p)
@@ -792,7 +792,7 @@ impl App {
         let idx = &self.vault.index;
         let mut out: Vec<PathBuf> = Vec::new();
         if let Some(m) = idx.notes.get(p) {
-            out.extend(m.outgoing.iter().cloned());
+            out.extend(m.outgoing.iter().map(|d| d.to_path_buf()));
         }
         out.extend(idx.backlinks_for(p));
         out.extend(idx.shared_tag_notes(p, tag_cap));
@@ -809,7 +809,7 @@ impl App {
         let mut seen: HashSet<PathBuf> = HashSet::new();
 
         if let Some(c) = &center {
-            if self.vault.index.notes.contains_key(c) {
+            if self.vault.index.notes.contains_key(c.as_path()) {
                 paths.push(c.clone());
                 seen.insert(c.clone());
             }
@@ -826,7 +826,7 @@ impl App {
                 .map(|(p, m)| {
                     (
                         m.outgoing.len() + self.vault.index.backlinks_for(p).len() + m.tags.len(),
-                        p.clone(),
+                        p.to_path_buf(),
                     )
                 })
                 .collect();
@@ -864,16 +864,16 @@ impl App {
         }
 
         // Index map for edge building.
-        let idx_of: HashMap<&PathBuf, usize> =
-            paths.iter().enumerate().map(|(i, p)| (p, i)).collect();
+        let idx_of: HashMap<&Path, usize> =
+            paths.iter().enumerate().map(|(i, p)| (p.as_path(), i)).collect();
         let mut edge_set: HashSet<(usize, usize)> = HashSet::new();
         let mut edges: Vec<(usize, usize, EdgeKind)> = Vec::new();
 
         // Link edges.
         for (i, p) in paths.iter().enumerate() {
-            if let Some(m) = self.vault.index.notes.get(p) {
+            if let Some(m) = self.vault.index.notes.get(p.as_path()) {
                 for dst in &m.outgoing {
-                    if let Some(&j) = idx_of.get(dst) {
+                    if let Some(&j) = idx_of.get(dst.as_ref()) {
                         let key = if i < j { (i, j) } else { (j, i) };
                         if i != j && edge_set.insert(key) {
                             edges.push((key.0, key.1, EdgeKind::Link));
@@ -886,7 +886,7 @@ impl App {
         let tag_cap = if self.graph_global { 3 } else { 6 };
         for (i, p) in paths.iter().enumerate() {
             for nb in self.vault.index.shared_tag_notes(p, tag_cap) {
-                if let Some(&j) = idx_of.get(&nb) {
+                if let Some(&j) = idx_of.get(nb.as_path()) {
                     let key = if i < j { (i, j) } else { (j, i) };
                     if i != j && !edge_set.contains(&key) && edge_set.insert(key) {
                         edges.push((key.0, key.1, EdgeKind::Tag));
@@ -897,7 +897,7 @@ impl App {
 
         let center_idx = center
             .as_ref()
-            .and_then(|c| idx_of.get(c).copied())
+            .and_then(|c| idx_of.get(c.as_path()).copied())
             .unwrap_or(0);
         // Pin the centered note only in local mode; the global earth floats free.
         let pin_center = !self.graph_global;

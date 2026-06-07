@@ -450,6 +450,8 @@ Link resolution (`resolve` → `resolve_internal`) is **case-insensitive** and t
 
 The ingestion entry point is `update_note(root, path, content)` — call it after any file write. It's **incremental for existing notes**: it removes the note's old outgoing edges, re-indexes just that note, and adds its new edges (O(note)). A *brand-new* note falls back to a full `recompute_backlinks` (it may resolve other notes' previously-unresolved links). `remove_note` = `unindex_note_meta` + backlink-graph cleanup.
 
+**Interning.** Paths and tags are interned as `Arc<Path>` / `Arc<str>` (`path_interner` / `tag_interner`): each unique value is allocated once and shared across every map by refcount-bump clones, rather than duplicating `PathBuf`/`String` copies. `NoteMeta.outgoing` is `Vec<Arc<Path>>` and `tags` is `Vec<Arc<str>>`. Public methods still return owned `PathBuf`/`String` (a boundary clone) so consumers are unaffected — when reading `index.notes` directly, convert with `.to_path_buf()` / deref. `HashMap<Arc<Path>, _>::get` accepts an `&Path` (via `Borrow`), so most lookups are unchanged.
+
 ---
 
 ## 11. Config and persistence

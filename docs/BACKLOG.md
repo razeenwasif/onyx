@@ -4,20 +4,15 @@ Running list of work to do. Newest items at the top of "Open". Move items to "Do
 
 ## Open
 
-### Performance pass (remaining, in order)
+### Performance pass — ✅ COMPLETE
 
-Top tier shipped (dirty-flag rendering, preview render cache, incremental
-backlinks, history byte cap, panic hook), **Barnes-Hut graph repulsion**
-(O(n log n); ~4× at 678 nodes, ~10× at 1500), **graph render-buffer reuse**
-(field written straight into ratatui's buffer), **file-tree flatten cache**
-(visible rows cached, keyed by `FileTree::gen` + expand generation), and
-**non-blocking search** (background worker, `regex::bytes` case-insensitive,
-streamed over a channel). Remaining, to do **in order**:
-
-1. **Path/tag interning** — biggest *memory* win: replace the many
-   `HashMap<PathBuf,…>` / `Vec<PathBuf>` / `HashSet<PathBuf>` with a `NoteId(u32)`
-   into one `Vec<PathBuf>`, and intern repeated tag strings. Cuts allocations and
-   `PathBuf`-clone churn (`backlinks_for`, graph build, etc.).  ← **next (last)**
+All planned optimizations shipped (see Done): dirty-flag rendering, preview
+render cache, incremental backlinks, history byte cap, panic hook, Barnes-Hut
+graph repulsion, graph render-buffer reuse, file-tree flatten cache,
+non-blocking search, and path/tag interning. Idle RSS on the 678-note vault is
+~8 MB. Possible future micro-opts if ever needed: prune interner entries on
+single-note delete (negligible leak today), SIMD literal search via
+`grep-searcher`, multi-threaded search across files.
 
 ---
 
@@ -159,6 +154,13 @@ streamed over a channel). Remaining, to do **in order**:
   `to_lowercase`/`String`) and streams `SearchMsg::Hit/Done` over an `mpsc`
   channel; `drain_search` applies them each loop tick. Epoch + `Arc<AtomicU64>`
   supersede/cancel stale searches. UI no longer freezes on big vaults.
+- **Path/tag interning** — `NoteIndex` now interns paths as `Arc<Path>` and tags
+  as `Arc<str>` (one shared allocation each; map clones are refcount bumps
+  instead of duplicated `PathBuf`/`String` heap copies). `NoteMeta.outgoing:
+  Vec<Arc<Path>>`, `tags: Vec<Arc<str>>`; maps keyed by the interned `Arc`s.
+  Public methods still return owned `PathBuf`/`String` (boundary clone), so
+  callers are unaffected. Cuts index memory and the `PathBuf`-clone churn in
+  hot paths (`backlinks_for`, graph build).
 
 ### Folders + confirm-delete  (2026-06-07)
 
