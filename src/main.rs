@@ -16,7 +16,7 @@ mod vault;
 
 use std::io;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::Context;
 use crossterm::event::{DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind};
@@ -142,6 +142,7 @@ fn resolve_vault_path(cli: &Cli, config: &Config) -> anyhow::Result<PathBuf> {
 }
 
 fn run(app: &mut App) -> anyhow::Result<()> {
+    install_panic_hook();
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -161,20 +162,46 @@ fn run(app: &mut App) -> anyhow::Result<()> {
     res
 }
 
+/// Restore the terminal before printing a panic, so a crash doesn't leave the
+/// user stuck in raw mode / the alternate screen.
+fn install_panic_hook() {
+    let default = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = disable_raw_mode();
+        let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
+        default(info);
+    }));
+}
+
 fn event_loop(
     term: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut App,
 ) -> anyhow::Result<()> {
-    let tick = Duration::from_millis(150);
     // Frame interval while the graph is animating (≈14 fps).
     let anim_frame = Duration::from_millis(70);
-    let mut last_tick = Instant::now();
+    // While a transient status toast is showing, wake often enough to clear it.
+    let toast_poll = Duration::from_millis(200);
+    // Truly idle: block on input so Onyx uses ~no CPU when nothing's happening.
+    let idle_poll = Duration::from_secs(3600);
+
+    let mut status_was_visible = false;
 
     loop {
-        // Advance the force-directed graph one frame when it's on screen.
+        // Advance the force-directed graph one frame when it's on screen
+        // (sets needs_redraw when it actually moves).
         app.tick_graph();
 
-        term.draw(|f| ui::draw(f, app))?;
+        // Redraw once when a status toast expires, to clear it.
+        let status_visible = app.current_status().is_some();
+        if status_was_visible && !status_visible {
+            app.needs_redraw = true;
+        }
+        status_was_visible = status_visible;
+
+        if app.needs_redraw {
+            term.draw(|f| ui::draw(f, app))?;
+            app.needs_redraw = false;
+        }
         if app.should_quit {
             // Flush side-pane state on the way out.
             app.save_quicknote();
@@ -182,15 +209,26 @@ fn event_loop(
             return Ok(());
         }
 
-        // Poll for one frame interval (shorter while actively viewing the
-        // graph so it moves smoothly). The save tick keeps its 150ms cadence.
-        let timeout = if app.graph_animating() { anim_frame } else { tick };
+        // Choose how long to block: animating → fast; a toast is up → medium;
+        // otherwise sleep until input arrives.
+        let timeout = if app.graph_should_step() {
+            anim_frame
+        } else if status_visible {
+            toast_poll
+        } else {
+            idle_poll
+        };
+
         if crossterm::event::poll(timeout)? {
             match crossterm::event::read()? {
                 Event::Key(key) if key.kind != KeyEventKind::Release => {
                     dispatch::on_key(app, key);
+                    app.needs_redraw = true;
+                    // Persist the scratch buffer opportunistically (cheap no-op
+                    // when it isn't dirty).
+                    app.save_quicknote();
                 }
-                Event::Resize(_, _) => {}
+                Event::Resize(_, _) => app.needs_redraw = true,
                 Event::Mouse(_) => {}
                 _ => {}
             }
@@ -200,12 +238,7 @@ fn event_loop(
         // the TUI suspended, then carry on.
         if let Some(ext) = app.pending_external.take() {
             external::handle(term, app, ext)?;
-        }
-
-        if last_tick.elapsed() >= tick {
-            last_tick = Instant::now();
-            // Periodically persist the quicknote scratch buffer if idle-dirty.
-            app.save_quicknote();
+            app.needs_redraw = true;
         }
     }
 }

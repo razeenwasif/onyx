@@ -53,9 +53,6 @@ impl NoteIndex {
         let links = extract_links(content);
         let tags = extract_all_tags(content);
 
-        let mut outgoing: Vec<PathBuf> = Vec::new();
-        let mut unresolved: Vec<String> = Vec::new();
-
         // Build basename/relpath lookups *for this note* before resolving its links.
         // (Other notes are added by their own ingest call — resolution may be
         // partial during initial build; we recompute backlinks once at the end.)
@@ -101,15 +98,9 @@ impl NoteIndex {
             },
         );
 
-        // We'll resolve in `resolve_all` after the full first pass.
-        // But to be useful right now if called incrementally, try resolution.
-        for target in &link_targets {
-            if let Some(p) = self.resolve(root, target) {
-                outgoing.push(p);
-            } else {
-                unresolved.push(target.clone());
-            }
-        }
+        // Resolve outgoing links (skip self-links, de-duplicate). May be partial
+        // during the initial full build; recompute_backlinks fixes it up.
+        let (outgoing, unresolved) = self.resolve_targets(path, &link_targets);
 
         // Tags.
         for t in &tags {
@@ -125,37 +116,40 @@ impl NoteIndex {
         }
     }
 
+    /// Resolve a note's raw link targets into (outgoing paths, unresolved names),
+    /// skipping self-links and duplicates. Folder context is preserved (a
+    /// `Folder/B` target won't collapse to a bare `B`).
+    fn resolve_targets(&self, src: &Path, targets: &[String]) -> (Vec<PathBuf>, Vec<String>) {
+        let mut resolved: Vec<PathBuf> = Vec::new();
+        let mut unresolved: Vec<String> = Vec::new();
+        for target in targets {
+            if let Some(p) = self.resolve(src, target) {
+                if p.as_path() != src && !resolved.contains(&p) {
+                    resolved.push(p);
+                }
+            } else if !unresolved.contains(target) {
+                unresolved.push(target.clone());
+            }
+        }
+        (resolved, unresolved)
+    }
+
     fn recompute_backlinks(&mut self) {
         self.backlinks.clear();
         let paths: Vec<PathBuf> = self.notes.keys().cloned().collect();
         for src in &paths {
-            // Re-resolve in case some links were created before targets were indexed.
-            if let Some(meta) = self.notes.get(src).cloned() {
-                let mut resolved: Vec<PathBuf> = Vec::new();
-                let mut unresolved: Vec<String> = Vec::new();
-                // Re-resolve from the raw targets so folder-qualified links keep
-                // their context (e.g. `Folder/B` won't collapse to a bare `B`).
-                for target in meta.targets.iter().cloned() {
-                    if let Some(p) = self.resolve(src, &target) {
-                        // Skip self-links and duplicates (a note linked both as
-                        // a wikilink and a markdown link counts once).
-                        if &p != src && !resolved.contains(&p) {
-                            resolved.push(p);
-                        }
-                    } else if !unresolved.contains(&target) {
-                        unresolved.push(target);
-                    }
-                }
-                if let Some(m) = self.notes.get_mut(src) {
-                    m.outgoing = resolved.clone();
-                    m.unresolved = unresolved;
-                }
-                for dst in resolved {
-                    self.backlinks
-                        .entry(dst)
-                        .or_default()
-                        .push(src.clone());
-                }
+            // Re-resolve from the raw targets now that every note is indexed.
+            let targets = match self.notes.get(src) {
+                Some(m) => m.targets.clone(),
+                None => continue,
+            };
+            let (resolved, unresolved) = self.resolve_targets(src, &targets);
+            if let Some(m) = self.notes.get_mut(src) {
+                m.outgoing = resolved.clone();
+                m.unresolved = unresolved;
+            }
+            for dst in resolved {
+                self.backlinks.entry(dst).or_default().push(src.clone());
             }
         }
         for v in self.backlinks.values_mut() {
@@ -240,12 +234,51 @@ impl NoteIndex {
     }
 
     pub fn update_note(&mut self, root: &Path, path: &Path, content: &str) {
-        self.remove_note(path);
+        // A brand-new note may satisfy *other* notes' previously-unresolved
+        // links, so it needs a full backlink recompute. Editing an existing
+        // note can't change how others resolve to it (same path), so we update
+        // only the edges that this note owns — O(this note) instead of O(vault).
+        if !self.notes.contains_key(path) {
+            self.ingest(root, path, content);
+            self.recompute_backlinks();
+            return;
+        }
+
+        // 1. Drop the note's old outgoing edges from the backlink map.
+        let old_out = self
+            .notes
+            .get(path)
+            .map(|m| m.outgoing.clone())
+            .unwrap_or_default();
+        for dst in &old_out {
+            if let Some(v) = self.backlinks.get_mut(dst) {
+                v.retain(|s| s != path);
+            }
+        }
+
+        // 2. Re-index the note's own metadata (tags/basename/relpath/outgoing),
+        //    leaving its *inbound* backlinks (other notes → this note) intact.
+        self.unindex_note_meta(path);
         self.ingest(root, path, content);
-        self.recompute_backlinks();
+
+        // 3. Add the note's new outgoing edges back into the backlink map.
+        let new_out = self
+            .notes
+            .get(path)
+            .map(|m| m.outgoing.clone())
+            .unwrap_or_default();
+        for dst in &new_out {
+            let v = self.backlinks.entry(dst.clone()).or_default();
+            v.push(path.to_path_buf());
+            v.sort();
+            v.dedup();
+        }
     }
 
-    pub fn remove_note(&mut self, path: &Path) {
+    /// Remove a note's own metadata from the index (notes/tags/basename/relpath)
+    /// *without* touching the backlink graph. Used by both `remove_note` and the
+    /// incremental `update_note`.
+    fn unindex_note_meta(&mut self, path: &Path) {
         if let Some(meta) = self.notes.remove(path) {
             for t in &meta.tags {
                 if let Some(set) = self.by_tag.get_mut(t) {
@@ -273,6 +306,11 @@ impl NoteIndex {
         for k in to_remove {
             self.by_relpath.remove(&k);
         }
+    }
+
+    pub fn remove_note(&mut self, path: &Path) {
+        self.unindex_note_meta(path);
+        // Remove this note's inbound list and scrub it from every other list.
         self.backlinks.remove(path);
         for v in self.backlinks.values_mut() {
             v.retain(|p| p != path);
@@ -340,6 +378,38 @@ mod tests {
     fn write(p: &Path, s: &str) {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, s).unwrap();
+    }
+
+    /// Incremental update_note keeps backlinks correct when a note's links change.
+    #[test]
+    fn incremental_update_fixes_backlinks() {
+        let root = std::env::temp_dir().join(format!("onyx-inc-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        write(&root.join("A.md"), "see [[B]]\n");
+        write(&root.join("B.md"), "b\n");
+        write(&root.join("C.md"), "c\n");
+
+        let tree = FileTree::scan(&root);
+        let mut idx = NoteIndex::build(&root, &tree);
+        let (a, b, c) = (root.join("A.md"), root.join("B.md"), root.join("C.md"));
+        assert_eq!(idx.backlinks_for(&b), vec![a.clone()]);
+        assert!(idx.backlinks_for(&c).is_empty());
+
+        // Edit A to point at C instead of B (existing-note → incremental path).
+        idx.update_note(&root, &a, "see [[C]]\n");
+        assert!(
+            idx.backlinks_for(&b).is_empty(),
+            "old backlink A→B should be gone"
+        );
+        assert_eq!(
+            idx.backlinks_for(&c),
+            vec![a.clone()],
+            "new backlink A→C should exist"
+        );
+        // A's own inbound backlinks (none) stay intact; outgoing updated.
+        assert_eq!(idx.notes.get(&a).unwrap().outgoing, vec![c.clone()]);
+
+        let _ = fs::remove_dir_all(&root);
     }
 
     /// Subfolder-aware note paths: `Projects/Idea` → `<root>/Projects/Idea.md`.

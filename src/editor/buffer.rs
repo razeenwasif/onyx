@@ -28,10 +28,19 @@ pub struct Buffer {
     pub cursor: Cursor,
     /// Preferred column for vertical motion (sticky).
     pub goal_col: usize,
+    /// Monotonic counter bumped on every content change. Lets views (e.g. the
+    /// preview) cache rendered output and re-render only when content changes.
+    pub revision: u64,
 }
 
 #[allow(dead_code)]
 impl Buffer {
+    /// Mark the buffer's content as changed.
+    #[inline]
+    pub fn touch(&mut self) {
+        self.revision = self.revision.wrapping_add(1);
+    }
+
     pub fn from_string(s: String) -> Self {
         let mut lines: Vec<String> = if s.is_empty() {
             vec![String::new()]
@@ -45,6 +54,7 @@ impl Buffer {
             lines,
             cursor: Cursor::origin(),
             goal_col: 0,
+            revision: 0,
         }
     }
 
@@ -250,6 +260,15 @@ impl Buffer {
         line.insert(byte, c);
         self.cursor.col += 1;
         self.goal_col = self.cursor.col;
+        self.touch();
+    }
+
+    /// Open a blank line above the cursor (vim `O`).
+    pub fn open_line_above(&mut self) {
+        self.lines.insert(self.cursor.line, String::new());
+        self.cursor.col = 0;
+        self.goal_col = 0;
+        self.touch();
     }
 
     pub fn insert_str(&mut self, s: &str) {
@@ -271,6 +290,7 @@ impl Buffer {
         self.cursor.line += 1;
         self.cursor.col = 0;
         self.goal_col = 0;
+        self.touch();
     }
 
     pub fn backspace(&mut self) {
@@ -287,6 +307,7 @@ impl Buffer {
             self.lines[self.cursor.line].push_str(&removed);
         }
         self.goal_col = self.cursor.col;
+        self.touch();
     }
 
     pub fn delete_forward(&mut self) {
@@ -300,9 +321,11 @@ impl Buffer {
             let next = self.lines.remove(self.cursor.line + 1);
             self.lines[self.cursor.line].push_str(&next);
         }
+        self.touch();
     }
 
     pub fn delete_line(&mut self) -> String {
+        self.touch();
         if self.lines.is_empty() {
             return String::new();
         }
@@ -324,6 +347,7 @@ impl Buffer {
         let bs = grapheme_to_byte(line, self.cursor.col);
         let removed = line[bs..].to_string();
         line.truncate(bs);
+        self.touch();
         removed
     }
 }

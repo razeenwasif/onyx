@@ -400,8 +400,7 @@ fn editor_normal(app: &mut App, key: KeyEvent) {
         KeyCode::Char('O') => {
             doc.history.record(&doc.buffer);
             doc.buffer.move_line_start();
-            // Insert a newline before, then move up.
-            doc.buffer.lines.insert(doc.buffer.cursor.line, String::new());
+            doc.buffer.open_line_above();
             doc.mode = Mode::Insert;
             doc.dirty = true;
         }
@@ -691,6 +690,7 @@ fn run_command(app: &mut App, id: CommandId) {
 fn set_theme(app: &mut App, name: &str) {
     app.config.theme = name.to_string();
     app.theme = Theme::preset(name).unwrap_or_default();
+    app.theme_gen += 1; // invalidate the preview render cache
     let _ = app.config.save();
     app.set_status(format!("theme: {}", app.theme.name));
 }

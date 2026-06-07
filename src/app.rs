@@ -1,10 +1,12 @@
 //! Top-level application state and event dispatch.
 
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use chrono::{Datelike, Local, NaiveDate};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::text::Text;
 
 use crate::config::Config;
 use crate::editor::{Buffer, Document, Mode};
@@ -13,6 +15,16 @@ use crate::graph_sim::{EdgeKind, GraphSim};
 use crate::theme::Theme;
 use crate::todo::TodoList;
 use crate::vault::{self, Vault};
+
+/// Cached rendered preview, keyed by the inputs that affect it. Lets the
+/// preview re-parse markdown only when the note content, width, or theme change.
+pub struct PreviewCache {
+    pub path: Option<PathBuf>,
+    pub rev: u64,
+    pub width: u16,
+    pub theme_gen: u64,
+    pub text: Text<'static>,
+}
 
 /// A small always-available scratch buffer persisted to `.onyx/quicknote.md`.
 #[derive(Debug)]
@@ -253,6 +265,14 @@ pub struct App {
     // A queued external program for the event loop to run (TUI suspended).
     pub pending_external: Option<PendingExternal>,
 
+    // Set whenever something changed; the event loop redraws only when true
+    // (so an idle Onyx doesn't burn CPU repainting).
+    pub needs_redraw: bool,
+    // Bumped on theme change to invalidate the preview cache.
+    pub theme_gen: u64,
+    // Cached rendered markdown preview (see PreviewCache).
+    pub preview_cache: RefCell<Option<PreviewCache>>,
+
     // Quit flag
     pub should_quit: bool,
 }
@@ -300,9 +320,19 @@ impl App {
             sidebar_selected: 0,
             status_msg: None,
             pending_external: None,
+            needs_redraw: true,
+            theme_gen: 0,
+            preview_cache: RefCell::new(None),
             config,
             should_quit: false,
         }
+    }
+
+    /// Whether the graph animates frame-by-frame (drives the redraw decision and
+    /// the faster poll cadence). Only the focused/fullscreen graph animates;
+    /// passive panes are pre-settled once and then static.
+    pub fn graph_should_step(&self) -> bool {
+        self.graph_animating()
     }
 
     /// Persist the quicknote buffer to `.onyx/quicknote.md` if dirty.
@@ -354,6 +384,7 @@ impl App {
 
     pub fn set_status<S: Into<String>>(&mut self, msg: S) {
         self.status_msg = Some((msg.into(), std::time::Instant::now()));
+        self.needs_redraw = true;
     }
 
     pub fn current_status(&self) -> Option<&str> {
@@ -652,17 +683,29 @@ impl App {
                 sim.global != self.graph_global || (!self.graph_global && sim.built_for != center)
             }
         };
-        if stale {
-            self.graph_sim = Some(self.build_graph_sim(center));
-        }
-        // Animate continuously while focused/fullscreen; the passive sidebar
-        // pane settles over a few hundred frames then freezes (no idle CPU).
-        const SETTLE_MAX: u32 = 400;
         let animating = self.graph_animating();
-        if let Some(sim) = self.graph_sim.as_mut() {
-            if animating || sim.steps < SETTLE_MAX {
+        if stale {
+            let mut sim = self.build_graph_sim(center);
+            // Pre-settle a passive (unfocused) graph in one batch so it shows a
+            // laid-out layout immediately with zero ongoing redraws. Fewer
+            // iterations for big graphs to keep the one-time cost small.
+            if !animating {
+                let iters = if sim.nodes.len() > 400 { 60 } else { 180 };
+                for _ in 0..iters {
+                    sim.step();
+                }
+            }
+            self.graph_sim = Some(sim);
+            self.needs_redraw = true;
+        }
+        // While focused/fullscreen, advance one frame per tick → perpetual
+        // motion. Passive panes don't step here (they were pre-settled), so an
+        // idle Onyx does no graph work.
+        if animating {
+            if let Some(sim) = self.graph_sim.as_mut() {
                 sim.step();
             }
+            self.needs_redraw = true;
         }
     }
 
