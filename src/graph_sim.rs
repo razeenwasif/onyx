@@ -36,6 +36,8 @@ pub struct GraphSim {
     /// Frames simulated since build (lets the passive pane settle then freeze).
     pub steps: u32,
     rng: u64,
+    /// Reused Barnes-Hut quadtree arena (avoids per-frame allocation).
+    quad: Vec<Quad>,
 }
 
 // Tuned for a normalized space where nodes start ~10 units from the origin.
@@ -48,6 +50,131 @@ const DT: f32 = 0.5;
 const JITTER: f32 = 0.06;
 const POS_CLAMP: f32 = 240.0;
 const VEL_CLAMP: f32 = 24.0;
+
+/// Below this node count, exact O(n²) repulsion is cheaper than building a tree.
+const BH_THRESHOLD: usize = 96;
+/// Barnes-Hut opening angle: smaller = more accurate, larger = faster.
+const THETA: f32 = 0.85;
+/// Stop subdividing quadtree cells smaller than this (handles coincident nodes).
+const MIN_HALF: f32 = 0.5;
+/// Softening term to avoid singularities at tiny distances.
+const SOFTEN: f32 = 0.05;
+
+/// A node in the Barnes-Hut quadtree (arena-indexed; `-1` = none).
+#[derive(Clone, Copy, Debug)]
+struct Quad {
+    cx: f32,
+    cy: f32,
+    half: f32,
+    sumx: f32,
+    sumy: f32,
+    count: u32,
+    body: i32,
+    children: [i32; 4],
+}
+
+impl Quad {
+    fn new(cx: f32, cy: f32, half: f32) -> Self {
+        Quad {
+            cx,
+            cy,
+            half,
+            sumx: 0.0,
+            sumy: 0.0,
+            count: 0,
+            body: -1,
+            children: [-1; 4],
+        }
+    }
+}
+
+#[inline]
+fn quadrant(cx: f32, cy: f32, x: f32, y: f32) -> usize {
+    // 0=NW 1=NE 2=SW 3=SE
+    let east = (x >= cx) as usize;
+    let south = (y >= cy) as usize;
+    south * 2 + east
+}
+
+fn qt_child(arena: &mut Vec<Quad>, idx: usize, x: f32, y: f32) -> usize {
+    let (cx, cy, half) = (arena[idx].cx, arena[idx].cy, arena[idx].half);
+    let q = quadrant(cx, cy, x, y);
+    if arena[idx].children[q] < 0 {
+        let hh = half / 2.0;
+        let ncx = if q & 1 == 1 { cx + hh } else { cx - hh };
+        let ncy = if q & 2 == 2 { cy + hh } else { cy - hh };
+        arena.push(Quad::new(ncx, ncy, hh));
+        let ci = (arena.len() - 1) as i32;
+        arena[idx].children[q] = ci;
+    }
+    arena[idx].children[q] as usize
+}
+
+fn qt_insert(arena: &mut Vec<Quad>, idx: usize, b: usize, px: &[f32], py: &[f32]) {
+    arena[idx].sumx += px[b];
+    arena[idx].sumy += py[b];
+    arena[idx].count += 1;
+    if arena[idx].count == 1 {
+        arena[idx].body = b as i32;
+        return;
+    }
+    if arena[idx].half < MIN_HALF {
+        // Coincident/degenerate cell: keep as a cluster, don't subdivide.
+        arena[idx].body = -1;
+        return;
+    }
+    if arena[idx].body >= 0 {
+        let old = arena[idx].body as usize;
+        arena[idx].body = -1;
+        let c = qt_child(arena, idx, px[old], py[old]);
+        qt_insert(arena, c, old, px, py);
+    }
+    let c = qt_child(arena, idx, px[b], py[b]);
+    qt_insert(arena, c, b, px, py);
+}
+
+/// Net repulsion on body `b` from the quadtree (Barnes-Hut approximation).
+fn qt_force(arena: &[Quad], idx: usize, b: usize, px: &[f32], py: &[f32]) -> (f32, f32) {
+    let q = arena[idx];
+    if q.count == 0 {
+        return (0.0, 0.0);
+    }
+    if q.body >= 0 {
+        let j = q.body as usize;
+        if j == b {
+            return (0.0, 0.0);
+        }
+        let dx = px[b] - px[j];
+        let dy = py[b] - py[j];
+        let d2 = dx * dx + dy * dy + SOFTEN;
+        let dist = d2.sqrt();
+        let f = REPULSION / d2;
+        return (dx / dist * f, dy / dist * f);
+    }
+    // Internal / clustered cell.
+    let inv = 1.0 / q.count as f32;
+    let comx = q.sumx * inv;
+    let comy = q.sumy * inv;
+    let dx = px[b] - comx;
+    let dy = py[b] - comy;
+    let d2 = dx * dx + dy * dy + SOFTEN;
+    let dist = d2.sqrt();
+    let has_children = q.children.iter().any(|&c| c >= 0);
+    if !has_children || (q.half * 2.0) / dist < THETA {
+        let f = REPULSION * q.count as f32 / d2;
+        return (dx / dist * f, dy / dist * f);
+    }
+    let mut fx = 0.0;
+    let mut fy = 0.0;
+    for &c in &q.children {
+        if c >= 0 {
+            let (a, b2) = qt_force(arena, c as usize, b, px, py);
+            fx += a;
+            fy += b2;
+        }
+    }
+    (fx, fy)
+}
 
 impl GraphSim {
     pub fn new(
@@ -98,6 +225,7 @@ impl GraphSim {
             global,
             steps: 0,
             rng: 0x9E3779B97F4A7C15,
+            quad: Vec::new(),
         }
     }
 
@@ -112,6 +240,29 @@ impl GraphSim {
         v - 1.0
     }
 
+    /// Rebuild the Barnes-Hut quadtree over the current positions (arena reused).
+    fn build_quadtree(&mut self, px: &[f32], py: &[f32]) {
+        self.quad.clear();
+        let n = px.len();
+        if n == 0 {
+            return;
+        }
+        let (mut minx, mut maxx, mut miny, mut maxy) = (px[0], px[0], py[0], py[0]);
+        for k in 1..n {
+            minx = minx.min(px[k]);
+            maxx = maxx.max(px[k]);
+            miny = miny.min(py[k]);
+            maxy = maxy.max(py[k]);
+        }
+        let cx = (minx + maxx) * 0.5;
+        let cy = (miny + maxy) * 0.5;
+        let half = ((maxx - minx).max(maxy - miny) * 0.5 + 1.0).max(1.0);
+        self.quad.push(Quad::new(cx, cy, half));
+        for b in 0..n {
+            qt_insert(&mut self.quad, 0, b, px, py);
+        }
+    }
+
     /// Advance the simulation by one frame.
     pub fn step(&mut self) {
         let n = self.nodes.len();
@@ -122,20 +273,35 @@ impl GraphSim {
         let mut fx = vec![0f32; n];
         let mut fy = vec![0f32; n];
 
-        // Pairwise repulsion (O(n²) — node sets are capped).
-        for i in 0..n {
-            for j in (i + 1)..n {
-                let dx = self.nodes[i].x - self.nodes[j].x;
-                let dy = self.nodes[i].y - self.nodes[j].y;
-                let d2 = dx * dx + dy * dy + 0.05;
-                let dist = d2.sqrt();
-                let f = REPULSION / d2;
-                let ux = dx / dist;
-                let uy = dy / dist;
-                fx[i] += ux * f;
-                fy[i] += uy * f;
-                fx[j] -= ux * f;
-                fy[j] -= uy * f;
+        // Snapshot positions so force calc doesn't fight the borrow checker
+        // with the (mutably-borrowed) quadtree arena.
+        let px: Vec<f32> = self.nodes.iter().map(|nd| nd.x).collect();
+        let py: Vec<f32> = self.nodes.iter().map(|nd| nd.y).collect();
+
+        // Repulsion: exact O(n²) for small graphs, Barnes-Hut O(n log n) above
+        // a threshold (the global "earth" can hold many hundreds of nodes).
+        if n <= BH_THRESHOLD {
+            for i in 0..n {
+                for j in (i + 1)..n {
+                    let dx = px[i] - px[j];
+                    let dy = py[i] - py[j];
+                    let d2 = dx * dx + dy * dy + SOFTEN;
+                    let dist = d2.sqrt();
+                    let f = REPULSION / d2;
+                    let ux = dx / dist;
+                    let uy = dy / dist;
+                    fx[i] += ux * f;
+                    fy[i] += uy * f;
+                    fx[j] -= ux * f;
+                    fy[j] -= uy * f;
+                }
+            }
+        } else {
+            self.build_quadtree(&px, &py);
+            for i in 0..n {
+                let (rx, ry) = qt_force(&self.quad, 0, i, &px, &py);
+                fx[i] += rx;
+                fy[i] += ry;
             }
         }
 
@@ -144,8 +310,8 @@ impl GraphSim {
             if a >= n || b >= n {
                 continue;
             }
-            let dx = self.nodes[b].x - self.nodes[a].x;
-            let dy = self.nodes[b].y - self.nodes[a].y;
+            let dx = px[b] - px[a];
+            let dy = py[b] - py[a];
             let dist = (dx * dx + dy * dy).sqrt().max(0.01);
             let f = SPRING_K * (dist - SPRING_REST);
             let ux = dx / dist;
