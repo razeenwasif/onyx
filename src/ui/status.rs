@@ -88,6 +88,7 @@ fn hint_for_focus(focus: Focus) -> &'static str {
         Focus::FileTree => {
             "· j/k move · Enter open · Space expand · n new · m folder · r rename · d delete"
         }
+        Focus::Home => "· j/k move · Enter open/run · Ctrl-N new · Ctrl-O open · Ctrl-/ help",
         Focus::Quicknote => "· type to edit · autosaves · Tab/Esc leave",
         Focus::Todo => "· j/k move · Space toggle · a add · e edit · d delete",
         Focus::Editor => "· i insert · Ctrl-S save · Ctrl-Enter follow link · Ctrl-/ help",

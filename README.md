@@ -4,6 +4,7 @@ A modern, premium markdown notes TUI — an Obsidian-inspired terminal vault.
 
 ## Features
 
+- Interactive **start page** on launch — new note/folder, search, open recent, daily note
 - Vault-based markdown notes with live file tree
 - Live-rendered preview pane (headings, bold/italic, code blocks, lists, task lists, blockquotes, wikilinks, tags)
 - `[[Wikilinks]]` with autocompletion-aware resolution and `Ctrl-Enter` to follow

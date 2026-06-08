@@ -2,7 +2,9 @@
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::app::{self, App, ConfirmAction, Focus, PendingExternal, PromptAction, SidebarTab};
+use crate::app::{
+    self, App, ConfirmAction, Focus, HomeAction, PendingExternal, PromptAction, SidebarTab,
+};
 use crate::editor::Mode;
 use crate::external;
 use crate::theme::Theme;
@@ -26,6 +28,7 @@ pub fn on_key(app: &mut App, key: KeyEvent) {
         Focus::Confirm => confirm_keys(app, key),
         Focus::CommandLine => cmdline_keys(app, key),
         Focus::FileTree => filetree_keys(app, key),
+        Focus::Home => home_keys(app, key),
         Focus::Quicknote => quicknote_keys(app, key),
         Focus::Todo => todo_keys(app, key),
         Focus::Sidebar => sidebar_keys(app, key),
@@ -117,14 +120,14 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
         KeyCode::Char('b') if !in_text_overlay => {
             app.show_left = !app.show_left;
             if !app.show_left && app.focus == Focus::FileTree {
-                app.focus = Focus::Editor;
+                app.focus = app.center_focus();
             }
             true
         }
         KeyCode::Char('r') if !in_text_overlay => {
             app.show_right = !app.show_right;
             if !app.show_right && (app.focus == Focus::Sidebar || app.focus == Focus::Calendar) {
-                app.focus = Focus::Editor;
+                app.focus = app.center_focus();
             }
             true
         }
@@ -153,7 +156,7 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
             true
         }
         KeyCode::Char('2') if !in_text_overlay => {
-            app.focus = Focus::Editor;
+            app.focus = app.center_focus();
             true
         }
         KeyCode::Char('3') if !in_text_overlay => {
@@ -169,6 +172,48 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
             true
         }
         _ => false,
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Home start page
+// -----------------------------------------------------------------------------
+
+fn home_keys(app: &mut App, key: KeyEvent) {
+    let len = app.home_items().len();
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down if len > 0 => {
+            app.home_selected = (app.home_selected + 1).min(len - 1);
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            app.home_selected = app.home_selected.saturating_sub(1);
+        }
+        KeyCode::Char('g') => app.home_selected = 0,
+        KeyCode::Char('G') => app.home_selected = len.saturating_sub(1),
+        KeyCode::Enter | KeyCode::Char('l') | KeyCode::Char(' ') => {
+            activate_home_selection(app);
+        }
+        KeyCode::Tab => app.toggle_pane_focus(true),
+        KeyCode::BackTab => app.toggle_pane_focus(false),
+        _ => {}
+    }
+}
+
+/// Run the action under the Home cursor. New note/folder open a prompt here
+/// (dispatch owns the prompt helper); everything else delegates to the App.
+fn activate_home_selection(app: &mut App) {
+    let items = app.home_items();
+    let Some(item) = items.get(app.home_selected) else {
+        return;
+    };
+    match item.action.clone() {
+        HomeAction::NewNote => {
+            start_prompt(app, "New note (path)", PromptAction::NewNote, "");
+        }
+        HomeAction::NewFolder => {
+            start_prompt(app, "New folder (path)", PromptAction::NewFolder, "");
+        }
+        other => app.activate_home(other),
     }
 }
 

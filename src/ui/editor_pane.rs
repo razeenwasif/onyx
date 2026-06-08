@@ -21,7 +21,8 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
     frame.render_widget(block, area);
 
     if app.doc.is_none() {
-        draw_empty(frame, inner, app);
+        // The no-document landing is the Home start page (rendered by the
+        // compositor); nothing to draw here.
         return;
     }
 
@@ -96,33 +97,6 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
             }
         }
     }
-}
-
-fn draw_empty(frame: &mut Frame, area: Rect, app: &App) {
-    let theme = &app.theme;
-    let art = vec![
-        Line::raw(""),
-        Line::raw(""),
-        Line::styled(
-            "    ◆ Onyx",
-            theme.s_accent().add_modifier(Modifier::BOLD),
-        ),
-        Line::styled("    a premium markdown vault", theme.s_subtle()),
-        Line::raw(""),
-        Line::styled("    Ctrl-O   Quick switcher", theme.s_dim()),
-        Line::styled("    Ctrl-N   New note", theme.s_dim()),
-        Line::styled("    Ctrl-P   Command palette", theme.s_dim()),
-        Line::styled("    Ctrl-K   Calendar / daily notes", theme.s_dim()),
-        Line::styled("    Ctrl-G   Graph view", theme.s_dim()),
-        Line::styled("    Ctrl-/   Help", theme.s_dim()),
-        Line::raw(""),
-        Line::styled(
-            format!("    vault: {}", app.vault.root.display()),
-            theme.s_subtle(),
-        ),
-    ];
-    let p = Paragraph::new(art).style(theme.s_normal());
-    frame.render_widget(p, area);
 }
 
 /// Style a single editor line: headings, wikilinks, tags, code spans, bold/italic.

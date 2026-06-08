@@ -72,6 +72,11 @@ screen grid from the ANSI stream). Reuse that pattern for visual checks.
   empty folders show in the tree, new note/folder relative to the selection.
 - **Delete confirmation:** yes/no dialog before deleting notes/folders (folders
   recursive). `y` confirms; `n`/Esc/anything cancels.
+- **Home start page:** Onyx opens on an interactive start page (center pane) —
+  New note / New folder / Search / Open note… / Today's daily note, then recent
+  notes; `j/k` + Enter. No more auto-opening the last note. Falls back here when
+  the open note is deleted. `App::home_items` is the single source of truth; see
+  QUICKGUIDE § 7.1.
 - **Fast startup (persistent index cache):** the index's per-note facts are
   cached to `<vault>/.onyx/index-cache.json` and reused for notes whose mtime is
   unchanged, so a relaunch only re-parses what changed (~26× faster warm rebuild,
@@ -186,7 +191,8 @@ quit (avoids re-parsing in-session edits next launch).
 ## Recent commits (newest first)
 
 ```
-(pending) Perf: persistent index cache for fast startup
+(pending) Home start page on launch
+6210547 Perf: persistent index cache for fast startup
 c5bfdf9 Docs: document filesystem sync + refresh QUICKGUIDE line refs
 197854e Robustness: atomic saves, conflict guard, live file watcher
 fa14a06 Add CONTEXT.md handoff doc

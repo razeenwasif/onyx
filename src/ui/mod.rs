@@ -7,6 +7,7 @@ pub mod editor_pane;
 pub mod file_tree;
 pub mod graph;
 pub mod help;
+pub mod home;
 pub mod palette;
 pub mod preview;
 pub mod prompt;
@@ -90,7 +91,10 @@ fn draw_body(frame: &mut Frame, area: Rect, app: &mut App) {
     let center = cols[idx];
     idx += 1;
 
-    if app.show_preview {
+    if app.doc.is_none() {
+        // No note open → the interactive start page fills the center (no preview).
+        home::draw(frame, center, app);
+    } else if app.show_preview {
         let center_split = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(55), Constraint::Percentage(45)])

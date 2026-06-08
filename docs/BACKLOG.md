@@ -164,6 +164,23 @@ single-note delete (negligible leak today), SIMD literal search via
 
 ## Done
 
+### Home start page  (2026-06-09)
+
+Onyx used to auto-open whatever note was most recent on launch. Now it opens on
+an interactive **Home** start page in the center pane.
+
+- New `Focus::Home` + `home_selected`; `App::home_items()` builds the rows
+  (New note · New folder · Search vault · Open note… · Today's daily note, then
+  up to 8 recent notes) — one source of truth for both the renderer and the key
+  handler. `App::activate_home` delegates to existing flows; `App::center_focus`
+  returns Editor-or-Home so panes stop hard-coding "focus the editor".
+- `src/ui/home.rs` renders the menu (selection highlight when focused); the
+  compositor routes the center to it whenever `doc.is_none()`. Removed the old
+  static `editor_pane::draw_empty` splash it replaces.
+- `dispatch::home_keys` (j/k/g/G move, Enter/l/Space activate, Tab cycles);
+  New note/folder open a prompt. `main` no longer auto-opens a note; deleting the
+  open note falls back to Home. Status-bar hint added.
+
 ### Persistent index cache (fast startup)  (2026-06-09)
 
 Every launch used to read + regex-parse all ~680 notes. Now the index's

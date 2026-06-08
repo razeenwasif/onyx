@@ -64,6 +64,8 @@ pub enum Focus {
     FileTree,
     Quicknote,
     Todo,
+    /// The start page shown when no note is open (interactive action menu).
+    Home,
     Editor,
     Preview,
     Sidebar,
@@ -79,6 +81,26 @@ pub enum Focus {
     Confirm,
     /// Vim-style ex command line (`:q`, `:w`, `:e file`, …).
     CommandLine,
+}
+
+/// An action on the Home start page.
+#[derive(Debug, Clone)]
+pub enum HomeAction {
+    NewNote,
+    NewFolder,
+    Search,
+    Switcher,
+    DailyNote,
+    OpenRecent(PathBuf),
+}
+
+/// One selectable row on the Home start page.
+#[derive(Debug, Clone)]
+pub struct HomeItem {
+    pub icon: &'static str,
+    pub label: String,
+    pub hint: String,
+    pub action: HomeAction,
 }
 
 /// A pane currently expanded to fill the whole body area.
@@ -255,6 +277,9 @@ pub struct App {
     pub fullscreen: Option<FullPane>,
     pub sidebar_tab: SidebarTab,
 
+    // Home start-page selection (index into `home_items()`).
+    pub home_selected: usize,
+
     // File tree state
     pub tree_selected: usize,
     pub expanded_dirs: HashSet<PathBuf>,
@@ -339,8 +364,9 @@ impl App {
             sidebar_tab: SidebarTab::Backlinks,
             vault,
             doc: None,
-            focus: Focus::FileTree,
-            last_focus: Focus::FileTree,
+            focus: Focus::Home,
+            last_focus: Focus::Home,
+            home_selected: 0,
             tree_selected: 0,
             expanded_dirs: expanded,
             expanded_gen: 0,
@@ -488,6 +514,92 @@ impl App {
             Some(msg.as_str())
         } else {
             None
+        }
+    }
+
+    /// The focus the center pane should take: the editor when a note is open,
+    /// otherwise the Home start page.
+    pub fn center_focus(&self) -> Focus {
+        if self.doc.is_some() {
+            Focus::Editor
+        } else {
+            Focus::Home
+        }
+    }
+
+    /// The selectable rows on the Home start page: quick actions, then the most
+    /// recent notes. Both the renderer and the key handler build from this, so
+    /// the displayed list and the action on Enter never drift apart.
+    pub fn home_items(&self) -> Vec<HomeItem> {
+        let mut items = vec![
+            HomeItem {
+                icon: "✎",
+                label: "New note".into(),
+                hint: "Ctrl-N".into(),
+                action: HomeAction::NewNote,
+            },
+            HomeItem {
+                icon: "✚",
+                label: "New folder".into(),
+                hint: String::new(),
+                action: HomeAction::NewFolder,
+            },
+            HomeItem {
+                icon: "⌕",
+                label: "Search vault".into(),
+                hint: "Ctrl-Shift-F".into(),
+                action: HomeAction::Search,
+            },
+            HomeItem {
+                icon: "❯",
+                label: "Open note…".into(),
+                hint: "Ctrl-O".into(),
+                action: HomeAction::Switcher,
+            },
+            HomeItem {
+                icon: "◷",
+                label: "Today's daily note".into(),
+                hint: "Ctrl-K".into(),
+                action: HomeAction::DailyNote,
+            },
+        ];
+        for (p, _) in self.vault.index.recent_notes().into_iter().take(8) {
+            let label = vault::note_basename(&p);
+            let rel = vault::note_relpath(&self.vault.root, &p);
+            let hint = Path::new(&rel)
+                .parent()
+                .map(|d| d.to_string_lossy().to_string())
+                .filter(|d| !d.is_empty())
+                .unwrap_or_default();
+            items.push(HomeItem {
+                icon: "•",
+                label,
+                hint,
+                action: HomeAction::OpenRecent(p),
+            });
+        }
+        items
+    }
+
+    /// Run the selected Home action (Enter on the start page).
+    pub fn activate_home(&mut self, action: HomeAction) {
+        match action {
+            HomeAction::Search => self.open_search(),
+            HomeAction::Switcher => self.open_switcher(),
+            HomeAction::DailyNote => {
+                let today = today();
+                if let Err(e) = self.open_daily_note(today) {
+                    self.set_status(format!("daily note failed: {e}"));
+                }
+            }
+            HomeAction::OpenRecent(p) => {
+                if let Err(e) = self.open_note(p) {
+                    self.set_status(format!("open failed: {e}"));
+                }
+            }
+            // NewNote / NewFolder open a prompt; dispatch handles those (it owns
+            // the prompt-starting helper).
+            HomeAction::NewNote | HomeAction::NewFolder => {}
         }
     }
 
@@ -745,9 +857,13 @@ impl App {
                 order.push(Focus::Todo);
             }
         }
-        order.push(Focus::Editor);
-        if self.show_preview {
-            order.push(Focus::Preview);
+        if self.doc.is_some() {
+            order.push(Focus::Editor);
+            if self.show_preview {
+                order.push(Focus::Preview);
+            }
+        } else {
+            order.push(Focus::Home);
         }
         if self.show_right {
             order.push(Focus::Sidebar);
@@ -759,7 +875,11 @@ impl App {
             }
         }
         if order.is_empty() {
-            order.push(Focus::Editor);
+            order.push(if self.doc.is_some() {
+                Focus::Editor
+            } else {
+                Focus::Home
+            });
         }
         order
     }
@@ -846,6 +966,12 @@ impl App {
                     .unwrap_or(false);
                 if cleared {
                     self.doc = None;
+                    // No note open → fall back to the Home start page, unless the
+                    // user is actively in the tree/another pane.
+                    if self.focus == Focus::Editor || self.focus == Focus::Preview {
+                        self.focus = Focus::Home;
+                        self.home_selected = 0;
+                    }
                 }
                 self.tree_selected = self.tree_selected.saturating_sub(1);
                 self.set_status(format!("deleted {rel}"));
@@ -1218,10 +1344,14 @@ impl App {
             }
             Focus::Quicknote => {
                 self.save_quicknote();
-                self.focus = Focus::Editor;
+                self.focus = self.center_focus();
             }
             Focus::Graph | Focus::Calendar | Focus::Todo => {
-                self.focus = Focus::Editor;
+                self.focus = self.center_focus();
+            }
+            // Esc from Home drops to the file tree if it's visible.
+            Focus::Home if self.show_left => {
+                self.focus = Focus::FileTree;
             }
             Focus::Editor => {
                 if let Some(doc) = self.doc.as_mut() {

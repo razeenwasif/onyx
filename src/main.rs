@@ -60,20 +60,10 @@ fn main() -> anyhow::Result<()> {
             .with_context(|| format!("creating vault at {}", vault_path.display()))?
     };
 
+    // Onyx opens on the Home start page (App::new sets Focus::Home with no doc),
+    // so the user lands on a menu of actions + recent notes rather than whatever
+    // note happened to be open last.
     let mut app = App::new(vault, config);
-
-    if app.doc.is_none() {
-        let first = app
-            .vault
-            .index
-            .recent_notes()
-            .into_iter()
-            .map(|(p, _)| p)
-            .next();
-        if let Some(p) = first {
-            let _ = app.open_note(p);
-        }
-    }
 
     run(&mut app)?;
     Ok(())

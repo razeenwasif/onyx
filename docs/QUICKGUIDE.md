@@ -70,6 +70,7 @@ src/
     ├── file_tree.rs     — Files pane (left column, top)
     ├── quicknote.rs     — Quicknote scratch pane (left column)
     ├── todo.rs          — Todo checklist pane (left column)
+    ├── home.rs          — start page (interactive action menu; shown when no note is open)
     ├── editor_pane.rs   — center pane (the editor itself)
     ├── preview.rs       — rendered preview (cached)
     ├── sidebar.rs       — right column: tabs + graph + calendar panes
@@ -124,7 +125,7 @@ The whole program in one walk-through:
    - Load `Config` from `~/.config/onyx/config.toml` (`Config::load`, `src/config.rs:159`).
    - Resolve the vault path: CLI arg → `config.last_vault` → `~/OnyxVault` (`resolve_vault_path`, `src/main.rs:129`).
    - `Vault::open` or `Vault::create` — both end at a fully-indexed `Vault` (`src/vault/mod.rs:27` / `:39`). Indexing goes through `vault::build_index`, which reuses the on-disk cache to skip re-parsing unchanged notes (§ 10).
-   - Build `App::new(vault, config)` (`src/app.rs:319`) and auto-open the most-recent note. `App::new` also arms the filesystem watcher on the vault root (§ 8.4).
+   - Build `App::new(vault, config)` (`src/app.rs`), which starts on the **Home** start page (`Focus::Home`, no note auto-opened — see § 7.1) and arms the filesystem watcher on the vault root (§ 8.4).
 
 2. **`run()`** (`src/main.rs:144`)
    - Enables crossterm raw mode, enters the alternate screen, enables mouse capture.
@@ -173,6 +174,9 @@ pub struct App {
     pub show_graph_pane, show_calendar, show_quicknote, show_todo: bool,
     pub fullscreen: Option<FullPane>,   // Graph or Calendar filling the body
     pub sidebar_tab: SidebarTab,        // Backlinks | Outline | Tags
+
+    // home start page
+    pub home_selected: usize,        // selected row in App::home_items()
 
     // file tree state
     pub tree_selected: usize,
@@ -301,7 +305,8 @@ ui::draw(frame, app)
           │    ├─ quicknote::draw   (Length, if show_quicknote)  ◀── app.quicknote.buffer
           │    └─ todo::draw        (Length, if show_todo)       ◀── app.todos
           ├─ center:
-          │   if show_preview: [editor 55%] [preview 45%]  else editor_pane only
+          │   if doc.is_none():  home::draw (start page, fills center — see § 7.1)
+          │   elif show_preview: [editor 55%] [preview 45%]   else editor_pane only
           └─ sidebar::draw (right column), stacked vertically:
                ├─ draw_tabbed (Min)  — tabs: Backlinks · Outline · Tags
                ├─ graph::draw (Min, if show_graph_pane)   ◀── Focus::Graph
@@ -320,6 +325,12 @@ Panes are toggled by `App::show_{left,right,preview,graph_pane,calendar,quicknot
 Two visual conventions every pane shares:
 - `ui::pane_block(title, focused, theme)` (`src/ui/mod.rs:161`) — builds the rounded `Block` with the focus-aware border. Use this; don't roll your own border.
 - `ui::centered_rect(w, h, outer)` (`src/ui/mod.rs:147`) — used by every modal overlay.
+
+### 7.1 The Home start page
+
+When no note is open (`app.doc.is_none()`), the center renders the **Home start page** (`src/ui/home.rs`) instead of the editor — an interactive menu of quick actions (New note, New folder, Search vault, Open note…, Today's daily note) followed by the most-recent notes. Onyx launches here (`App::new` sets `Focus::Home`, and `main` no longer auto-opens the last note), and falls back here when the open note is deleted.
+
+The rows are produced by `App::home_items()` — the single source of truth that both the renderer and the key handler (`dispatch::home_keys`) read, so the displayed list and the Enter action can't drift. `home_selected` tracks the cursor; `j/k` move, `Enter`/`l`/`Space` activate. Actions delegate to existing flows: `App::activate_home` handles Search/Switcher/DailyNote/OpenRecent, while New note / New folder open a prompt via `dispatch::start_prompt` (dispatch owns that helper). Opening any note sets `doc` + `Focus::Editor`, so Home disappears. The `App::center_focus()` helper returns `Editor` when a doc is open else `Home`, and is used everywhere a pane previously hard-coded "focus the editor".
 
 ---
 
@@ -358,6 +369,7 @@ match app.focus:
    Prompt    → prompt_keys
    Help      → help_keys
    Graph     → graph_keys
+   Home      → home_keys          j/k Enter (start page actions), see § 7.1
    CommandLine → cmdline_keys     vim `:` ex commands, see § 8.1
 ```
 
