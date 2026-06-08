@@ -12,7 +12,9 @@ A modern, premium markdown notes TUI — an Obsidian-inspired terminal vault.
 - Full-vault content search (`Ctrl-Shift-F`)
 - ASCII graph view (`Ctrl-G`) centered on the current note
 - Monthly calendar with daily-notes (`Ctrl-K`)
-- Vim-style modal editing in the editor pane
+- Vim-style modal editing in the editor pane, with a `:` ex command line (`:w`, `:e`, `:e!`, `:w!`, …)
+- Crash-safe **atomic saves** and an external-change **conflict guard** (prompts before overwriting a note edited elsewhere)
+- **Live filesystem sync** — edits from Obsidian/another editor/git refresh the tree, index, and graph; a clean open note reloads automatically
 - Themes: Onyx Dark · Onyx Light · Dracula · Nord (plus user-defined)
 - Persistent config at `~/.config/onyx/config.toml`
 

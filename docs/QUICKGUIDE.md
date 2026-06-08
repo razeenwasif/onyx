@@ -54,7 +54,7 @@ src/
 │   ├── mod.rs           — Vault facade: open/create, read/write/delete, folders
 │   ├── tree.rs          — recursive file tree (notes + empty dirs)
 │   ├── index.rs         — link/tag/backlink index (incremental update)
-│   └── watcher.rs       — optional fs watcher (notify) — wired but unused
+│   └── watcher.rs       — fs watcher (notify): drives live-reload + conflict sync
 │
 ├── markdown/
 │   ├── mod.rs           — re-exports
@@ -117,27 +117,30 @@ The one cycle worth noting: `vault::index` calls `markdown::parse` to extract li
 
 The whole program in one walk-through:
 
-1. **`main()`** (`src/main.rs:31`)
-   - Parse argv (`parse_args`, `src/main.rs:85`).
-   - Load `Config` from `~/.config/onyx/config.toml` (`Config::load`, `src/config.rs:118`).
-   - Resolve the vault path: CLI arg → `config.last_vault` → `~/OnyxVault` (`resolve_vault_path`, `src/main.rs:126`).
-   - `Vault::open` or `Vault::create` — both end at a fully-indexed `Vault` (`src/vault/mod.rs:25` / `:34`).
-   - Build `App::new(vault, config)` (`src/app.rs:154`) and auto-open the most-recent note.
+1. **`main()`** (`src/main.rs:34`)
+   - Parse argv (`parse_args`, `src/main.rs:88`).
+   - Load `Config` from `~/.config/onyx/config.toml` (`Config::load`, `src/config.rs:159`).
+   - Resolve the vault path: CLI arg → `config.last_vault` → `~/OnyxVault` (`resolve_vault_path`, `src/main.rs:129`).
+   - `Vault::open` or `Vault::create` — both end at a fully-indexed `Vault` (`src/vault/mod.rs:27` / `:39`).
+   - Build `App::new(vault, config)` (`src/app.rs:319`) and auto-open the most-recent note. `App::new` also arms the filesystem watcher on the vault root (§ 8.4).
 
-2. **`run()`** (`src/main.rs:141`)
+2. **`run()`** (`src/main.rs:144`)
    - Enables crossterm raw mode, enters the alternate screen, enables mouse capture.
    - Constructs the `CrosstermBackend` + `Terminal`, calls `term.clear()`.
    - Hands control to `event_loop()`. Guarantees that no matter how the loop exits, the terminal is restored.
 
-3. **`event_loop()`** (`src/main.rs`)
-   - The only loop in the program. Each iteration:
+3. **`event_loop()`** (`src/main.rs:176`)
+   - The only loop in the program. Each iteration, before drawing, it runs three cheap "drains":
      1. `app.tick_graph()` — advance the force-directed graph if it's on screen (sets `needs_redraw` when it moves).
-     2. Redraw (`term.draw(|f| ui::draw(f, app))`) **only if `app.needs_redraw`** (then clear the flag), plus one redraw when a status toast expires.
-     3. If `app.should_quit`, flush side panes and return.
-     4. `crossterm::event::poll(timeout)` where `timeout` = ~70 ms while the graph animates, ~200 ms while a toast is up, else **block ~indefinitely** until input (idle = ~0 CPU).
-     5. On a key event: `dispatch::on_key`, set `needs_redraw`, opportunistically `save_quicknote`. On resize: set `needs_redraw`. Drain any queued external program (fzf/yazi).
+     2. `app.drain_search()` — apply any results streamed from the background search worker.
+     3. `app.handle_fs_events()` — react to external file changes the watcher noticed (§ 8.4).
+   - Then:
+     4. Redraw (`term.draw(|f| ui::draw(f, app))`) **only if `app.needs_redraw`** (then clear the flag), plus one redraw when a status toast expires.
+     5. If `app.should_quit`, flush side panes and return.
+     6. `crossterm::event::poll(timeout)` where `timeout` = ~70 ms while the graph animates / a search streams, ~200 ms while a toast is up, **1 s while a watcher is active** (so external edits are caught promptly), else **block ~indefinitely** until input (idle = ~0 CPU).
+     7. On a key event: `dispatch::on_key`, set `needs_redraw`, opportunistically `save_quicknote`. On resize: set `needs_redraw`. Drain any queued external program (fzf/yazi).
 
-4. **`dispatch::on_key()`** (`src/dispatch.rs`)
+4. **`dispatch::on_key()`** (`src/dispatch.rs:14`)
    - First runs `global_shortcut` for Esc + the `:` ex-line trigger + `Ctrl-*` chords.
    - If not consumed, routes to a focus-specific handler — one per `Focus` variant (`filetree_keys`, `quicknote_keys`, `todo_keys`, `editor_keys`, `sidebar_keys`, `calendar_keys`, `graph_keys`, `palette_keys`, `switcher_keys`, `search_keys`, `prompt_keys`, `confirm_keys`, `cmdline_keys`, `help_keys`).
    - Mutates `App` in place. Never touches the terminal directly.
@@ -154,7 +157,7 @@ The render reads `App` directly; the only "update step" is `tick_graph` (graph p
 ## 5. State — there's exactly one place
 
 ```rust
-// src/app.rs:115
+// src/app.rs:237
 pub struct App {
     pub config: Config,           // persisted user prefs
     pub theme: Theme,             // resolved palette (derived from config)
@@ -199,6 +202,11 @@ pub struct App {
     pub sidebar_selected: usize,
     pub status_msg: Option<(String, Instant)>,  // transient toast
     pub pending_external: Option<PendingExternal>, // fzf/yazi to run
+
+    // filesystem sync (§ 8.4)
+    pub watcher: Option<VaultWatcher>,  // notify-based external-change watcher
+    pub recent_self_writes: HashMap<PathBuf, Instant>, // suppress self-triggered reindex
+
     pub needs_redraw: bool,             // dirty-render gate
     pub theme_gen: u64,                 // bumped on theme change (preview cache key)
     pub preview_cache: RefCell<Option<PreviewCache>>,
@@ -210,7 +218,7 @@ Why one big struct: with a single-threaded immediate-mode TUI, the cost of a bor
 
 Two sub-rules that keep this manageable:
 
-- **Renderers don't mutate model state.** They may clamp transient view state (scroll offsets, selection indices that grew past list length) — that's it. See `editor_pane::draw` (`src/ui/editor_pane.rs:18`) where it adjusts `doc.scroll` to keep the cursor visible before painting.
+- **Renderers don't mutate model state.** They may clamp transient view state (scroll offsets, selection indices that grew past list length) — that's it. See `editor_pane::draw` (`src/ui/editor_pane.rs:13`) where it adjusts `doc.scroll` to keep the cursor visible before painting.
 - **Handlers don't render.** They mutate, set `status_msg`, maybe flip `should_quit`. The next loop iteration draws.
 
 ---
@@ -232,12 +240,12 @@ The vault is the only place that touches the filesystem during normal operation.
 
 **Writes are atomic.** `write_note` goes through `vault::atomic_write` (`src/vault/mod.rs`), which writes a hidden `.<name>.<pid>.<n>.onyxtmp` sibling, fsyncs it, then `rename`s it over the target. A crash mid-write can never truncate the real note. `vault::file_mtime` exposes a note's on-disk modification time for the conflict guard below.
 
-`NoteIndex::resolve(target)` (`src/vault/index.rs:160`) is how a `[[Wikilink]]` becomes a `PathBuf`. It tries an exact relative-path match first, then falls back to basename match.
+`NoteIndex::resolve(target)` (`src/vault/index.rs:209`) is how a `[[Wikilink]]` becomes a `PathBuf`. It tries an exact relative-path match first, then falls back to basename match.
 
 ### `Document` — one open note
 
 ```rust
-// src/editor/mod.rs:13
+// src/editor/mod.rs:14
 pub struct Document {
     pub path: Option<PathBuf>,    // None = unsaved scratch buffer
     pub buffer: Buffer,           // Vec<String> + Cursor
@@ -254,9 +262,9 @@ pub struct Document {
 
 `disk_mtime` is the spine of the **conflict guard** and **live reload** (see § 8.4). It's stamped on `open_note`, after every save, and after a live reload.
 
-`Buffer` is intentionally simple: a `Vec<String>` of lines plus a `Cursor { line, col }` measured in **grapheme clusters**. All motion methods (`move_left`, `move_word_forward`, etc.) operate in grapheme space and convert to bytes only at the edges. See `Buffer::col_to_byte` (`src/editor/buffer.rs:69`) for the conversion.
+`Buffer` is intentionally simple: a `Vec<String>` of lines plus a `Cursor { line, col }` measured in **grapheme clusters**. All motion methods (`move_left`, `move_word_forward`, etc.) operate in grapheme space and convert to bytes only at the edges. See `Buffer::col_to_byte` (`src/editor/buffer.rs:78`) for the conversion.
 
-History is per-document and takes whole-buffer snapshots, coalesced by a 400ms idle window. Cheap because notes are small. See `History::record` (`src/editor/history.rs:41`).
+History is per-document and takes whole-buffer snapshots, coalesced by a 400ms idle window. Cheap because notes are small. See `History::record` (`src/editor/history.rs:69`).
 
 ### `Theme` — pure derivation from config
 
@@ -265,7 +273,7 @@ History is per-document and takes whole-buffer snapshots, coalesced by a 400ms i
 pub struct Theme { /* 20-ish ColorSpec fields + Style helpers */ }
 ```
 
-A theme is resolved once at startup (`Config::resolve_theme`, `src/config.rs:139`) and re-resolved when the user switches via the palette (`set_theme`, `src/dispatch.rs:634`). Renderers ask the theme for styled spans via `theme.s_heading(level)`, `theme.s_wikilink()`, etc. — they never construct colors inline.
+A theme is resolved once at startup (`Config::resolve_theme`, `src/config.rs:182`) and re-resolved when the user switches via the palette (`set_theme`, `src/dispatch.rs:683`). Renderers ask the theme for styled spans via `theme.s_heading(level)`, `theme.s_wikilink()`, etc. — they never construct colors inline.
 
 ---
 
@@ -308,8 +316,8 @@ Panes are toggled by `App::show_{left,right,preview,graph_pane,calendar,quicknot
 ```
 
 Two visual conventions every pane shares:
-- `ui::pane_block(title, focused, theme)` (`src/ui/mod.rs:118`) — builds the rounded `Block` with the focus-aware border. Use this; don't roll your own border.
-- `ui::centered_rect(w, h, outer)` (`src/ui/mod.rs:104`) — used by every modal overlay.
+- `ui::pane_block(title, focused, theme)` (`src/ui/mod.rs:161`) — builds the rounded `Block` with the focus-aware border. Use this; don't roll your own border.
+- `ui::centered_rect(w, h, outer)` (`src/ui/mod.rs:147`) — used by every modal overlay.
 
 ---
 
@@ -319,10 +327,10 @@ Two visual conventions every pane shares:
 crossterm::event::read()  →  Event::Key(KeyEvent)
         │
         ▼
-dispatch::on_key(app, key)         (src/dispatch.rs:13)
+dispatch::on_key(app, key)         (src/dispatch.rs:14)
         │
         ▼
-global_shortcut(app, key)          (src/dispatch.rs:35)
+global_shortcut(app, key)          (src/dispatch.rs:40)
    ├─ Esc → app.escape()           — closes overlays / leaves insert mode
    ├─ Ctrl-Q → app.should_quit
    ├─ Ctrl-P → app.open_palette()
@@ -435,7 +443,7 @@ Three patterns to know when adding a binding:
 2. **Per-focus binding** → add it in that focus's handler.
 3. **Text-entry overlay** → handlers explicitly only treat `Char(c)` as input when `!key.modifiers.contains(CONTROL)` so that `Ctrl-Q` etc. still escape the overlay.
 
-The `in_text_overlay` guard in `global_shortcut` (`src/dispatch.rs:55`) is what prevents `Ctrl-P` from re-opening the palette while you're already typing in it.
+The `in_text_overlay` guard in `global_shortcut` (`src/dispatch.rs:54`) is what prevents `Ctrl-P` from re-opening the palette while you're already typing in it.
 
 ---
 
@@ -531,19 +539,19 @@ A short field guide for the most common changes.
 
 | Scope | Where to edit |
 |-------|---------------|
-| Global chord (e.g. `Ctrl-Shift-X`) | `global_shortcut` in `src/dispatch.rs:35` |
-| Editor normal-mode key | `editor_normal` in `src/dispatch.rs:316` |
-| Editor insert-mode key | `editor_insert` in `src/dispatch.rs:262` |
-| File tree key | `filetree_keys` in `src/dispatch.rs:152` |
+| Global chord (e.g. `Ctrl-Shift-X`) | `global_shortcut` in `src/dispatch.rs:40` |
+| Editor normal-mode key | `editor_normal` in `src/dispatch.rs:363` |
+| Editor insert-mode key | `editor_insert` in `src/dispatch.rs:309` |
+| File tree key | `filetree_keys` in `src/dispatch.rs:179` |
 | Overlay key | the matching `*_keys` function |
 
-Also add an entry to `keymap::GLOSSARY` (`src/keymap.rs:8`) so it shows in the help overlay.
+Also add an entry to `keymap::GLOSSARY` (`src/keymap.rs:10`) so it shows in the help overlay.
 
 ### Adding a palette command
 
-1. Add a variant to `CommandId` in `src/ui/palette.rs:18`.
-2. Add a `Command { label, hint, id }` row to `COMMANDS` (`src/ui/palette.rs:41`).
-3. Add a match arm in `run_command` (`src/dispatch.rs:578`) for what it does.
+1. Add a variant to `CommandId` in `src/ui/palette.rs:21`.
+2. Add a `Command { label, hint, id }` row to `COMMANDS` (`src/ui/palette.rs:43`).
+3. Add a match arm in `run_command` (`src/dispatch.rs:629`) for what it does.
 
 That's it — fuzzy filtering is automatic.
 
@@ -562,7 +570,7 @@ Add a `pub fn my_theme() -> Self` constructor on `Theme` in `src/theme.rs`, then
 
 ### Adding a vault operation (e.g. "move note to folder")
 
-Put the disk operation on `Vault` (`src/vault/mod.rs`). Make sure it calls `self.refresh()` or `self.index.update_note(...)` so the in-memory state stays consistent. Then expose it as a palette command or keybinding.
+Put the disk operation on `Vault` (`src/vault/mod.rs`). Make sure it calls `self.refresh()` or `self.index.update_note(...)` so the in-memory state stays consistent. Write note **content** through `atomic_write` (which `write_note` already does), never a bare `fs::write`. Then expose it as a palette command or keybinding. If the App writes a note it then keeps open, call `App::record_self_write(path)` after the write so the watcher doesn't replay the save as an external change (§ 8.4).
 
 ### Adding a new model field that needs to persist
 
@@ -581,6 +589,7 @@ These are properties of the codebase you should preserve unless you're explicitl
 - **No retained widgets, but cache derived data.** Render builds fresh `Span`/`Line`/`Text` each frame; don't cache widget instances. Heavy derived data *is* cached behind a revision/key — the preview `Text` (`App::preview_cache`) and the graph layout (`App::graph_sim`). The animating graph goes a step further and writes its node field **straight into `frame.buffer_mut()`** (`ui/graph.rs` `put_cell`/`draw_line_buf`) instead of building `Text`, since it's the per-frame hot path — use that pattern only where allocation churn actually matters.
 - **Wikilink resolution is centralized.** `NoteIndex::resolve` is the only function that knows the matching rules. Don't reimplement them in renderers or dispatch.
 - **The Buffer cursor is in grapheme clusters, not bytes or codepoints.** Conversions happen in `col_to_byte` / `byte_to_col`. New buffer ops must stay in grapheme space at the public API.
+- **Note writes are atomic and self-announced.** All note content reaches disk via `vault::atomic_write` (temp + fsync + rename), so a crash can't truncate a note — never `fs::write` a note directly. When the App saves a note it also calls `record_self_write`, so the filesystem watcher (§ 8.4) doesn't mistake the save for an external edit and reload over it. Anything that bypasses `write_note` must uphold both halves.
 
 ---
 
@@ -592,10 +601,12 @@ When you need to find something fast:
 |---|---|
 | App entry / event loop | `src/main.rs` |
 | All app state | `src/app.rs` (the `App` struct) |
-| Any keybinding | `src/dispatch.rs` (start at `on_key`, `:13`) |
-| The pane layout | `src/ui/mod.rs` (`draw_body`, `:59`) |
+| Any keybinding | `src/dispatch.rs` (start at `on_key`, `:14`) |
+| The pane layout | `src/ui/mod.rs` (`draw_body`, `:68`) |
 | Theme colors | `src/theme.rs` |
 | Filesystem rules | `src/vault/mod.rs` |
+| Atomic save / mtime helpers | `src/vault/mod.rs` (`atomic_write`, `file_mtime`) |
+| File watcher / live sync | `src/vault/watcher.rs` + `App::handle_fs_events` (`src/app.rs:603`) |
 | Link/tag/backlink logic | `src/vault/index.rs` |
 | Markdown preview rules | `src/markdown/render.rs` |
 | Wikilink/tag extraction | `src/markdown/parse.rs` |

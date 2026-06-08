@@ -179,7 +179,7 @@ SIMD/`grep-searcher` literal search, multi-threaded search.
 ## Recent commits (newest first)
 
 ```
-(pending) Robustness: atomic saves, conflict guard, live file watcher
+197854e Robustness: atomic saves, conflict guard, live file watcher
 fa14a06 Add CONTEXT.md handoff doc
 6b46e23 Perf: intern paths (Arc<Path>) and tags (Arc<str>) in the index
 92cfbf7 Perf: non-blocking background vault search
