@@ -6,12 +6,15 @@ pub mod watcher;
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::SystemTime;
 
 use crate::error::{OnyxError, Result};
 
 #[allow(unused_imports)]
 pub use index::{NoteIndex, NoteMeta};
 pub use tree::FileTree;
+pub use watcher::VaultWatcher;
 
 /// Owns the on-disk root, the file tree, and the link/tag index.
 #[derive(Debug)]
@@ -80,7 +83,7 @@ impl Vault {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::write(path, content)?;
+        atomic_write(path, content.as_bytes())?;
         // Re-index just this note.
         self.index.update_note(&self.root, path, content);
         // Make sure file tree contains it.
@@ -226,4 +229,96 @@ pub fn note_relpath(root: &Path, path: &Path) -> String {
     path.strip_prefix(root)
         .map(|p| p.to_string_lossy().replace('\\', "/"))
         .unwrap_or_else(|_| path.to_string_lossy().to_string())
+}
+
+/// The on-disk modification time of a file, if it exists and is readable.
+/// Used by the conflict guard to detect external edits.
+pub fn file_mtime(path: &Path) -> Option<SystemTime> {
+    fs::metadata(path).and_then(|m| m.modified()).ok()
+}
+
+/// Write `data` to `path` atomically: write to a hidden sibling temp file in the
+/// same directory, fsync it, then `rename` over the target. A crash mid-write
+/// can never truncate or corrupt the real note — the rename either happens or it
+/// doesn't. The temp name is dot-prefixed so the file-tree scanner ignores it,
+/// and carries a per-process counter so concurrent writers don't collide.
+pub fn atomic_write(path: &Path, data: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let stem = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "note".to_string());
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let tmp = parent.join(format!(".{stem}.{}.{n}.onyxtmp", std::process::id()));
+
+    // Write + flush + fsync the temp file before swapping it in.
+    let res = (|| -> std::io::Result<()> {
+        let mut f = fs::File::create(&tmp)?;
+        f.write_all(data)?;
+        f.flush()?;
+        let _ = f.sync_all();
+        Ok(())
+    })();
+    if let Err(e) = res {
+        let _ = fs::remove_file(&tmp);
+        return Err(e);
+    }
+    if let Err(e) = fs::rename(&tmp, path) {
+        let _ = fs::remove_file(&tmp);
+        return Err(e);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tmp_dir() -> PathBuf {
+        let base =
+            std::env::temp_dir().join(format!("onyx-vault-test-{}", std::process::id()));
+        let _ = fs::create_dir_all(&base);
+        base
+    }
+
+    #[test]
+    fn atomic_write_persists_content_and_overwrites() {
+        let dir = tmp_dir();
+        let target = dir.join("note.md");
+        atomic_write(&target, b"first").unwrap();
+        assert_eq!(fs::read_to_string(&target).unwrap(), "first");
+        // Overwriting replaces content wholesale.
+        atomic_write(&target, b"second longer").unwrap();
+        assert_eq!(fs::read_to_string(&target).unwrap(), "second longer");
+        let _ = fs::remove_file(&target);
+    }
+
+    #[test]
+    fn atomic_write_leaves_no_temp_files() {
+        let dir = tmp_dir().join("notemp");
+        let _ = fs::create_dir_all(&dir);
+        let target = dir.join("clean.md");
+        atomic_write(&target, b"body").unwrap();
+        // The only entry in the dir should be the note itself — no .onyxtmp.
+        let entries: Vec<_> = fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(entries, vec!["clean.md".to_string()]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn file_mtime_some_for_existing_none_for_missing() {
+        let dir = tmp_dir();
+        let target = dir.join("mt.md");
+        atomic_write(&target, b"x").unwrap();
+        assert!(file_mtime(&target).is_some());
+        let _ = fs::remove_file(&target);
+        assert!(file_mtime(&dir.join("does-not-exist.md")).is_none());
+    }
 }

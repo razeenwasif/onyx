@@ -7,6 +7,7 @@ pub use history::History;
 pub use modes::Mode;
 
 use std::path::PathBuf;
+use std::time::SystemTime;
 
 /// A single open document.
 #[derive(Debug)]
@@ -24,6 +25,9 @@ pub struct Document {
     pub pending_op: Option<char>,
     /// Last search query (used for n/N).
     pub last_search: Option<String>,
+    /// On-disk modification time when this document was last read or written by
+    /// Onyx. Used to detect external edits (conflict guard / live reload).
+    pub disk_mtime: Option<SystemTime>,
 }
 
 impl Document {
@@ -39,6 +43,7 @@ impl Document {
             anchor: None,
             pending_op: None,
             last_search: None,
+            disk_mtime: None,
         }
     }
 
@@ -53,6 +58,7 @@ impl Document {
             anchor: None,
             pending_op: None,
             last_search: None,
+            disk_mtime: None,
         }
     }
 

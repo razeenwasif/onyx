@@ -230,6 +230,8 @@ pub struct Vault {
 
 The vault is the only place that touches the filesystem during normal operation. Any time you read/write/delete a note, go through `Vault::read_note`, `write_note`, `delete_note`, `rename_note` — they keep `tree` and `index` in sync. After any structural change call `vault.refresh()` to re-walk and re-index.
 
+**Writes are atomic.** `write_note` goes through `vault::atomic_write` (`src/vault/mod.rs`), which writes a hidden `.<name>.<pid>.<n>.onyxtmp` sibling, fsyncs it, then `rename`s it over the target. A crash mid-write can never truncate the real note. `vault::file_mtime` exposes a note's on-disk modification time for the conflict guard below.
+
 `NoteIndex::resolve(target)` (`src/vault/index.rs:160`) is how a `[[Wikilink]]` becomes a `PathBuf`. It tries an exact relative-path match first, then falls back to basename match.
 
 ### `Document` — one open note
@@ -246,8 +248,11 @@ pub struct Document {
     pub anchor: Option<Cursor>,   // selection start (unused today)
     pub pending_op: Option<char>, // operator-pending state ('d' awaiting motion)
     pub last_search: Option<String>,
+    pub disk_mtime: Option<SystemTime>, // on-disk mtime when last read/written
 }
 ```
+
+`disk_mtime` is the spine of the **conflict guard** and **live reload** (see § 8.4). It's stamped on `open_note`, after every save, and after a live reload.
 
 `Buffer` is intentionally simple: a `Vec<String>` of lines plus a `Cursor { line, col }` measured in **grapheme clusters**. All motion methods (`move_left`, `move_word_forward`, etc.) operate in grapheme space and convert to bytes only at the edges. See `Buffer::col_to_byte` (`src/editor/buffer.rs:69`) for the conversion.
 
@@ -356,9 +361,12 @@ The handler is `dispatch::cmdline_keys` (`src/dispatch.rs`) and the parser is `d
 |------------------------|-------------------------------------|
 | `:q`, `:quit`          | Quit (refuses if `doc.dirty`)       |
 | `:q!`, `:quit!`        | Force-quit                          |
-| `:w`, `:write`         | Save current note                   |
-| `:wq`, `:x`, `:wq!`    | Save and quit                       |
+| `:w`, `:write`         | Save current note (conflict-guarded) |
+| `:w!`, `:write!`       | Force-save, overwriting external changes |
+| `:wq`, `:x`            | Save and quit                       |
+| `:wq!`, `:x!`          | Force-save and quit                 |
 | `:e <name-or-path>`    | Open a note (wikilink → abs → relative-to-vault) |
+| `:e!`                  | Reload current note from disk (discard buffer) |
 | `:new <title>`         | Create a new note and enter insert mode |
 | `:rename <title>`      | Rename current note                 |
 | `:delete`, `:rm`       | Delete current note                 |
@@ -410,6 +418,16 @@ fzf draws its UI on `/dev/tty`, so its stdout (the selection) is captured cleanl
 
 **Live-grep is real, not fuzzy-over-everything.** `run_fzf_grep` runs fzf in `--disabled` mode with `start`/`change` reload bindings that re-run `rg -t markdown {q}` on each keystroke (Telescope-style) — ripgrep does the matching, fzf just displays + previews. Neither picker passes `--height`, so fzf takes its own fullscreen alternate screen and renders cleanly above the suspended Onyx instead of inline over the shell.
 
+
+### 8.4 Filesystem sync (watcher, live reload, conflict guard)
+
+Onyx keeps in sync with external editors (Obsidian, VS Code, git, a sync client) instead of going stale. Three cooperating pieces:
+
+- **Watcher** — `vault::VaultWatcher` (`src/vault/watcher.rs`) wraps `notify` (inotify on Linux). It runs on its own thread and pushes each changed *path* over a channel. `drain()` returns the deduped paths.
+- **Reaction** — `App::handle_fs_events` runs each loop tick. Because `crossterm::event::poll` only watches stdin, the event loop caps the idle timeout at `watch_poll` (1 s) whenever a watcher is present, so changes are noticed promptly while idle CPU stays ~0 (a per-second empty channel drain). It ignores events for **dot-paths** (`is_internal_path`: `.git`/`.obsidian`/`.onyx`/`.onyxtmp`) and for **Onyx's own writes** (`recent_self_writes`, a path→`Instant` map with a 5 s TTL) so a save never triggers a self-reindex. Any remaining external change triggers `vault.refresh()` + cache invalidation + `reconcile_open_doc`.
+- **Reconcile** — `App::reconcile_open_doc` compares the open doc's `disk_mtime` to the file's current mtime. A **clean** buffer reloads seamlessly (`reload_current`); a **dirty** buffer is left untouched with a `⚠ … changed on disk` warning so edits are never lost; a deleted file gets its own warning.
+
+The **conflict guard** lives in `App::save_current_inner(force)`: before writing, if the file's mtime differs from the doc's known `disk_mtime`, it opens a `ConfirmAction::OverwriteNote` dialog instead of clobbering the external version. `:w!`/`:wq!` (and confirming the dialog) call `force_save_current`, which bypasses the check. After any successful write the doc's `disk_mtime` is restamped so the next save doesn't false-positive.
 
 Three patterns to know when adding a binding:
 

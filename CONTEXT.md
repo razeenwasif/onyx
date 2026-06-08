@@ -3,7 +3,7 @@
 Pick-up notes for resuming work. For deep architecture see **`docs/QUICKGUIDE.md`**;
 for the task queue see **`docs/BACKLOG.md`**. This file is the "where we are right now".
 
-_Last updated: 2026-06-07._
+_Last updated: 2026-06-08._
 
 ---
 
@@ -72,6 +72,12 @@ screen grid from the ANSI stream). Reuse that pattern for visual checks.
   empty folders show in the tree, new note/folder relative to the selection.
 - **Delete confirmation:** yes/no dialog before deleting notes/folders (folders
   recursive). `y` confirms; `n`/Esc/anything cancels.
+- **Filesystem sync (robustness trio):** **atomic saves** (temp + fsync + rename,
+  crash-safe); **conflict guard** (prompts before overwriting a note changed on
+  disk — `:w!`/`:wq!` force); **live file watcher** (external edits refresh the
+  tree/index/graph; a clean open buffer live-reloads, a dirty one warns and keeps
+  your edits). `:e!` reloads from disk. Self-writes + dot-paths are filtered so
+  there's no self-reindex storm; idle CPU stays ~0. See QUICKGUIDE § 8.4.
 - **Command surfaces:** command palette (`Ctrl-P`), quick switcher (`Ctrl-O`),
   vault search (`Ctrl-Shift-F`, non-blocking), vim **ex command line** (`:`),
   Telescope-style aliases (`:Telescope find_files/live_grep/...`), external
@@ -150,16 +156,20 @@ screen grid from the ANSI stream). Reuse that pattern for visual checks.
 
 ## What's next (from `docs/BACKLOG.md`)
 
-Performance is done. Remaining is **feature work**:
+Performance **and** the robustness trio (atomic saves / conflict guard / file
+watcher) are done. Roadmap, in the order recommended to the user:
 
-1. **Google Calendar sync** into the calendar pane (device-flow OAuth, read-only
+1. **Startup scalability** — persistent on-disk index cache + lazy background
+   scan, so 5–10k-note vaults open instantly. Pairs with the new watcher (index
+   then only changes incrementally).
+2. **Obsidian feel** — `[[` link autocomplete, unlinked mentions in Backlinks,
+   search operators (`tag:`/`path:`/`line:`).
+3. **Editor polish** — templates, callouts, frontmatter properties display, plus
+   broader editor/dispatch test coverage.
+4. **Google Calendar sync** into the calendar pane (device-flow OAuth, read-only
    MVP, feature-gated; token in `~/.config/onyx/google.json`).
-2. **Google Drive access** (recommend trying `rclone mount` first — near-zero
-   code — before a native Drive module; shares the OAuth plumbing).
-3. **External-tool configurability** (`[tools]` config; send current note's
-   folder to yazi; WSL image-preview notes; route `Ctrl-O` to fzf vs native).
-4. Smaller: scrollable help overlay (the "Ex commands"/"Telescope" groups can
-   fall below the fold on short terminals).
+5. **Google Drive access** (try `rclone mount` first — near-zero code).
+6. **External-tool configurability** (`[tools]` config); scrollable help overlay.
 
 Optional perf micro-opts if ever needed: prune interner on single-note delete,
 SIMD/`grep-searcher` literal search, multi-threaded search.
@@ -169,6 +179,8 @@ SIMD/`grep-searcher` literal search, multi-threaded search.
 ## Recent commits (newest first)
 
 ```
+(pending) Robustness: atomic saves, conflict guard, live file watcher
+fa14a06 Add CONTEXT.md handoff doc
 6b46e23 Perf: intern paths (Arc<Path>) and tags (Arc<str>) in the index
 92cfbf7 Perf: non-blocking background vault search
 f9fc3c1 Perf: cache the flattened file-tree view

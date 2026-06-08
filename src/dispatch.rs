@@ -1011,10 +1011,29 @@ fn run_ex_command(app: &mut App, raw: &str) {
             Ok(()) => {}
             Err(e) => app.set_status(format!("write failed: {e}")),
         },
-        "wq" | "x" | "wq!" => match app.save_current() {
+        "w!" | "write!" => match app.force_save_current() {
+            Ok(()) => {}
+            Err(e) => app.set_status(format!("write failed: {e}")),
+        },
+        "wq" | "x" => match app.save_current() {
             Ok(()) => app.should_quit = true,
             Err(e) => app.set_status(format!("write failed: {e}")),
         },
+        "wq!" | "x!" => match app.force_save_current() {
+            Ok(()) => app.should_quit = true,
+            Err(e) => app.set_status(format!("write failed: {e}")),
+        },
+        "e!" | "edit!" => {
+            if args.is_empty() {
+                app.reload_current();
+            } else if let Some(p) = app.vault.resolve_link(args) {
+                if let Err(e) = app.open_note(p) {
+                    app.set_status(format!("open failed: {e}"));
+                }
+            } else {
+                app.set_status(format!("E447: can't find note \"{args}\""));
+            }
+        }
         "e" | "edit" => {
             if args.is_empty() {
                 app.set_status("usage: :e <name-or-path>");

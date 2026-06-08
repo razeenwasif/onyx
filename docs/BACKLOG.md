@@ -4,6 +4,54 @@ Running list of work to do. Newest items at the top of "Open". Move items to "Do
 
 ## Open
 
+### Robustness — file sync & data safety ✅ DONE (see § Done)
+
+The "robustness trio" shipped: atomic saves, external-change conflict guard, and
+the live filesystem watcher (live-reload clean buffers, warn on dirty). Remaining
+robustness follow-ups, smaller: broaden test coverage to the editor (motions /
+undo) and dispatch (ex-commands), which have little today; surface a subtle
+indicator (not just a toast) when the open note was deleted on disk.
+
+---
+
+### Startup scalability — persistent index cache
+
+**Context.** Every launch re-walks + re-parses the whole vault (`Vault::open` →
+`FileTree::scan` + `NoteIndex::build`). At ~680 notes this is fine; at 5–10k it's
+a multi-second cold start.
+
+**Change.**
+
+- Serialize `NoteIndex` to `~/.config/onyx/cache/index-<vaulthash>.bin` (or json)
+  on exit / after a full rebuild. On launch, load it and validate each note by
+  mtime; only re-parse the notes whose mtime changed (the watcher already gives
+  us the incremental-update machinery — `index.update_note`).
+- Show the UI immediately and finish indexing on a background thread (reuse the
+  search worker pattern: thread + `mpsc` + drain-on-tick), so a huge vault opens
+  instantly and fills in.
+
+**Notes.** Pairs naturally with the now-shipped watcher: once loaded, the index
+only ever changes incrementally.
+
+---
+
+### Obsidian feel — link autocomplete & unlinked mentions
+
+**Context.** The interactions that make Obsidian *feel* like Obsidian.
+
+**Change.**
+
+- `[[` autocomplete: when the user types `[[` in the editor, pop a fuzzy-matched
+  list of note titles (we already have `NoteIndex::by_basename` + `fuzzy-matcher`)
+  and insert the chosen wikilink. New small overlay + a focus/keymap path.
+- Unlinked mentions: in the Backlinks sidebar tab, also list notes that mention
+  this note's title in plain text but don't link it (a cheap content scan, can
+  reuse the background search worker).
+- Search operators in vault search: `tag:foo`, `path:bar`, `line:N` (the index
+  already supports tag lookup).
+
+---
+
 ### Performance pass — ✅ COMPLETE
 
 All planned optimizations shipped (see Done): dirty-flag rendering, preview
@@ -123,6 +171,31 @@ single-note delete (negligible leak today), SIMD literal search via
 ---
 
 ## Done
+
+### Robustness trio: atomic saves + conflict guard + file watcher  (2026-06-08)
+
+Made Onyx trustworthy with a real, externally-edited vault.
+
+- **Atomic saves** — `vault::atomic_write` writes a hidden `.<name>.<pid>.<n>.onyxtmp`
+  sibling, flushes + fsyncs, then `rename`s over the target. `write_note` routes
+  through it, so a crash mid-write can never truncate a note. Temp files are
+  dot-prefixed (ignored by the scanner) and cleaned up on error. Added
+  `vault::file_mtime`.
+- **External-change conflict guard** — `Document.disk_mtime` records the on-disk
+  mtime at open/save. `save_current_inner(force)` compares it before writing; if
+  the file changed underneath us it opens a `ConfirmAction::OverwriteNote` dialog
+  instead of clobbering. `:w!` / `:wq!` / confirming → `force_save_current`.
+- **Filesystem watcher** — wired the previously-dead `VaultWatcher` (now reports
+  changed *paths*) into `App`/event loop. `handle_fs_events` filters dot-paths
+  (`.git`/`.obsidian`/`.onyx`/`.onyxtmp`) and Onyx's own writes (`recent_self_writes`,
+  5 s TTL) so saves don't self-trigger a reindex; real external changes refresh
+  the tree/index/graph. `reconcile_open_doc` live-reloads a clean buffer
+  seamlessly and warns (keeping edits) on a dirty one. Idle poll capped at 1 s
+  while a watcher is active so changes are caught promptly with ~0 idle CPU.
+- **Ex-commands** — added `:e!` (reload from disk), `:w!`/`:wq!`/`:x!` (force-save).
+- Tests: 24 total (added atomic-write content/overwrite/no-temp + file_mtime).
+  Verified end-to-end via the pty harness (live reload, dirty-warn, conflict
+  dialog, force-overwrite preserving the user's edit).
 
 ### Performance: top tier + Barnes-Hut  (2026-06-07)
 

@@ -6,18 +6,19 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use chrono::{Datelike, Local, NaiveDate};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::text::Text;
 
 use crate::config::Config;
-use crate::editor::{Buffer, Document, Mode};
+use crate::editor::{Buffer, Document, History, Mode};
 use crate::error::Result;
 use crate::graph_sim::{EdgeKind, GraphSim};
 use crate::theme::Theme;
 use crate::todo::TodoList;
-use crate::vault::{self, Vault};
+use crate::vault::{self, Vault, VaultWatcher};
 
 /// A flattened, visible file-tree row (owned, so it can be cached).
 #[derive(Clone)]
@@ -152,6 +153,8 @@ pub enum ConfirmAction {
     None,
     /// Delete a note or folder at this path.
     Delete(PathBuf),
+    /// Overwrite a note that changed on disk since we opened it (force-save).
+    OverwriteNote(PathBuf),
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -293,6 +296,13 @@ pub struct App {
     // A queued external program for the event loop to run (TUI suspended).
     pub pending_external: Option<PendingExternal>,
 
+    // Filesystem watcher: notices external edits (Obsidian, git, sync) so the
+    // tree/index/open-doc stay in sync. None if the OS watcher couldn't start.
+    pub watcher: Option<VaultWatcher>,
+    // Paths Onyx wrote itself, with when — lets `handle_fs_events` ignore the
+    // watcher events caused by our own saves (no self-triggered reindex storm).
+    pub recent_self_writes: HashMap<PathBuf, Instant>,
+
     // Set whenever something changed; the event loop redraws only when true
     // (so an idle Onyx doesn't burn CPU repainting).
     pub needs_redraw: bool,
@@ -314,6 +324,7 @@ impl App {
         let quicknote_text =
             std::fs::read_to_string(vault.quicknote_path()).unwrap_or_default();
         let todos = TodoList::load(&vault.todos_path());
+        let watcher = VaultWatcher::new(&vault.root);
 
         Self {
             theme,
@@ -353,6 +364,8 @@ impl App {
             sidebar_selected: 0,
             status_msg: None,
             pending_external: None,
+            watcher,
+            recent_self_writes: HashMap::new(),
             needs_redraw: true,
             theme_gen: 0,
             preview_cache: RefCell::new(None),
@@ -444,6 +457,10 @@ impl App {
         self.config.last_vault = Some(path);
         let _ = self.config.save();
 
+        // Re-arm the filesystem watcher on the new root.
+        self.watcher = VaultWatcher::new(&self.vault.root);
+        self.recent_self_writes.clear();
+
         self.doc = None;
         self.graph_focus = None;
         self.fullscreen = None;
@@ -477,7 +494,8 @@ impl App {
     pub fn open_note(&mut self, path: PathBuf) -> Result<()> {
         // Save current dirty doc silently first? No — let the user save explicitly.
         let text = self.vault.read_note(&path)?;
-        let doc = Document::from_text(Some(path.clone()), text);
+        let mut doc = Document::from_text(Some(path.clone()), text);
+        doc.disk_mtime = vault::file_mtime(&path);
         self.doc = Some(doc);
         self.focus = Focus::Editor;
         self.set_status(format!("Opened {}", vault::note_relpath(&self.vault.root, &path)));
@@ -491,21 +509,157 @@ impl App {
     }
 
     pub fn save_current(&mut self) -> Result<()> {
-        let Some(doc) = self.doc.as_mut() else {
-            return Ok(());
+        self.save_current_inner(false)
+    }
+
+    /// Save unconditionally, overwriting any external change (`:w!`).
+    pub fn force_save_current(&mut self) -> Result<()> {
+        self.save_current_inner(true)
+    }
+
+    /// Save the open document. When `force` is false and the file changed on
+    /// disk since we last read/wrote it, this opens a confirm dialog instead of
+    /// clobbering the external version (the conflict guard).
+    fn save_current_inner(&mut self, force: bool) -> Result<()> {
+        let (path, known) = match self.doc.as_ref() {
+            Some(d) => (d.path.clone(), d.disk_mtime),
+            None => return Ok(()),
         };
-        let content = doc.buffer.to_string();
-        let path = match doc.path.clone() {
+        let path = match path {
             Some(p) => p,
             None => self.vault.path_for_new_note("Untitled"),
         };
+        // Conflict guard: the file moved underneath us. Ask before overwriting.
+        if !force && path.exists() {
+            if let (Some(now), Some(prev)) = (vault::file_mtime(&path), known) {
+                if now != prev {
+                    let rel = vault::note_relpath(&self.vault.root, &path);
+                    self.start_confirm(
+                        format!(
+                            "\"{rel}\" changed on disk since you opened it. \
+                             Overwrite and lose the on-disk version?"
+                        ),
+                        ConfirmAction::OverwriteNote(path),
+                    );
+                    return Ok(());
+                }
+            }
+        }
+        let content = self.doc.as_ref().unwrap().buffer.to_string();
         self.vault.write_note(&path, &content)?;
+        self.record_self_write(&path);
+        let mt = vault::file_mtime(&path);
         if let Some(d) = self.doc.as_mut() {
             d.path = Some(path.clone());
             d.dirty = false;
+            d.disk_mtime = mt;
         }
         self.set_status(format!("Saved {}", vault::note_relpath(&self.vault.root, &path)));
         Ok(())
+    }
+
+    /// Record that Onyx just wrote `path`, so the filesystem watcher doesn't
+    /// mistake our own save for an external change. Entries expire after a few
+    /// seconds; we prune stale ones here too.
+    fn record_self_write(&mut self, path: &Path) {
+        let now = Instant::now();
+        self.recent_self_writes
+            .retain(|_, t| now.duration_since(*t) < Duration::from_secs(5));
+        self.recent_self_writes.insert(path.to_path_buf(), now);
+    }
+
+    /// Reload the open document from disk, discarding the in-memory buffer.
+    /// Backs `:e!` and the seamless live-reload of clean buffers.
+    pub fn reload_current(&mut self) {
+        let Some(path) = self.doc.as_ref().and_then(|d| d.path.clone()) else {
+            self.set_status("nothing to reload");
+            return;
+        };
+        match self.vault.read_note(&path) {
+            Ok(text) => {
+                let mt = vault::file_mtime(&path);
+                if let Some(d) = self.doc.as_mut() {
+                    d.buffer = Buffer::from_string(text);
+                    d.buffer.clamp_cursor();
+                    d.history = History::default();
+                    d.dirty = false;
+                    d.scroll = 0;
+                    d.disk_mtime = mt;
+                }
+                *self.preview_cache.borrow_mut() = None;
+                self.set_status(format!(
+                    "reloaded {}",
+                    vault::note_relpath(&self.vault.root, &path)
+                ));
+            }
+            Err(e) => self.set_status(format!("reload failed: {e}")),
+        }
+    }
+
+    /// Drain filesystem-watcher events and react to genuinely-external changes:
+    /// refresh the tree/index and reconcile the open document. Onyx's own writes
+    /// (and anything under a dot-dir like `.git`/`.obsidian`/`.onyx`) are
+    /// ignored so we don't reindex in response to ourselves.
+    pub fn handle_fs_events(&mut self) {
+        let changed = match self.watcher.as_ref() {
+            Some(w) => w.drain(),
+            None => return,
+        };
+        if changed.is_empty() {
+            return;
+        }
+        let now = Instant::now();
+        self.recent_self_writes
+            .retain(|_, t| now.duration_since(*t) < Duration::from_secs(5));
+
+        let external = changed.iter().any(|p| {
+            !is_internal_path(p) && !self.recent_self_writes.contains_key(p)
+        });
+        if !external {
+            return;
+        }
+
+        // Reflect external creates/deletes/renames in the tree, index, graph.
+        self.vault.refresh();
+        *self.preview_cache.borrow_mut() = None;
+        self.graph_sim = None;
+        let len = self.visible_tree().len();
+        if self.tree_selected >= len {
+            self.tree_selected = len.saturating_sub(1);
+        }
+        self.reconcile_open_doc();
+        self.needs_redraw = true;
+    }
+
+    /// After an external change, bring the open document back in line with disk:
+    /// clean buffers reload seamlessly; dirty buffers are left untouched with a
+    /// warning so the user's edits are never silently lost.
+    fn reconcile_open_doc(&mut self) {
+        let Some(path) = self.doc.as_ref().and_then(|d| d.path.clone()) else {
+            return;
+        };
+        let rel = vault::note_relpath(&self.vault.root, &path);
+        let Some(now) = vault::file_mtime(&path) else {
+            self.set_status(format!("⚠ {rel} was deleted on disk"));
+            return;
+        };
+        let changed = self
+            .doc
+            .as_ref()
+            .and_then(|d| d.disk_mtime)
+            .map(|prev| prev != now)
+            .unwrap_or(false);
+        if !changed {
+            return;
+        }
+        let dirty = self.doc.as_ref().map(|d| d.dirty).unwrap_or(false);
+        if dirty {
+            self.set_status(format!(
+                "⚠ {rel} changed on disk — unsaved edits kept (:e! to reload, save to overwrite)"
+            ));
+        } else {
+            self.reload_current();
+        }
     }
 
     pub fn create_note(&mut self, title: &str) -> Result<()> {
@@ -514,6 +668,7 @@ impl App {
         let heading = vault::note_basename(&path);
         let body = format!("# {heading}\n\n");
         self.vault.write_note(&path, &body)?;
+        self.record_self_write(&path);
         // Reveal the new note's folder in the tree.
         if let Some(parent) = path.parent() {
             self.expanded_dirs.insert(parent.to_path_buf());
@@ -653,6 +808,22 @@ impl App {
         match action {
             ConfirmAction::None => {}
             ConfirmAction::Delete(path) => self.delete_path(&path),
+            ConfirmAction::OverwriteNote(path) => {
+                // Only force-save if the open doc still targets the file the
+                // user confirmed about (it could have changed while the dialog
+                // was up).
+                let same = self
+                    .doc
+                    .as_ref()
+                    .and_then(|d| d.path.as_ref())
+                    .map(|p| p == &path)
+                    .unwrap_or(false);
+                if same {
+                    if let Err(e) = self.save_current_inner(true) {
+                        self.set_status(format!("save failed: {e}"));
+                    }
+                }
+            }
         }
     }
 
@@ -1082,6 +1253,15 @@ pub fn key_char(ev: &KeyEvent) -> Option<char> {
     } else {
         None
     }
+}
+
+/// True for paths the watcher should ignore: anything inside (or named as) a
+/// dot-entry — `.git`, `.obsidian`, `.onyx`, and our own `.*.onyxtmp` temp
+/// files. Real notes are never dot-prefixed, so this filters infrastructure
+/// churn without missing user edits.
+fn is_internal_path(p: &Path) -> bool {
+    p.components()
+        .any(|c| c.as_os_str().to_string_lossy().starts_with('.'))
 }
 
 /// Max search results retained.

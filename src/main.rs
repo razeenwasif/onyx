@@ -181,7 +181,11 @@ fn event_loop(
     let anim_frame = Duration::from_millis(70);
     // While a transient status toast is showing, wake often enough to clear it.
     let toast_poll = Duration::from_millis(200);
-    // Truly idle: block on input so Onyx uses ~no CPU when nothing's happening.
+    // With the filesystem watcher active, wake about once a second so external
+    // edits are picked up promptly (crossterm's poll only watches stdin, not the
+    // watcher channel). Still ~no CPU: a per-second empty channel drain.
+    let watch_poll = Duration::from_millis(1000);
+    // Truly idle (no watcher): block on input so Onyx uses ~no CPU.
     let idle_poll = Duration::from_secs(3600);
 
     let mut status_was_visible = false;
@@ -192,6 +196,8 @@ fn event_loop(
         app.tick_graph();
         // Apply any results from the background search worker.
         app.drain_search();
+        // React to external edits (Obsidian, git, sync) noticed by the watcher.
+        app.handle_fs_events();
 
         // Redraw once when a status toast expires, to clear it.
         let status_visible = app.current_status().is_some();
@@ -217,6 +223,8 @@ fn event_loop(
             anim_frame
         } else if status_visible {
             toast_poll
+        } else if app.watcher.is_some() {
+            watch_poll
         } else {
             idle_poll
         };
