@@ -7,7 +7,46 @@ use std::sync::Arc;
 
 use crate::markdown::parse::{extract_all_tags, extract_links, extract_md_links};
 
+use super::index_cache::{self, CacheEntry, IndexCache};
 use super::tree::FileTree;
+
+/// A note's content-derived facts, extracted once from its text. This is the
+/// only thing the index needs from a note's bytes — caching it (see
+/// `index_cache`) lets a relaunch skip re-reading unchanged files.
+#[derive(Debug, Clone)]
+pub(crate) struct ParsedNote {
+    pub title: String,
+    pub targets: Vec<String>,
+    pub tags: Vec<String>,
+    pub size: u64,
+    pub word_count: usize,
+}
+
+impl ParsedNote {
+    /// Extract the index-relevant facts from a note's raw content.
+    fn from_content(content: &str, path: &Path) -> Self {
+        let links = extract_links(content);
+        let mut targets: Vec<String> = links.iter().map(|l| l.note_name().to_string()).collect();
+        targets.extend(extract_md_links(content));
+        Self {
+            title: first_heading_or_basename(content, path),
+            targets,
+            tags: extract_all_tags(content),
+            size: content.len() as u64,
+            word_count: content.split_whitespace().count(),
+        }
+    }
+
+    fn from_cache_entry(entry: &CacheEntry) -> Self {
+        Self {
+            title: entry.title.clone(),
+            targets: entry.targets.clone(),
+            tags: entry.tags.clone(),
+            size: entry.size,
+            word_count: entry.word_count,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 #[allow(dead_code)]
@@ -46,6 +85,10 @@ pub struct NoteIndex {
 }
 
 impl NoteIndex {
+    /// Uncached full build (reads + parses every note). The app goes through
+    /// `build_with_cache`; this is kept as the simple reference builder used by
+    /// tests.
+    #[allow(dead_code)]
     pub fn build(root: &Path, tree: &FileTree) -> Self {
         let mut idx = NoteIndex::default();
         for note in &tree.notes {
@@ -55,6 +98,54 @@ impl NoteIndex {
         }
         idx.recompute_backlinks();
         idx
+    }
+
+    /// Like `build`, but reuse `cache` for any note whose mtime is unchanged —
+    /// those skip the `read_to_string` + parse. Changed/new notes (and notes not
+    /// in the cache) are read and parsed fresh. The result is identical to
+    /// `build`; only the work to get there is smaller.
+    pub fn build_with_cache(root: &Path, tree: &FileTree, cache: &IndexCache) -> Self {
+        let mut idx = NoteIndex::default();
+        for note in &tree.notes {
+            let mtime = fs::metadata(note).ok().and_then(|m| m.modified().ok());
+            let relpath = super::note_relpath(root, note);
+            let parsed = match mtime.and_then(|mt| cache.fresh(&relpath, mt)) {
+                Some(entry) => ParsedNote::from_cache_entry(entry),
+                None => match fs::read_to_string(note) {
+                    Ok(content) => ParsedNote::from_content(&content, note),
+                    Err(_) => continue,
+                },
+            };
+            idx.ingest_parsed(root, note, &parsed, mtime);
+        }
+        idx.recompute_backlinks();
+        idx
+    }
+
+    /// Snapshot the index's per-note facts into a cache, keyed by vault-relative
+    /// path. Notes without a usable mtime are skipped (can't be validated later).
+    pub fn export_cache(&self, root: &Path) -> IndexCache {
+        let mut entries = HashMap::with_capacity(self.notes.len());
+        for (path, meta) in &self.notes {
+            let Some((mtime_secs, mtime_nanos)) = meta.mtime.and_then(index_cache::decompose)
+            else {
+                continue;
+            };
+            let relpath = super::note_relpath(root, path);
+            entries.insert(
+                relpath,
+                CacheEntry {
+                    mtime_secs,
+                    mtime_nanos,
+                    title: meta.title.clone(),
+                    targets: meta.targets.clone(),
+                    tags: meta.tags.iter().map(|t| t.to_string()).collect(),
+                    size: meta.size,
+                    word_count: meta.word_count,
+                },
+            );
+        }
+        IndexCache::new(entries)
     }
 
     /// Return the shared `Arc<Path>` for `p`, allocating once on first sight.
@@ -78,8 +169,21 @@ impl NoteIndex {
     }
 
     fn ingest(&mut self, root: &Path, path: &Path, content: &str) {
-        let links = extract_links(content);
-        let tag_strs = extract_all_tags(content);
+        let parsed = ParsedNote::from_content(content, path);
+        let mtime = fs::metadata(path).ok().and_then(|m| m.modified().ok());
+        self.ingest_parsed(root, path, &parsed, mtime);
+    }
+
+    /// Insert a note into the index from its already-extracted facts. Shared by
+    /// the fresh-parse path (`ingest`) and the cache path (`build_with_cache`):
+    /// the input `parsed` is identical either way, so the index is too.
+    fn ingest_parsed(
+        &mut self,
+        root: &Path,
+        path: &Path,
+        parsed: &ParsedNote,
+        mtime: Option<std::time::SystemTime>,
+    ) {
         let id = self.intern_path(path); // canonical Arc<Path> for this note
 
         // Build basename/relpath lookups *for this note* before resolving its links.
@@ -95,33 +199,23 @@ impl NoteIndex {
             .to_string();
         self.by_relpath.insert(relpath_no_ext, id.clone());
 
-        // First pass — collect raw targets; resolved below + in recompute.
-        let mut link_targets: Vec<String> =
-            links.iter().map(|l| l.note_name().to_string()).collect();
-        link_targets.extend(extract_md_links(content));
-
-        let mtime = fs::metadata(path).ok().and_then(|m| m.modified().ok());
-        let size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
-        let word_count = content.split_whitespace().count();
-        let title = first_heading_or_basename(content, path);
-
-        let tags: Vec<Arc<str>> = tag_strs.iter().map(|t| self.intern_tag(t)).collect();
+        let tags: Vec<Arc<str>> = parsed.tags.iter().map(|t| self.intern_tag(t)).collect();
 
         self.notes.insert(
             id.clone(),
             NoteMeta {
-                title,
-                targets: link_targets.clone(),
+                title: parsed.title.clone(),
+                targets: parsed.targets.clone(),
                 outgoing: Vec::new(),
                 unresolved: Vec::new(),
                 tags: tags.clone(),
                 mtime,
-                size,
-                word_count,
+                size: parsed.size,
+                word_count: parsed.word_count,
             },
         );
 
-        let (outgoing, unresolved) = self.resolve_targets(path, &link_targets);
+        let (outgoing, unresolved) = self.resolve_targets(path, &parsed.targets);
 
         for t in &tags {
             self.by_tag.entry(t.clone()).or_default().insert(id.clone());
@@ -447,6 +541,98 @@ mod tests {
         assert_eq!(out, vec![c.clone()]);
 
         let _ = fs::remove_dir_all(&root);
+    }
+
+    /// The cache round-trips: an index built from a freshly-exported cache is
+    /// identical (stats + backlinks) to one built by reading every file.
+    #[test]
+    fn index_cache_roundtrip_matches_full_build() {
+        let root = std::env::temp_dir().join(format!("onyx-cache-rt-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        write(&root.join("A.md"), "# Alpha\nsee [[B]] #x\n");
+        write(&root.join("B.md"), "# Bravo\n#x #y\n");
+        write(&root.join("Sub/C.md"), "see [Folder B](../B.md)\n");
+
+        let tree = FileTree::scan(&root);
+        let full = NoteIndex::build(&root, &tree);
+        let cache = full.export_cache(&root);
+        let cached = NoteIndex::build_with_cache(&root, &tree, &cache);
+
+        let (sf, sc) = (full.stats(), cached.stats());
+        assert_eq!(sf.notes, sc.notes);
+        assert_eq!(sf.links, sc.links);
+        assert_eq!(sf.unresolved_links, sc.unresolved_links);
+        assert_eq!(sf.tags, sc.tags);
+        let b = root.join("B.md");
+        assert_eq!(full.backlinks_for(&b), cached.backlinks_for(&b));
+        assert!(!cached.backlinks_for(&b).is_empty());
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// A note whose mtime no longer matches the cache is a cache miss and gets
+    /// re-parsed, so the rebuilt index reflects the on-disk content, not the
+    /// stale cached facts. (We force the mismatch by stamping the cached entry's
+    /// mtime, so the test is independent of filesystem timestamp granularity.)
+    #[test]
+    fn index_cache_stale_entry_is_reparsed() {
+        let root = std::env::temp_dir().join(format!("onyx-cache-stale-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let a = root.join("A.md");
+        write(&a, "see [[B]]\n");
+        write(&root.join("B.md"), "b\n");
+        write(&root.join("C.md"), "c\n");
+
+        let tree = FileTree::scan(&root);
+        let mut cache = NoteIndex::build(&root, &tree).export_cache(&root);
+        // Make A's cached entry deliberately stale (epoch mtime never matches).
+        if let Some(e) = cache.entries.get_mut("A.md") {
+            e.mtime_secs = 0;
+            e.mtime_nanos = 0;
+        }
+
+        // Rewrite A to link C instead of B; this must win over the stale cache.
+        write(&a, "see [[C]]\n");
+
+        let rebuilt = NoteIndex::build_with_cache(&root, &tree, &cache);
+        let (b, c) = (root.join("B.md"), root.join("C.md"));
+        assert!(
+            rebuilt.backlinks_for(&b).is_empty(),
+            "stale A→B backlink must be dropped after re-parse"
+        );
+        assert_eq!(
+            rebuilt.backlinks_for(&c),
+            vec![a.clone()],
+            "fresh A→C backlink must appear after re-parse"
+        );
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// Manual benchmark: `ONYX_BENCH_VAULT=/path cargo test bench_cache -- --nocapture`.
+    /// Self-skips when the env var is unset, so it never runs in CI.
+    #[test]
+    fn bench_cache() {
+        let Some(dir) = std::env::var_os("ONYX_BENCH_VAULT") else {
+            return;
+        };
+        let root = PathBuf::from(dir);
+        let tree = FileTree::scan(&root);
+        let t0 = std::time::Instant::now();
+        let full = NoteIndex::build(&root, &tree);
+        let cold = t0.elapsed();
+        let cache = full.export_cache(&root);
+        let t1 = std::time::Instant::now();
+        let warm = NoteIndex::build_with_cache(&root, &tree, &cache);
+        let warm_dur = t1.elapsed();
+        eprintln!(
+            "bench: {} notes | cold build {:?} | warm (cached) build {:?} | {:.1}x",
+            full.stats().notes,
+            cold,
+            warm_dur,
+            cold.as_secs_f64() / warm_dur.as_secs_f64().max(1e-9)
+        );
+        assert_eq!(full.stats().notes, warm.stats().notes);
     }
 
     /// Subfolder-aware note paths: `Projects/Idea` → `<root>/Projects/Idea.md`.

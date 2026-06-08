@@ -14,24 +14,16 @@ indicator (not just a toast) when the open note was deleted on disk.
 
 ---
 
-### Startup scalability — persistent index cache
+### Startup scalability — persistent index cache ✅ DONE (see § Done)
 
-**Context.** Every launch re-walks + re-parses the whole vault (`Vault::open` →
-`FileTree::scan` + `NoteIndex::build`). At ~680 notes this is fine; at 5–10k it's
-a multi-second cold start.
-
-**Change.**
-
-- Serialize `NoteIndex` to `~/.config/onyx/cache/index-<vaulthash>.bin` (or json)
-  on exit / after a full rebuild. On launch, load it and validate each note by
-  mtime; only re-parse the notes whose mtime changed (the watcher already gives
-  us the incremental-update machinery — `index.update_note`).
-- Show the UI immediately and finish indexing on a background thread (reuse the
-  search worker pattern: thread + `mpsc` + drain-on-tick), so a huge vault opens
-  instantly and fills in.
-
-**Notes.** Pairs naturally with the now-shipped watcher: once loaded, the index
-only ever changes incrementally.
+Shipped: per-note facts cached to `<vault>/.onyx/index-cache.json`, validated by
+mtime, only changed notes re-parsed (~26× faster warm rebuild). Remaining stretch
+(not yet needed): **lazy background scan** — show the UI immediately and finish a
+*cold* index on a background thread (reuse the search-worker pattern: thread +
+`mpsc` + drain-on-tick), so even a first-ever open of a 10k-note vault is instant
+and fills in. Today the cache makes warm starts instant but a cold/invalidated
+index still builds synchronously. Also optional: write the cache on quit so notes
+edited in-session don't re-parse on the next launch.
 
 ---
 
@@ -171,6 +163,28 @@ single-note delete (negligible leak today), SIMD literal search via
 ---
 
 ## Done
+
+### Persistent index cache (fast startup)  (2026-06-09)
+
+Every launch used to read + regex-parse all ~680 notes. Now the index's
+content-derived facts are cached and reused for notes whose mtime is unchanged.
+
+- Refactored `NoteIndex::ingest` into `ParsedNote::from_content` (pure extraction)
+  + `ingest_parsed` (insertion), so the insert path is fed identically from a
+  fresh parse or a cache hit.
+- New `src/vault/index_cache.rs`: `IndexCache` (version + relpath→`CacheEntry`
+  map of title/targets/tags/size/word_count/mtime), `load` (version-checked,
+  empty on any failure), per-note `fresh()` mtime check, `write`.
+- `NoteIndex::build_with_cache` stats each note and reuses the cached
+  `ParsedNote` on an mtime match, else reads + parses; `export_cache` snapshots
+  the index back out. `vault::build_index` centralizes load→build→save and backs
+  both `Vault::open` and `refresh`.
+- Cache lives in `<vault>/.onyx/index-cache.json` — travels with the vault,
+  excluded from the scanner, ignored by the watcher (no self-reindex), and
+  isolated in tests. Pure optimization: stale/corrupt → re-parse, never wrong.
+- Measured **~26× faster** warm rebuild on the 678-note vault (109 ms → 4 ms).
+- Added `serde_json`. Tests: 27 total (cache round-trip vs full build; stale
+  entry re-parsed) + a self-skipping `bench_cache` (`ONYX_BENCH_VAULT=…`).
 
 ### Robustness trio: atomic saves + conflict guard + file watcher  (2026-06-08)
 

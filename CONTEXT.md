@@ -3,7 +3,7 @@
 Pick-up notes for resuming work. For deep architecture see **`docs/QUICKGUIDE.md`**;
 for the task queue see **`docs/BACKLOG.md`**. This file is the "where we are right now".
 
-_Last updated: 2026-06-08._
+_Last updated: 2026-06-09._
 
 ---
 
@@ -72,6 +72,11 @@ screen grid from the ANSI stream). Reuse that pattern for visual checks.
   empty folders show in the tree, new note/folder relative to the selection.
 - **Delete confirmation:** yes/no dialog before deleting notes/folders (folders
   recursive). `y` confirms; `n`/Esc/anything cancels.
+- **Fast startup (persistent index cache):** the index's per-note facts are
+  cached to `<vault>/.onyx/index-cache.json` and reused for notes whose mtime is
+  unchanged, so a relaunch only re-parses what changed (~26× faster warm rebuild,
+  109 ms → 4 ms on 678 notes). `vault::build_index` (load→build→save) backs both
+  open and refresh; pure optimization, never authoritative. See QUICKGUIDE § 10.
 - **Filesystem sync (robustness trio):** **atomic saves** (temp + fsync + rename,
   crash-safe); **conflict guard** (prompts before overwriting a note changed on
   disk — `:w!`/`:wq!` force); **live file watcher** (external edits refresh the
@@ -156,29 +161,33 @@ screen grid from the ANSI stream). Reuse that pattern for visual checks.
 
 ## What's next (from `docs/BACKLOG.md`)
 
-Performance **and** the robustness trio (atomic saves / conflict guard / file
-watcher) are done. Roadmap, in the order recommended to the user:
+Performance, the robustness trio (atomic saves / conflict guard / file watcher),
+**and** the persistent index cache are done. Roadmap, in the order recommended:
 
-1. **Startup scalability** — persistent on-disk index cache + lazy background
-   scan, so 5–10k-note vaults open instantly. Pairs with the new watcher (index
-   then only changes incrementally).
-2. **Obsidian feel** — `[[` link autocomplete, unlinked mentions in Backlinks,
-   search operators (`tag:`/`path:`/`line:`).
-3. **Editor polish** — templates, callouts, frontmatter properties display, plus
+1. **Obsidian feel** — `[[` link autocomplete (highest-value feature), unlinked
+   mentions in Backlinks, search operators (`tag:`/`path:`/`line:`).
+2. **Editor polish** — templates, callouts, frontmatter properties display, plus
    broader editor/dispatch test coverage.
+3. **Lazy background scan** — the cache makes *warm* starts instant; a *cold*
+   index (first-ever open / invalidated) still builds synchronously. Show the UI
+   immediately and finish a cold index on a background thread (search-worker
+   pattern). Only matters for very large first opens.
 4. **Google Calendar sync** into the calendar pane (device-flow OAuth, read-only
    MVP, feature-gated; token in `~/.config/onyx/google.json`).
 5. **Google Drive access** (try `rclone mount` first — near-zero code).
 6. **External-tool configurability** (`[tools]` config); scrollable help overlay.
 
 Optional perf micro-opts if ever needed: prune interner on single-note delete,
-SIMD/`grep-searcher` literal search, multi-threaded search.
+SIMD/`grep-searcher` literal search, multi-threaded search, write index cache on
+quit (avoids re-parsing in-session edits next launch).
 
 ---
 
 ## Recent commits (newest first)
 
 ```
+(pending) Perf: persistent index cache for fast startup
+c5bfdf9 Docs: document filesystem sync + refresh QUICKGUIDE line refs
 197854e Robustness: atomic saves, conflict guard, live file watcher
 fa14a06 Add CONTEXT.md handoff doc
 6b46e23 Perf: intern paths (Arc<Path>) and tags (Arc<str>) in the index

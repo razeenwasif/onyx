@@ -25,6 +25,7 @@ The stack:
 | Fuzzy match  | `fuzzy-matcher`      | Skim-style scoring for palette/switcher  |
 | Filesystem   | `ignore`, `walkdir`  | Gitignore-aware vault traversal          |
 | Persistence  | `serde` + `toml`     | Config (de)serialization                 |
+| Index cache  | `serde_json`         | `.onyx/index-cache.json` (fast startup)  |
 | Dates        | `chrono`             | Calendar + daily notes                   |
 
 ---
@@ -54,6 +55,7 @@ src/
 │   ├── mod.rs           — Vault facade: open/create, read/write/delete, folders
 │   ├── tree.rs          — recursive file tree (notes + empty dirs)
 │   ├── index.rs         — link/tag/backlink index (incremental update)
+│   ├── index_cache.rs   — persistent index cache (.onyx/index-cache.json)
 │   └── watcher.rs       — fs watcher (notify): drives live-reload + conflict sync
 │
 ├── markdown/
@@ -121,7 +123,7 @@ The whole program in one walk-through:
    - Parse argv (`parse_args`, `src/main.rs:88`).
    - Load `Config` from `~/.config/onyx/config.toml` (`Config::load`, `src/config.rs:159`).
    - Resolve the vault path: CLI arg → `config.last_vault` → `~/OnyxVault` (`resolve_vault_path`, `src/main.rs:129`).
-   - `Vault::open` or `Vault::create` — both end at a fully-indexed `Vault` (`src/vault/mod.rs:27` / `:39`).
+   - `Vault::open` or `Vault::create` — both end at a fully-indexed `Vault` (`src/vault/mod.rs:27` / `:39`). Indexing goes through `vault::build_index`, which reuses the on-disk cache to skip re-parsing unchanged notes (§ 10).
    - Build `App::new(vault, config)` (`src/app.rs:319`) and auto-open the most-recent note. `App::new` also arms the filesystem watcher on the vault root (§ 8.4).
 
 2. **`run()`** (`src/main.rs:144`)
@@ -478,6 +480,8 @@ The ingestion entry point is `update_note(root, path, content)` — call it afte
 
 **Interning.** Paths and tags are interned as `Arc<Path>` / `Arc<str>` (`path_interner` / `tag_interner`): each unique value is allocated once and shared across every map by refcount-bump clones, rather than duplicating `PathBuf`/`String` copies. `NoteMeta.outgoing` is `Vec<Arc<Path>>` and `tags` is `Vec<Arc<str>>`. Public methods still return owned `PathBuf`/`String` (a boundary clone) so consumers are unaffected — when reading `index.notes` directly, convert with `.to_path_buf()` / deref. `HashMap<Arc<Path>, _>::get` accepts an `&Path` (via `Borrow`), so most lookups are unchanged.
 
+**Persistent cache (startup scalability).** The entire index is derived from a handful of per-note facts — `title`, raw link `targets`, `tags`, `size`, `word_count`, plus the file's `mtime` (the `ParsedNote` in `index.rs`). Everything else (resolution, backlinks, `by_tag`, interners) is recomputed in memory, which is cheap; the expensive part was always *reading and regex-parsing every file*. So those facts are cached to `<vault>/.onyx/index-cache.json` (`src/vault/index_cache.rs`). On launch, `NoteIndex::build_with_cache` stats each note and reuses the cached `ParsedNote` for any whose mtime is unchanged — only changed/new notes are read and parsed. Measured **~26× faster** on the 678-note vault (109 ms → 4 ms warm). The flow is centralized in `vault::build_index` (used by both `Vault::open` and `refresh`), which loads the cache, builds, then writes the refreshed cache (best-effort). The cache is **purely an optimization**: missing/stale/corrupt → more re-parsing, never wrong data (validated by `version` + per-note mtime). It lives in `.onyx/` so it's excluded from the scanner and ignored by the watcher (no self-reindex). Notes edited *inside* Onyx go through the incremental `update_note`, not `build_index`, so their cache entry refreshes on the next open (a one-time re-parse of just those notes).
+
 ---
 
 ## 11. Config and persistence
@@ -608,6 +612,7 @@ When you need to find something fast:
 | Atomic save / mtime helpers | `src/vault/mod.rs` (`atomic_write`, `file_mtime`) |
 | File watcher / live sync | `src/vault/watcher.rs` + `App::handle_fs_events` (`src/app.rs:603`) |
 | Link/tag/backlink logic | `src/vault/index.rs` |
+| Startup index cache | `src/vault/index_cache.rs` + `vault::build_index` |
 | Markdown preview rules | `src/markdown/render.rs` |
 | Wikilink/tag extraction | `src/markdown/parse.rs` |
 | Text-buffer mechanics | `src/editor/buffer.rs` |

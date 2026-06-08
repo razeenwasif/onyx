@@ -1,6 +1,7 @@
 //! Vault — the root folder of markdown notes, plus the in-memory index.
 
 pub mod index;
+pub mod index_cache;
 pub mod tree;
 pub mod watcher;
 
@@ -32,7 +33,7 @@ impl Vault {
             return Err(OnyxError::VaultNotFound(root));
         }
         let tree = FileTree::scan(&root);
-        let index = NoteIndex::build(&root, &tree);
+        let index = build_index(&root, &tree);
         Ok(Self { root, tree, index })
     }
 
@@ -58,7 +59,7 @@ impl Vault {
 
     pub fn refresh(&mut self) {
         self.tree = FileTree::scan(&self.root);
-        self.index = NoteIndex::build(&self.root, &self.tree);
+        self.index = build_index(&self.root, &self.tree);
     }
 
     /// Hidden per-vault data directory (`.onyx/`). The file-tree scanner skips
@@ -162,6 +163,18 @@ impl Vault {
         self.tree = FileTree::scan(&self.root);
         Ok(path)
     }
+}
+
+/// Build the note index for `root`, using the on-disk index cache to skip
+/// re-parsing notes whose mtime is unchanged, then persist the refreshed cache.
+/// The cache is a pure optimization — load/save failures are ignored and the
+/// result is identical to an uncached `NoteIndex::build`.
+fn build_index(root: &Path, tree: &FileTree) -> NoteIndex {
+    let cache_path = root.join(".onyx").join("index-cache.json");
+    let cache = index_cache::IndexCache::load(&cache_path);
+    let index = NoteIndex::build_with_cache(root, tree, &cache);
+    let _ = index.export_cache(root).write(&cache_path);
+    index
 }
 
 /// Sanitize a possibly-nested title into a safe vault-relative path (without an
