@@ -26,14 +26,30 @@ A modern, premium markdown notes TUI — an Obsidian-inspired terminal vault.
 cargo build --release
 ```
 
+## Install (run `onyx` from anywhere)
+
+```bash
+cargo install --path . --force
+```
+
+This puts `onyx` on your PATH (`~/.cargo/bin/onyx`).
+
+> **After pulling or making changes, re-run `cargo install --path . --force`.**
+> `cargo build` only updates `target/release/onyx` — it does **not** update the
+> `onyx` command on your PATH, so the installed binary stays on the old version
+> until you reinstall.
+
 ## Run
 
 ```bash
-# Open the last vault (or create ~/OnyxVault on first launch).
-./target/release/onyx
+# Installed on PATH — open the last vault (or create ~/OnyxVault on first launch).
+onyx
 
 # Open or create a specific vault.
-./target/release/onyx /path/to/vault
+onyx /path/to/vault
+
+# Or run the build directly without installing.
+./target/release/onyx
 ```
 
 Press `Ctrl-/` or `F1` inside Onyx for the full keybinding glossary.

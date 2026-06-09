@@ -42,13 +42,21 @@ scan), `serde`+`toml` (config), `chrono` (calendar), `fuzzy-matcher` (palette/sw
 ```bash
 cargo build --release
 cargo clippy --all-targets -- -D warnings   # MUST stay clean (CI-ready)
-cargo test                                   # 21 tests, all green
-cargo install --path . --locked              # reinstall onyx on PATH
+cargo test                                   # 27 tests, all green
+cargo install --path . --force               # reinstall onyx on PATH
 onyx                                          # opens last_vault (~/OnyxVault)
 ```
+**Reinstall after every change you want to use from the `onyx` command.**
+`cargo build` only refreshes `target/release/onyx`; the PATH binary at
+`~/.cargo/bin/onyx` is updated *only* by `cargo install --path . --force`. (This
+bit us once: a stale installed binary opened on an old build with no Home screen
+even though the source was current.)
+
 There's no GUI here; the app is verified by driving it through a Python **pty**
-harness (set `ONYX_CONFIG=/tmp/...`, size the pty, send keys, reconstruct the
-screen grid from the ANSI stream). Reuse that pattern for visual checks.
+harness — `ONYX_CONFIG_DIR=/tmp/...` for config isolation, size the pty, send
+keys, and reconstruct the screen grid. The most reliable harness uses **`pyte`**
+(a real terminal emulator: `pip install --user pyte`) rather than stripping ANSI
+by hand — naive stripping mis-reads absolutely-positioned popups. Reuse that.
 
 ---
 
