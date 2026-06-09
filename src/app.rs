@@ -10,7 +10,10 @@ use std::time::{Duration, Instant};
 
 use chrono::{Datelike, Local, NaiveDate};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use fuzzy_matcher::skim::SkimMatcherV2;
+use fuzzy_matcher::FuzzyMatcher;
 use ratatui::text::Text;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::config::Config;
 use crate::editor::{Buffer, Document, History, Mode};
@@ -81,6 +84,18 @@ pub enum Focus {
     Confirm,
     /// Vim-style ex command line (`:q`, `:w`, `:e file`, …).
     CommandLine,
+}
+
+/// State of the inline `[[wikilink]]` autocomplete popup, active while the
+/// editor is in insert mode and the cursor sits inside an unclosed `[[`.
+#[derive(Debug, Clone)]
+pub struct LinkComplete {
+    /// The text typed after `[[` (the fuzzy query).
+    pub query: String,
+    /// Candidate note names to insert (already filtered + ranked).
+    pub matches: Vec<String>,
+    /// Index into `matches` of the highlighted candidate.
+    pub selected: usize,
 }
 
 /// An action on the Home start page.
@@ -280,6 +295,9 @@ pub struct App {
     // Home start-page selection (index into `home_items()`).
     pub home_selected: usize,
 
+    // `[[wikilink]]` autocomplete popup (Some while typing inside `[[`).
+    pub link_complete: Option<LinkComplete>,
+
     // File tree state
     pub tree_selected: usize,
     pub expanded_dirs: HashSet<PathBuf>,
@@ -367,6 +385,7 @@ impl App {
             focus: Focus::Home,
             last_focus: Focus::Home,
             home_selected: 0,
+            link_complete: None,
             tree_selected: 0,
             expanded_dirs: expanded,
             expanded_gen: 0,
@@ -601,6 +620,135 @@ impl App {
             // the prompt-starting helper).
             HomeAction::NewNote | HomeAction::NewFolder => {}
         }
+    }
+
+    /// Recompute the `[[wikilink]]` autocomplete popup from the cursor context.
+    /// The popup is active only in insert mode when the cursor sits just after an
+    /// unclosed `[[…` on the current line; otherwise it's dismissed. Called after
+    /// each insert-mode edit (cheap: the prefix scan early-outs unless `[[` is
+    /// open, and only then does it fuzzy-match note names).
+    pub fn refresh_link_complete(&mut self) {
+        let in_insert = self
+            .doc
+            .as_ref()
+            .map(|d| d.mode == Mode::Insert)
+            .unwrap_or(false);
+        if !in_insert {
+            self.link_complete = None;
+            return;
+        }
+        // Extract the query: text between the last `[[` and the cursor on this
+        // line, rejecting any `[`/`]` in between (that means it's not open).
+        let query = {
+            let doc = self.doc.as_ref().unwrap();
+            let li = doc.buffer.cursor.line;
+            let byte = doc.buffer.col_to_byte(li, doc.buffer.cursor.col);
+            let prefix = &doc.buffer.line(li)[..byte];
+            match prefix.rfind("[[") {
+                Some(pos) => {
+                    let after = &prefix[pos + 2..];
+                    if after.contains('[') || after.contains(']') {
+                        self.link_complete = None;
+                        return;
+                    }
+                    after.to_string()
+                }
+                None => {
+                    self.link_complete = None;
+                    return;
+                }
+            }
+        };
+        let matches = self.compute_link_matches(&query);
+        if matches.is_empty() {
+            self.link_complete = None;
+            return;
+        }
+        self.link_complete = Some(LinkComplete {
+            query,
+            matches,
+            selected: 0,
+        });
+    }
+
+    /// Fuzzy-rank note basenames against `query` for the link popup. An empty
+    /// query lists recent notes. Deduplicated by name, capped.
+    fn compute_link_matches(&self, query: &str) -> Vec<String> {
+        let mut seen = HashSet::new();
+        let mut out: Vec<String> = Vec::new();
+        if query.is_empty() {
+            for (p, _) in self.vault.index.recent_notes() {
+                let b = vault::note_basename(&p);
+                if seen.insert(b.clone()) {
+                    out.push(b);
+                }
+                if out.len() >= 50 {
+                    break;
+                }
+            }
+            return out;
+        }
+        let matcher = SkimMatcherV2::default();
+        let mut scored: Vec<(i64, String)> = Vec::new();
+        for (p, _) in self.vault.index.all_notes() {
+            let b = vault::note_basename(&p);
+            if let Some(s) = matcher.fuzzy_match(&b, query) {
+                scored.push((s, b));
+            }
+        }
+        scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+        for (_, b) in scored {
+            if seen.insert(b.clone()) {
+                out.push(b);
+            }
+            if out.len() >= 50 {
+                break;
+            }
+        }
+        out
+    }
+
+    /// Move the link-popup selection (wraps).
+    pub fn link_complete_move(&mut self, down: bool) {
+        if let Some(lc) = self.link_complete.as_mut() {
+            let n = lc.matches.len();
+            if n == 0 {
+                return;
+            }
+            lc.selected = if down {
+                (lc.selected + 1) % n
+            } else {
+                (lc.selected + n - 1) % n
+            };
+        }
+    }
+
+    /// Accept the highlighted candidate: replace the typed query with the chosen
+    /// note name and close the wikilink (`]]`). Returns false if nothing to do.
+    pub fn accept_link_complete(&mut self) -> bool {
+        let Some(lc) = self.link_complete.take() else {
+            return false;
+        };
+        let Some(target) = lc.matches.get(lc.selected).cloned() else {
+            return false;
+        };
+        let Some(doc) = self.doc.as_mut() else {
+            return false;
+        };
+        doc.history.record(&doc.buffer);
+        // Delete the typed query (cursor is right after it), then insert the
+        // chosen name plus the closing `]]`.
+        for _ in 0..lc.query.graphemes(true).count() {
+            doc.buffer.backspace();
+        }
+        doc.buffer.insert_str(&format!("{target}]]"));
+        doc.dirty = true;
+        true
+    }
+
+    /// Dismiss the link popup without inserting (stay in insert mode).
+    pub fn cancel_link_complete(&mut self) {
+        self.link_complete = None;
     }
 
     pub fn open_note(&mut self, path: PathBuf) -> Result<()> {
@@ -1354,6 +1502,7 @@ impl App {
                 self.focus = Focus::FileTree;
             }
             Focus::Editor => {
+                self.link_complete = None;
                 if let Some(doc) = self.doc.as_mut() {
                     doc.mode = Mode::Normal;
                     doc.pending_op = None;

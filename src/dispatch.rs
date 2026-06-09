@@ -46,6 +46,11 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
 
     // ESC handled per-focus below — except we want it to close graph too.
     if let KeyCode::Esc = key.code {
+        // First Esc dismisses the wikilink popup but keeps insert mode.
+        if app.link_complete.is_some() {
+            app.cancel_link_complete();
+            return true;
+        }
         app.escape();
         return true;
     }
@@ -352,57 +357,85 @@ fn editor_keys(app: &mut App, key: KeyEvent) {
 }
 
 fn editor_insert(app: &mut App, key: KeyEvent) {
-    let doc = app.doc.as_mut().unwrap();
-    match key.code {
-        KeyCode::Esc => {
-            doc.mode = Mode::Normal;
-        }
-        KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-            doc.history.record(&doc.buffer);
-            doc.buffer.insert_char(c);
-            doc.dirty = true;
-        }
-        KeyCode::Enter => {
-            doc.history.record(&doc.buffer);
-            doc.buffer.insert_newline();
-            doc.dirty = true;
-        }
-        KeyCode::Tab => {
-            doc.history.record(&doc.buffer);
-            let n = app.config.editor.tab_size;
-            for _ in 0..n {
-                doc.buffer.insert_char(' ');
+    // While the `[[wikilink]]` autocomplete popup is open, it captures the
+    // navigation / accept / dismiss keys; everything else types through and then
+    // refreshes the popup below.
+    if app.link_complete.is_some() {
+        match key.code {
+            KeyCode::Up => {
+                app.link_complete_move(false);
+                return;
             }
-            doc.dirty = true;
-        }
-        KeyCode::Backspace => {
-            doc.history.record(&doc.buffer);
-            doc.buffer.backspace();
-            doc.dirty = true;
-        }
-        KeyCode::Delete => {
-            doc.history.record(&doc.buffer);
-            doc.buffer.delete_forward();
-            doc.dirty = true;
-        }
-        KeyCode::Left => doc.buffer.move_left(),
-        KeyCode::Right => doc.buffer.move_right(),
-        KeyCode::Up => doc.buffer.move_up(),
-        KeyCode::Down => doc.buffer.move_down(),
-        KeyCode::Home => doc.buffer.move_line_start(),
-        KeyCode::End => doc.buffer.move_line_end(),
-        KeyCode::PageUp => {
-            for _ in 0..10 {
-                doc.buffer.move_up();
+            KeyCode::Down => {
+                app.link_complete_move(true);
+                return;
             }
-        }
-        KeyCode::PageDown => {
-            for _ in 0..10 {
-                doc.buffer.move_down();
+            KeyCode::Tab | KeyCode::Enter => {
+                // The popup only exists with matches, so this always inserts.
+                app.accept_link_complete();
+                return;
             }
+            // Esc is handled in global_shortcut (it dismisses the popup there).
+            _ => {}
         }
-        _ => {}
     }
+
+    {
+        let doc = app.doc.as_mut().unwrap();
+        match key.code {
+            KeyCode::Esc => {
+                doc.mode = Mode::Normal;
+            }
+            KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                doc.history.record(&doc.buffer);
+                doc.buffer.insert_char(c);
+                doc.dirty = true;
+            }
+            KeyCode::Enter => {
+                doc.history.record(&doc.buffer);
+                doc.buffer.insert_newline();
+                doc.dirty = true;
+            }
+            KeyCode::Tab => {
+                doc.history.record(&doc.buffer);
+                let n = app.config.editor.tab_size;
+                for _ in 0..n {
+                    doc.buffer.insert_char(' ');
+                }
+                doc.dirty = true;
+            }
+            KeyCode::Backspace => {
+                doc.history.record(&doc.buffer);
+                doc.buffer.backspace();
+                doc.dirty = true;
+            }
+            KeyCode::Delete => {
+                doc.history.record(&doc.buffer);
+                doc.buffer.delete_forward();
+                doc.dirty = true;
+            }
+            KeyCode::Left => doc.buffer.move_left(),
+            KeyCode::Right => doc.buffer.move_right(),
+            KeyCode::Up => doc.buffer.move_up(),
+            KeyCode::Down => doc.buffer.move_down(),
+            KeyCode::Home => doc.buffer.move_line_start(),
+            KeyCode::End => doc.buffer.move_line_end(),
+            KeyCode::PageUp => {
+                for _ in 0..10 {
+                    doc.buffer.move_up();
+                }
+            }
+            KeyCode::PageDown => {
+                for _ in 0..10 {
+                    doc.buffer.move_down();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Update (or dismiss) the wikilink popup based on the new cursor context.
+    app.refresh_link_complete();
 }
 
 fn editor_normal(app: &mut App, key: KeyEvent) {

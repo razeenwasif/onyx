@@ -72,6 +72,10 @@ screen grid from the ANSI stream). Reuse that pattern for visual checks.
   empty folders show in the tree, new note/folder relative to the selection.
 - **Delete confirmation:** yes/no dialog before deleting notes/folders (folders
   recursive). `y` confirms; `n`/Esc/anything cancels.
+- **`[[` wikilink autocomplete:** typing `[[` in the editor (insert mode) pops a
+  fuzzy note-name picker; Up/Down select, Enter/Tab insert `[[Name]]`, Esc
+  dismisses (stays in insert). `App::link_complete` + `refresh_link_complete`;
+  popup drawn by `editor_pane::draw_link_popup`. See QUICKGUIDE § 9.1.
 - **Home start page:** Onyx opens on an interactive start page (center pane) —
   New note / New folder / Search / Open note… / Today's daily note, then recent
   notes; `j/k` + Enter. No more auto-opening the last note. Falls back here when
@@ -169,7 +173,7 @@ screen grid from the ANSI stream). Reuse that pattern for visual checks.
 Performance, the robustness trio (atomic saves / conflict guard / file watcher),
 **and** the persistent index cache are done. Roadmap, in the order recommended:
 
-1. **Obsidian feel** — `[[` link autocomplete (highest-value feature), unlinked
+1. **Obsidian feel** — `[[` link autocomplete ✅ done; remaining: unlinked
    mentions in Backlinks, search operators (`tag:`/`path:`/`line:`).
 2. **Editor polish** — templates, callouts, frontmatter properties display, plus
    broader editor/dispatch test coverage.
@@ -191,7 +195,8 @@ quit (avoids re-parsing in-session edits next launch).
 ## Recent commits (newest first)
 
 ```
-(pending) Home start page on launch
+(pending) Add [[wikilink]] autocomplete in the editor
+e8f353c Open on an interactive Home start page instead of the last note
 6210547 Perf: persistent index cache for fast startup
 c5bfdf9 Docs: document filesystem sync + refresh QUICKGUIDE line refs
 197854e Robustness: atomic saves, conflict guard, live file watcher

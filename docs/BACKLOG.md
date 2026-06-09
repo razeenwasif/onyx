@@ -27,15 +27,10 @@ edited in-session don't re-parse on the next launch.
 
 ---
 
-### Obsidian feel — link autocomplete & unlinked mentions
+### Obsidian feel — unlinked mentions & search operators
 
-**Context.** The interactions that make Obsidian *feel* like Obsidian.
+**Context.** `[[` autocomplete shipped (see § Done). Remaining feel items:
 
-**Change.**
-
-- `[[` autocomplete: when the user types `[[` in the editor, pop a fuzzy-matched
-  list of note titles (we already have `NoteIndex::by_basename` + `fuzzy-matcher`)
-  and insert the chosen wikilink. New small overlay + a focus/keymap path.
 - Unlinked mentions: in the Backlinks sidebar tab, also list notes that mention
   this note's title in plain text but don't link it (a cheap content scan, can
   reuse the background search worker).
@@ -163,6 +158,25 @@ single-note delete (negligible leak today), SIMD literal search via
 ---
 
 ## Done
+
+### `[[wikilink]]` autocomplete  (2026-06-09)
+
+The headline Obsidian interaction: typing `[[` in the editor pops a fuzzy
+note-name picker that inserts a wikilink.
+
+- `App::link_complete: Option<LinkComplete>` + `refresh_link_complete`
+  (scans the line prefix for an open `[[`, rejects `[`/`]` after it),
+  `compute_link_matches` (SkimMatcherV2 over note basenames; empty query →
+  recent notes), `link_complete_move` / `accept_link_complete` (deletes the
+  typed query, inserts `Name]]`) / `cancel_link_complete`.
+- `dispatch::editor_insert` intercepts Up/Down/Tab/Enter when the popup is open
+  and refreshes it after every edit; `Esc` is handled in `global_shortcut`
+  (dismiss popup, stay in insert; second Esc leaves insert). `App::escape`
+  clears the popup defensively.
+- `editor_pane::draw_link_popup` renders the list anchored under the `[[`
+  (flips above the caret when there's no room below).
+- Verified end-to-end with a pyte terminal harness (popup shows + filters,
+  Enter inserts `[[Meeting Notes]]`, Esc dismisses but stays in insert).
 
 ### Home start page  (2026-06-09)
 

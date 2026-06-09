@@ -177,6 +177,7 @@ pub struct App {
 
     // home start page
     pub home_selected: usize,        // selected row in App::home_items()
+    pub link_complete: Option<LinkComplete>,  // [[wikilink]] autocomplete popup
 
     // file tree state
     pub tree_selected: usize,
@@ -475,6 +476,12 @@ We intentionally don't run the full CommonMark parser per-keystroke for the edit
 The preview pane caches its rendered `Text` on `App::preview_cache` (a `RefCell`), keyed by `(note path, buffer revision, width, theme_gen)`. The whole-buffer CommonMark parse runs only when one of those changes — not on cursor moves, graph ticks, or idle redraws. `Buffer::revision` is bumped by every mutating buffer method (and by undo/redo apply).
 
 Wikilinks and tags are not CommonMark constructs. They're extracted by regex in `markdown::parse` and woven into the rendered text in `render::split_into_segments`. When indexing, `extract_links` / `extract_md_links` / `extract_all_tags` (inline `#tags` **and** YAML frontmatter `tags:`) are called on each note's content in `NoteIndex::ingest`.
+
+### 9.1 `[[wikilink]]` autocomplete
+
+While the editor is in insert mode and the cursor sits just after an unclosed `[[`, Onyx shows a fuzzy completion popup of note names (`App::link_complete: Option<LinkComplete>`). After every insert-mode edit, `dispatch::editor_insert` calls `App::refresh_link_complete`, which scans the current line's prefix for the last `[[` (rejecting any `[`/`]` after it) and, if open, fuzzy-ranks note basenames via `compute_link_matches` (the same `SkimMatcherV2` the switcher uses; an empty query lists recent notes). The popup is rendered by `draw_link_popup` in `editor_pane.rs`, anchored under the `[[` at the caret (flips above when there's no room below).
+
+Key handling, while the popup is open: `Up`/`Down` move the selection (intercepted in `editor_insert` before the keystroke types through), `Tab`/`Enter` accept (`accept_link_complete` deletes the typed query and inserts `Name]]`), and `Esc` dismisses it while staying in insert mode — that last one is handled in `global_shortcut` (which sees `Esc` first), so a single `Esc` closes the popup and a second leaves insert mode. Leaving insert mode any other way clears `link_complete` in `App::escape`.
 
 ---
 

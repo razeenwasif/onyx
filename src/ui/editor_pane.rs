@@ -3,7 +3,7 @@
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Clear, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 use unicode_width::UnicodeWidthStr;
 
@@ -97,6 +97,75 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
             }
         }
     }
+
+    // `[[wikilink]]` autocomplete popup, anchored at the cursor.
+    if focused && app.link_complete.is_some() {
+        draw_link_popup(frame, inner, app, gutter_w as u16);
+    }
+}
+
+/// Draw the wikilink autocomplete popup near the caret. Prefers to sit just
+/// below the cursor; flips above when there isn't room.
+fn draw_link_popup(frame: &mut Frame, inner: Rect, app: &App, gutter_w: u16) {
+    let Some(lc) = &app.link_complete else {
+        return;
+    };
+    let Some(doc) = &app.doc else {
+        return;
+    };
+    if lc.matches.is_empty() || doc.buffer.cursor.line < doc.scroll {
+        return;
+    }
+    let theme = &app.theme;
+    let cursor = doc.buffer.cursor;
+    let display_col = doc.buffer.display_col(cursor.line, cursor.col);
+    let caret_x = inner.x + gutter_w + display_col as u16;
+    let caret_y = inner.y + (cursor.line - doc.scroll) as u16;
+    if caret_y >= inner.y + inner.height {
+        return;
+    }
+
+    let visible = lc.matches.len().min(7) as u16;
+    let popup_h = visible + 2; // + borders
+    let label_w = lc.matches.iter().map(|s| s.chars().count()).max().unwrap_or(8);
+    let popup_w = ((label_w as u16) + 4).clamp(18, 44).min(inner.width.max(1));
+
+    // Below the caret if it fits, otherwise above; else clamp into view.
+    let below = caret_y + 1;
+    let y = if below + popup_h <= inner.y + inner.height {
+        below
+    } else if caret_y >= inner.y + popup_h {
+        caret_y - popup_h
+    } else {
+        (inner.y + inner.height).saturating_sub(popup_h).max(inner.y)
+    };
+    // Left-align the box under the `[[` (query width + 2 cells back), clamped.
+    let back = lc.query.chars().count() as u16 + 2;
+    let mut x = caret_x.saturating_sub(back);
+    if x + popup_w > inner.x + inner.width {
+        x = (inner.x + inner.width).saturating_sub(popup_w);
+    }
+    x = x.max(inner.x);
+
+    let rect = Rect {
+        x,
+        y,
+        width: popup_w,
+        height: popup_h,
+    };
+    frame.render_widget(Clear, rect);
+    let items: Vec<ListItem> = lc
+        .matches
+        .iter()
+        .map(|s| ListItem::new(Line::from(Span::styled(s.clone(), theme.s_normal()))))
+        .collect();
+    let mut state = ListState::default();
+    state.select(Some(lc.selected));
+    let list = List::new(items)
+        .block(super::pane_block("links", true, theme))
+        .highlight_style(theme.s_selection())
+        .highlight_symbol("▸ ");
+    frame.render_stateful_widget(list, rect, &mut state);
 }
 
 /// Style a single editor line: headings, wikilinks, tags, code spans, bold/italic.
