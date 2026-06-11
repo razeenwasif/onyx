@@ -3,7 +3,17 @@
 Pick-up notes for resuming work. For deep architecture see **`docs/QUICKGUIDE.md`**;
 for the task queue see **`docs/BACKLOG.md`**. This file is the "where we are right now".
 
-_Last updated: 2026-06-09._
+_Last updated: 2026-06-11._
+
+> **Resume here (session paused 2026-06-11):** Notion-hybrid Phase 1 (page
+> properties) is shipped (`00dd9b2`) and the binary is reinstalled. The user is
+> **connecting the Notion MCP and restarting the session** to pick it up. On
+> resume: run `claude mcp list`; if `notion` is connected + authed, inventory
+> their Notion and start the migration. If missing, have them run
+> `claude mcp add --transport http notion https://mcp.notion.com/mcp` (from this
+> repo dir, or `-s user` for global), restart, `/mcp` to OAuth. **Next build
+> target: Phase 2 — database/table + board views over a folder.** See the
+> ⭐ Notion-hybrid epic in `docs/BACKLOG.md`.
 
 ---
 
@@ -205,7 +215,7 @@ Google Calendar/Drive, external-tool config, scrollable help.
 ## Recent commits (newest first)
 
 ```
-(pending) Notion hybrid Phase 1: page properties
+00dd9b2 Notion hybrid Phase 1: page properties
 96052d0 Docs: note that `onyx` on PATH needs `cargo install --force` after changes
 dd393e5 Add [[wikilink]] autocomplete in the editor
 e8f353c Open on an interactive Home start page instead of the last note
