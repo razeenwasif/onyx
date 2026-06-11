@@ -80,6 +80,11 @@ by hand — naive stripping mis-reads absolutely-positioned popups. Reuse that.
   empty folders show in the tree, new note/folder relative to the selection.
 - **Delete confirmation:** yes/no dialog before deleting notes/folders (folders
   recursive). `y` confirms; `n`/Esc/anything cancels.
+- **Page properties (Notion hybrid, Phase 1):** all top-level YAML frontmatter
+  keys (beyond `tags:`) are parsed into `NoteMeta.properties` and shown as a
+  clean **Properties** block atop the preview (raw frontmatter stripped from the
+  body). Foundation for databases/table views. See QUICKGUIDE § 10 + the
+  ⭐ "Notion + Obsidian hybrid" epic in BACKLOG.
 - **`[[` wikilink autocomplete:** typing `[[` in the editor (insert mode) pops a
   fuzzy note-name picker; Up/Down select, Enter/Tab insert `[[Name]]`, Esc
   dismisses (stays in insert). `App::link_complete` + `refresh_link_complete`;
@@ -178,32 +183,31 @@ by hand — naive stripping mis-reads absolutely-positioned popups. Reuse that.
 
 ## What's next (from `docs/BACKLOG.md`)
 
-Performance, the robustness trio (atomic saves / conflict guard / file watcher),
-**and** the persistent index cache are done. Roadmap, in the order recommended:
+**Primary direction (2026-06-11): the ⭐ Notion + Obsidian hybrid epic** — make
+Onyx a Notion/Obsidian hybrid and migrate the user's Notion in. Phased:
 
-1. **Obsidian feel** — `[[` link autocomplete ✅ done; remaining: unlinked
-   mentions in Backlinks, search operators (`tag:`/`path:`/`line:`).
-2. **Editor polish** — templates, callouts, frontmatter properties display, plus
-   broader editor/dispatch test coverage.
-3. **Lazy background scan** — the cache makes *warm* starts instant; a *cold*
-   index (first-ever open / invalidated) still builds synchronously. Show the UI
-   immediately and finish a cold index on a background thread (search-worker
-   pattern). Only matters for very large first opens.
-4. **Google Calendar sync** into the calendar pane (device-flow OAuth, read-only
-   MVP, feature-gated; token in `~/.config/onyx/google.json`).
-5. **Google Drive access** (try `rclone mount` first — near-zero code).
-6. **External-tool configurability** (`[tools]` config); scrollable help overlay.
+1. **Page properties** ✅ done (Phase 1).
+2. **Database / table + board views** over a folder, keyed by frontmatter props
+   (`:database <folder>`; board grouped by a select-like property). ← next
+3. **Nested structure polish** (child-page nav, breadcrumbs).
+4. **Block editing** — callouts (`> [!note]`), toggles, columns, slash-insert.
+5. **Notion import** — *blocked on the user connecting the Notion MCP*
+   (`claude mcp add --transport http notion https://mcp.notion.com/mcp`, then
+   `/mcp` to OAuth). Once live: inventory Notion → map → `:notion import`. Let the
+   real Notion structure refine Phase 2's property types/views.
 
-Optional perf micro-opts if ever needed: prune interner on single-note delete,
-SIMD/`grep-searcher` literal search, multi-threaded search, write index cache on
-quit (avoids re-parsing in-session edits next launch).
+Smaller Obsidian-feel items still open: unlinked mentions in Backlinks, search
+operators (`tag:`/`path:`/`line:`). Other backlog: lazy background cold-scan,
+Google Calendar/Drive, external-tool config, scrollable help.
 
 ---
 
 ## Recent commits (newest first)
 
 ```
-(pending) Add [[wikilink]] autocomplete in the editor
+(pending) Notion hybrid Phase 1: page properties
+96052d0 Docs: note that `onyx` on PATH needs `cargo install --force` after changes
+dd393e5 Add [[wikilink]] autocomplete in the editor
 e8f353c Open on an interactive Home start page instead of the last note
 6210547 Perf: persistent index cache for fast startup
 c5bfdf9 Docs: document filesystem sync + refresh QUICKGUIDE line refs

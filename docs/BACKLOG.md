@@ -4,6 +4,49 @@ Running list of work to do. Newest items at the top of "Open". Move items to "Do
 
 ## Open
 
+### ⭐ EPIC: Notion + Obsidian hybrid (+ migrate the user's Notion)
+
+**Direction (2026-06-11).** Evolve Onyx from a pure-Obsidian markdown vault into a
+**Notion/Obsidian hybrid**, and migrate the user's Notion workspace in. The user
+wants all three Notion capabilities: databases+properties, block editing, and
+nested-page structure.
+
+**Migration prerequisite (user action):** connect the Notion MCP —
+`claude mcp add --transport http notion https://mcp.notion.com/mcp`, then `/mcp`
+to OAuth. Once connected: inventory Notion → propose Notion→Onyx mapping → migrate
+(a Notion **database** → an Onyx **folder** of `.md` files, each row a note with
+frontmatter properties; sub-pages → child notes; blocks → markdown).
+
+**Notion → Onyx mapping:**
+
+| Notion | Onyx |
+|---|---|
+| Page properties (typed fields) | YAML frontmatter properties (generalize beyond `tags:`) |
+| Database | A folder whose notes share a property schema |
+| Database views (table/board/list) | A pane rendering a folder's notes by their frontmatter |
+| Sub-pages | Folders / child notes (already supported) |
+| Blocks (callout/toggle/columns) | Markdown extensions |
+| Relations/rollups | Wikilinks between entries + computed columns |
+
+**Phased plan:**
+
+1. **Page properties** ✅ DONE (2026-06-11, see § Done) — parse arbitrary YAML
+   frontmatter into ordered key→values on `NoteMeta.properties`; cached; rendered
+   as a Properties block in the preview.
+2. **Database / table + board views** — `:database <folder>` (or a pane) that
+   shows a folder's notes as a table keyed by frontmatter props; board (kanban)
+   grouped by a select-like property; sort/filter.
+3. **Nested structure polish** — child-page navigation, breadcrumbs.
+4. **Block editing** — callouts (`> [!note]`), toggles, columns, slash-command
+   insert. (Callouts already noted below.)
+5. **Notion import** — once the MCP is connected: a `:notion import` flow that
+   walks pages/databases and writes notes + frontmatter into the vault.
+
+Start at Phase 1; let the user's real Notion structure (once the MCP is live)
+refine the property types and view design in Phase 2.
+
+---
+
 ### Robustness — file sync & data safety ✅ DONE (see § Done)
 
 The "robustness trio" shipped: atomic saves, external-change conflict guard, and
@@ -158,6 +201,22 @@ single-note delete (negligible leak today), SIMD literal search via
 ---
 
 ## Done
+
+### Notion hybrid — Phase 1: page properties  (2026-06-11)
+
+First step of the Notion/Obsidian hybrid epic: surface arbitrary YAML frontmatter
+as Notion-style page properties.
+
+- `markdown::parse::extract_frontmatter_properties` → ordered `(key, values)`
+  (scalars single-element, `[a,b]`/block-lists multi, scalars not comma-split,
+  quotes stripped, top-level keys only) + `strip_frontmatter`. Tests added.
+- `NoteMeta.properties: Vec<(String, Vec<String>)>` (tags/tag excluded — those
+  are handled as tags); threaded through `ParsedNote` + `ingest_parsed`; cached
+  in `CacheEntry` (cache version bumped 1→2).
+- `ui/preview.rs::build_preview_text` renders a **Properties** block at the top
+  of the preview and strips the raw frontmatter from the body. Notes without
+  frontmatter render exactly as before.
+- 30 tests; verified in a pyte harness (Status/Priority/Due shown as properties).
 
 ### `[[wikilink]]` autocomplete  (2026-06-09)
 

@@ -332,6 +332,126 @@ pub fn extract_frontmatter_tags(source: &str) -> Vec<String> {
     out
 }
 
+/// Parse all top-level YAML frontmatter keys into ordered `(key, values)` pairs
+/// — the general form of `extract_frontmatter_tags`, used for Notion-style page
+/// properties. A scalar becomes a single-element vec; an inline `[a, b]` array
+/// or an indented block list (`- item`) becomes multi-element. Quotes are
+/// stripped, key order is preserved, and only *top-level* (unindented) keys are
+/// treated as properties. Returns empty when there's no frontmatter.
+///
+/// Scalars are **not** comma-split (a value like `title: Hello, World` stays one
+/// value); only explicit `[...]` arrays split on commas.
+pub fn extract_frontmatter_properties(source: &str) -> Vec<(String, Vec<String>)> {
+    let src = source.strip_prefix('\u{feff}').unwrap_or(source);
+    let mut lines = src.lines();
+    if lines.next().map(|l| l.trim()) != Some("---") {
+        return Vec::new();
+    }
+    let mut fm: Vec<&str> = Vec::new();
+    let mut closed = false;
+    for line in lines {
+        let t = line.trim();
+        if t == "---" || t == "..." {
+            closed = true;
+            break;
+        }
+        fm.push(line);
+    }
+    if !closed {
+        return Vec::new();
+    }
+
+    let mut out: Vec<(String, Vec<String>)> = Vec::new();
+    let mut i = 0;
+    while i < fm.len() {
+        let raw = fm[i];
+        let trimmed = raw.trim_start();
+        let indent = raw.len() - trimmed.len();
+        // Only unindented, non-comment `key: …` lines start a property.
+        if indent > 0 || trimmed.is_empty() || trimmed.starts_with('#') {
+            i += 1;
+            continue;
+        }
+        let Some(colon) = trimmed.find(':') else {
+            i += 1;
+            continue;
+        };
+        let key = trimmed[..colon].trim().to_string();
+        if key.is_empty() {
+            i += 1;
+            continue;
+        }
+        let value = trimmed[colon + 1..].trim();
+        let mut vals: Vec<String> = Vec::new();
+        if value.is_empty() {
+            // Indented block list of `- item` lines.
+            let mut j = i + 1;
+            while j < fm.len() {
+                let lt = fm[j].trim_start();
+                if let Some(rest) = lt.strip_prefix('-') {
+                    let v = clean_scalar(rest);
+                    if !v.is_empty() {
+                        vals.push(v);
+                    }
+                    j += 1;
+                } else {
+                    break;
+                }
+            }
+            out.push((key, vals));
+            i = j;
+            continue;
+        } else if value.starts_with('[') && value.ends_with(']') {
+            let inner = &value[1..value.len() - 1];
+            for part in inner.split(',') {
+                let v = clean_scalar(part);
+                if !v.is_empty() {
+                    vals.push(v);
+                }
+            }
+        } else {
+            let v = clean_scalar(value);
+            if !v.is_empty() {
+                vals.push(v);
+            }
+        }
+        out.push((key, vals));
+        i += 1;
+    }
+    out
+}
+
+/// Strip a leading YAML frontmatter block (`---` … `---`/`...`) from `source`,
+/// returning the body. If there's no frontmatter, returns `source` unchanged.
+pub fn strip_frontmatter(source: &str) -> &str {
+    let src = source.strip_prefix('\u{feff}').unwrap_or(source);
+    let mut rest = match src.strip_prefix("---") {
+        Some(r) if r.starts_with('\n') || r.starts_with('\r') => r,
+        _ => return source,
+    };
+    // Find the closing fence line.
+    loop {
+        match rest.find('\n') {
+            Some(nl) => {
+                let line = rest[..nl].trim();
+                rest = &rest[nl + 1..];
+                if line == "---" || line == "..." {
+                    return rest;
+                }
+            }
+            None => return source, // unterminated → don't strip
+        }
+    }
+}
+
+/// Trim a scalar value: surrounding whitespace and matching quotes.
+fn clean_scalar(s: &str) -> String {
+    let t = s.trim();
+    let t = t.strip_prefix('"').and_then(|x| x.strip_suffix('"')).unwrap_or(t);
+    let t = t.strip_prefix('\'').and_then(|x| x.strip_suffix('\'')).unwrap_or(t);
+    t.trim().to_string()
+}
+
 /// All tags for a note: inline `#tags` plus YAML frontmatter `tags:`.
 pub fn extract_all_tags(source: &str) -> Vec<String> {
     let mut t = extract_tags(source);
@@ -481,6 +601,38 @@ mod tests {
         let tags = extract_all_tags(src);
         assert!(tags.contains(&"fm".to_string()));
         assert!(tags.contains(&"inline".to_string()));
+    }
+
+    #[test]
+    fn properties_scalars_arrays_and_block_lists() {
+        let src = "---\n\
+            Status: In progress\n\
+            Priority: \"High\"\n\
+            Tags: [project, q3]\n\
+            People:\n  - Alice\n  - Bob\n\
+            Title: Hello, World\n\
+            ---\n# Body\n";
+        let props = extract_frontmatter_properties(src);
+        assert_eq!(props[0], ("Status".into(), vec!["In progress".to_string()]));
+        assert_eq!(props[1], ("Priority".into(), vec!["High".to_string()]));
+        assert_eq!(props[2], ("Tags".into(), vec!["project".to_string(), "q3".to_string()]));
+        assert_eq!(props[3], ("People".into(), vec!["Alice".to_string(), "Bob".to_string()]));
+        // Scalars are NOT comma-split — prose with a comma stays one value.
+        assert_eq!(props[4], ("Title".into(), vec!["Hello, World".to_string()]));
+    }
+
+    #[test]
+    fn properties_empty_without_frontmatter() {
+        assert!(extract_frontmatter_properties("# note\nStatus: x\n").is_empty());
+    }
+
+    #[test]
+    fn strip_frontmatter_removes_block() {
+        let src = "---\nStatus: done\n---\n# Body\ntext\n";
+        assert_eq!(strip_frontmatter(src), "# Body\ntext\n");
+        // No frontmatter → unchanged.
+        let plain = "# Body\nno fm\n";
+        assert_eq!(strip_frontmatter(plain), plain);
     }
 
     #[test]

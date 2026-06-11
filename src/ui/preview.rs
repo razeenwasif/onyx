@@ -5,11 +5,15 @@
 //! not on every frame (cursor moves, graph ticks, idle redraws).
 
 use ratatui::layout::Rect;
+use ratatui::style::Modifier;
+use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::Frame;
 
 use crate::app::{App, Focus, PreviewCache};
+use crate::markdown::parse::{extract_frontmatter_properties, strip_frontmatter};
 use crate::markdown::render_to_text;
+use crate::theme::Theme;
 
 pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
     let focused = app.focus == Focus::Preview;
@@ -41,7 +45,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
 
     if !hit {
         let src = doc.buffer.to_string();
-        let text = render_to_text(&src, &app.theme, width as usize);
+        let text = build_preview_text(&src, &app.theme, width as usize);
         *cache = Some(PreviewCache {
             path: path.clone(),
             rev,
@@ -56,4 +60,56 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
         .style(app.theme.s_normal())
         .wrap(Wrap { trim: false });
     frame.render_widget(p, inner);
+}
+
+/// Build the preview: a Notion-style page-properties block (from YAML
+/// frontmatter) on top, then the markdown body with the raw frontmatter
+/// stripped. Notes without frontmatter render exactly as before.
+fn build_preview_text(src: &str, theme: &Theme, width: usize) -> Text<'static> {
+    // Show every frontmatter property except tags (those have their own pane).
+    let props: Vec<(String, Vec<String>)> = extract_frontmatter_properties(src)
+        .into_iter()
+        .filter(|(k, _)| {
+            let lk = k.to_ascii_lowercase();
+            lk != "tags" && lk != "tag"
+        })
+        .collect();
+
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    if !props.is_empty() {
+        let key_w = props
+            .iter()
+            .map(|(k, _)| k.chars().count())
+            .max()
+            .unwrap_or(0)
+            .clamp(1, 18);
+        lines.push(Line::styled(
+            "Properties",
+            theme.s_accent().add_modifier(Modifier::BOLD),
+        ));
+        for (k, vals) in &props {
+            let val = if vals.is_empty() {
+                "—".to_string()
+            } else {
+                vals.join(", ")
+            };
+            lines.push(Line::from(vec![
+                Span::styled(
+                    format!("{k:<key_w$}  "),
+                    theme.s_subtle().add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(val, theme.s_normal()),
+            ]));
+        }
+        lines.push(Line::styled(
+            "─".repeat(width.clamp(1, 60)),
+            theme.s_subtle(),
+        ));
+        lines.push(Line::raw(""));
+    }
+
+    let body = strip_frontmatter(src);
+    let mut text = Text::from(lines);
+    text.lines.extend(render_to_text(body, theme, width).lines);
+    text
 }

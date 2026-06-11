@@ -5,7 +5,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::markdown::parse::{extract_all_tags, extract_links, extract_md_links};
+use crate::markdown::parse::{
+    extract_all_tags, extract_frontmatter_properties, extract_links, extract_md_links,
+};
 
 use super::index_cache::{self, CacheEntry, IndexCache};
 use super::tree::FileTree;
@@ -18,6 +20,7 @@ pub(crate) struct ParsedNote {
     pub title: String,
     pub targets: Vec<String>,
     pub tags: Vec<String>,
+    pub properties: Vec<(String, Vec<String>)>,
     pub size: u64,
     pub word_count: usize,
 }
@@ -28,10 +31,19 @@ impl ParsedNote {
         let links = extract_links(content);
         let mut targets: Vec<String> = links.iter().map(|l| l.note_name().to_string()).collect();
         targets.extend(extract_md_links(content));
+        // Page properties, minus `tags`/`tag` (surfaced separately as tags).
+        let properties = extract_frontmatter_properties(content)
+            .into_iter()
+            .filter(|(k, _)| {
+                let lk = k.to_ascii_lowercase();
+                lk != "tags" && lk != "tag"
+            })
+            .collect();
         Self {
             title: first_heading_or_basename(content, path),
             targets,
             tags: extract_all_tags(content),
+            properties,
             size: content.len() as u64,
             word_count: content.split_whitespace().count(),
         }
@@ -42,6 +54,7 @@ impl ParsedNote {
             title: entry.title.clone(),
             targets: entry.targets.clone(),
             tags: entry.tags.clone(),
+            properties: entry.properties.clone(),
             size: entry.size,
             word_count: entry.word_count,
         }
@@ -58,6 +71,10 @@ pub struct NoteMeta {
     pub outgoing: Vec<Arc<Path>>,
     pub unresolved: Vec<String>,
     pub tags: Vec<Arc<str>>,
+    /// Notion-style page properties from YAML frontmatter, in document order
+    /// (`tags`/`tag` excluded — those live in `tags`). Each value is a list
+    /// (scalars are single-element).
+    pub properties: Vec<(String, Vec<String>)>,
     pub mtime: Option<std::time::SystemTime>,
     pub size: u64,
     pub word_count: usize,
@@ -140,6 +157,7 @@ impl NoteIndex {
                     title: meta.title.clone(),
                     targets: meta.targets.clone(),
                     tags: meta.tags.iter().map(|t| t.to_string()).collect(),
+                    properties: meta.properties.clone(),
                     size: meta.size,
                     word_count: meta.word_count,
                 },
@@ -209,6 +227,7 @@ impl NoteIndex {
                 outgoing: Vec::new(),
                 unresolved: Vec::new(),
                 tags: tags.clone(),
+                properties: parsed.properties.clone(),
                 mtime,
                 size: parsed.size,
                 word_count: parsed.word_count,
