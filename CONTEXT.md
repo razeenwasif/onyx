@@ -5,15 +5,14 @@ for the task queue see **`docs/BACKLOG.md`**. This file is the "where we are rig
 
 _Last updated: 2026-06-11._
 
-> **Resume here (session paused 2026-06-11):** Notion-hybrid Phase 1 (page
-> properties) is shipped (`00dd9b2`) and the binary is reinstalled. The user is
-> **connecting the Notion MCP and restarting the session** to pick it up. On
-> resume: run `claude mcp list`; if `notion` is connected + authed, inventory
-> their Notion and start the migration. If missing, have them run
-> `claude mcp add --transport http notion https://mcp.notion.com/mcp` (from this
-> repo dir, or `-s user` for global), restart, `/mcp` to OAuth. **Next build
-> target: Phase 2 — database/table + board views over a folder.** See the
-> ⭐ Notion-hybrid epic in `docs/BACKLOG.md`.
+> **Resume here (2026-06-11, evening):** Notion MCP ✅ connected & authed;
+> workspace inventoried; migration fully planned in **`docs/NOTION_MIGRATION.md`**
+> (conventions + every page/collection ID). The first 4-agent migration run died
+> on the session usage limit (resets 6pm Sydney) — **zero files written**. On
+> resume: relaunch the 4 background domain agents (Finance, Degree Planning,
+> Courses, Entertainment+Work) per that doc (create-only under
+> `~/OnyxVault/Notion/`), verify in Onyx, reconcile counts. After migration:
+> **Phase 2 — database/table + board views** keyed by frontmatter properties.
 
 ---
 

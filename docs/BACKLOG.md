@@ -11,11 +11,13 @@ Running list of work to do. Newest items at the top of "Open". Move items to "Do
 wants all three Notion capabilities: databases+properties, block editing, and
 nested-page structure.
 
-**Migration prerequisite (user action):** connect the Notion MCP —
-`claude mcp add --transport http notion https://mcp.notion.com/mcp`, then `/mcp`
-to OAuth. Once connected: inventory Notion → propose Notion→Onyx mapping → migrate
-(a Notion **database** → an Onyx **folder** of `.md` files, each row a note with
-frontmatter properties; sub-pages → child notes; blocks → markdown).
+**Migration status (2026-06-11):** Notion MCP ✅ connected & authed. Workspace
+inventoried; decisions made (destination `~/OnyxVault/Notion/<Domain>/`, scope =
+everything except starter/sample content). **Conventions + full ID inventory:
+`docs/NOTION_MIGRATION.md`.** First 4-agent run died on the session usage limit
+(resets 6pm Sydney) with zero files written — relaunch the four domain agents
+(Finance, Degree Planning, Courses, Entertainment+Work) per that doc, then verify
+in Onyx and reconcile counts.
 
 **Notion → Onyx mapping:**
 
