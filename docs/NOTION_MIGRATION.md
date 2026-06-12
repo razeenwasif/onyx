@@ -1,23 +1,29 @@
 # Notion → Onyx migration spec
 
-> **STATUS (2026-06-12, after 2nd usage-limit cutoff; next reset 11:30pm Sydney):**
-> - **Finance ✅ COMPLETE** (52 files; agent report: 45 Expenses rows + Monthly
->   Income + Summary; skipped 4 template rows; 3 deleted-row 404s noted in
->   `Expenses/_schema.md`). Do not re-run.
-> - **Courses ⚠ PARTIAL** (~63 files). Done: `Physics of Quantum Information.md`;
->   `Data Science/` tree largely written (Data Wrangling, Data Wrangling 2,
->   Data Mining, Statistical Techniques 2, Databases, root note); `Cyber Security
->   - Networking/` STARTED (root + several `_schema.md`s + Security Principles)
->   but its row notes are mostly missing. Resume agent must: `find ~/OnyxVault/
->   Notion/Courses -type f` first, skip existing files, fill gaps — especially
->   the Cyber Security databases' rows (Cyber Security, Cyber Security
->   Foundations, Data - Network Security, New database), labs/quizzes, and any
->   unvisited Data Science children.
-> - **Degree Planning ⚠ BARELY STARTED** (only the two degree-page notes exist).
->   Remaining: Grades + GPA DB folders, the 4 study-plan DB folders.
-> - **Entertainment + Work ✗ NOT STARTED** (0 files).
-> Relaunch one background agent per unfinished domain with "check existing files
-> first, create-only, fill gaps" added to the standard prompt.
+> **STATUS (2026-06-12, after 3rd usage-limit cutoff; next reset 6:10pm Sydney):**
+> **Agents must run in the FOREGROUND** (background agents get auto-denied on
+> every tool in this harness — verified). Each agent: read this doc, ToolSearch
+> `select:mcp__notion__notion-fetch,mcp__notion__notion-search`, `find` its
+> domain first, skip existing files, CREATE-ONLY, fill gaps.
+> - **Finance ✅ COMPLETE** (52 files). Do not re-run.
+> - **Work ✅ COMPLETE** (3 files: Work.md, interview questions.md, Job Search/
+>   _schema.md — the Job Search DB has zero rows; confirmed empty).
+> - **Degree Planning ✅ COMPLETE** (50 files: Grades 26 rows + schema, GPA
+>   snapshot GPA 4.32, 4 study-plan DB folders). One deleted GPA row 404 noted
+>   in `GPA/_schema.md`.
+> - **Entertainment ⚠ PARTIAL** (106 files). Done: all page notes + ALL
+>   `_schema.md`s; rows for Animes (42), Spring (29), Movies (16). **Remaining
+>   rows:** Mangas - Manwhas (collection://5302f78b-c81c-4af3-adef-3b7247948f35),
+>   K-dramas (collection://283ae9e3-120d-4e17-a3e1-e75c6b509918), and the 8 game
+>   DBs under `Characters-Teams builds/` (collection ids are in each folder's
+>   `_schema.md`; row titles are long multi-character strings — sanitize
+>   filenames, keep full title in frontmatter `Name:`).
+> - **Courses ⚠ PARTIAL** (67 files). Done: Physics of Quantum Information,
+>   most of `Data Science/`, `Cyber Security - Networking/` root + schemas +
+>   Security Principles + a few rows. **Remaining:** Cyber Security DB rows
+>   (Cyber Security, Cyber Security Foundations, Data - Network Security,
+>   New database), missing labs/quizzes (Labs 2 & 6 by search), unvisited
+>   Data Science children (Machine Learning sub-pages, topic notes).
 
 Conventions for migrating the user's Notion workspace into the Onyx vault.
 Written 2026-06-11; used by the migration agents. Keep this in sync if rules change.
