@@ -11,13 +11,13 @@ Running list of work to do. Newest items at the top of "Open". Move items to "Do
 wants all three Notion capabilities: databases+properties, block editing, and
 nested-page structure.
 
-**Migration status (2026-06-11):** Notion MCP ✅ connected & authed. Workspace
-inventoried; decisions made (destination `~/OnyxVault/Notion/<Domain>/`, scope =
-everything except starter/sample content). **Conventions + full ID inventory:
-`docs/NOTION_MIGRATION.md`.** First 4-agent run died on the session usage limit
-(resets 6pm Sydney) with zero files written — relaunch the four domain agents
-(Finance, Degree Planning, Courses, Entertainment+Work) per that doc, then verify
-in Onyx and reconcile counts.
+**Migration status: ✅ COMPLETE (2026-06-12).** 394 notes under
+`~/OnyxVault/Notion/` (Finance 52, Degree Planning 50, Courses 125,
+Entertainment 164, Work 3) — every domain done, verified in Onyx (all 394
+indexed with parsed properties; 184 wikilink targets). Spec + final per-domain
+report: `docs/NOTION_MIGRATION.md`. Key harness lesson recorded there:
+migration agents must run as FOREGROUND Agent calls (background agents get
+auto-denied on every tool).
 
 **Notion → Onyx mapping:**
 

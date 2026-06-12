@@ -3,16 +3,16 @@
 Pick-up notes for resuming work. For deep architecture see **`docs/QUICKGUIDE.md`**;
 for the task queue see **`docs/BACKLOG.md`**. This file is the "where we are right now".
 
-_Last updated: 2026-06-11._
+_Last updated: 2026-06-12._
 
-> **Resume here (2026-06-11, evening):** Notion MCP ✅ connected & authed;
-> workspace inventoried; migration fully planned in **`docs/NOTION_MIGRATION.md`**
-> (conventions + every page/collection ID). The first 4-agent migration run died
-> on the session usage limit (resets 6pm Sydney) — **zero files written**. On
-> resume: relaunch the 4 background domain agents (Finance, Degree Planning,
-> Courses, Entertainment+Work) per that doc (create-only under
-> `~/OnyxVault/Notion/`), verify in Onyx, reconcile counts. After migration:
-> **Phase 2 — database/table + board views** keyed by frontmatter properties.
+> **Resume here (2026-06-12, evening): Notion migration ✅ COMPLETE.** 394 notes
+> under `~/OnyxVault/Notion/` (Finance 52, Degree Planning 50, Courses 125,
+> Entertainment 164, Work 3), verified in Onyx — all indexed with parsed
+> properties, 184 wikilink targets. Final report: `docs/NOTION_MIGRATION.md`.
+> Harness lesson: migration/worker agents must be FOREGROUND Agent calls
+> (background agents are auto-denied every tool). Next up:
+> **Phase 2 — database/table + board views** keyed by frontmatter properties
+> (`:database <folder>`), per the BACKLOG epic.
 
 ---
 

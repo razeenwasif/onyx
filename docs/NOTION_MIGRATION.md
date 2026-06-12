@@ -1,29 +1,32 @@
 # Notion → Onyx migration spec
 
-> **STATUS (2026-06-12, after 3rd usage-limit cutoff; next reset 6:10pm Sydney):**
-> **Agents must run in the FOREGROUND** (background agents get auto-denied on
-> every tool in this harness — verified). Each agent: read this doc, ToolSearch
-> `select:mcp__notion__notion-fetch,mcp__notion__notion-search`, `find` its
-> domain first, skip existing files, CREATE-ONLY, fill gaps.
+> **STATUS: ✅ MIGRATION COMPLETE (2026-06-12). 394 files under
+> `~/OnyxVault/Notion/`.** Lesson for future agent runs: **agents must run in
+> the FOREGROUND** (background agents get auto-denied on every tool — verified).
 > - **Finance ✅ COMPLETE** (52 files). Do not re-run.
 > - **Work ✅ COMPLETE** (3 files: Work.md, interview questions.md, Job Search/
 >   _schema.md — the Job Search DB has zero rows; confirmed empty).
 > - **Degree Planning ✅ COMPLETE** (50 files: Grades 26 rows + schema, GPA
 >   snapshot GPA 4.32, 4 study-plan DB folders). One deleted GPA row 404 noted
 >   in `GPA/_schema.md`.
-> - **Entertainment ⚠ PARTIAL** (106 files). Done: all page notes + ALL
->   `_schema.md`s; rows for Animes (42), Spring (29), Movies (16). **Remaining
->   rows:** Mangas - Manwhas (collection://5302f78b-c81c-4af3-adef-3b7247948f35),
->   K-dramas (collection://283ae9e3-120d-4e17-a3e1-e75c6b509918), and the 8 game
->   DBs under `Characters-Teams builds/` (collection ids are in each folder's
->   `_schema.md`; row titles are long multi-character strings — sanitize
->   filenames, keep full title in frontmatter `Name:`).
-> - **Courses ⚠ PARTIAL** (67 files). Done: Physics of Quantum Information,
->   most of `Data Science/`, `Cyber Security - Networking/` root + schemas +
->   Security Principles + a few rows. **Remaining:** Cyber Security DB rows
->   (Cyber Security, Cyber Security Foundations, Data - Network Security,
->   New database), missing labs/quizzes (Labs 2 & 6 by search), unvisited
->   Data Science children (Machine Learning sub-pages, topic notes).
+> - **Entertainment ✅ COMPLETE** (164 files, finished 2026-06-12): all page
+>   notes + schemas; rows for Animes 42, Spring 29, Movies 16, Mangas -
+>   Manwhas 16, K-dramas 6, and the 8 game DBs (36 team rows; Neverness to
+>   Everness + Azur Promelia confirmed empty, schema-only).
+> - ⚠ Security note: `Courses/Data Science/Computer Organisation and
+>   Execution/Laboratory 10 & 11.md` contains a personal access token that was
+>   verbatim in Notion — user advised to revoke it.
+> - **Courses ✅ COMPLETE** (125 files, finished 2026-06-12). All Cyber
+>   Security DB rows migrated (Cyber Security 28 rows incl. duplicates with
+>   " 2" suffix; Foundations 3; Data - Network Security 3; New database 1 —
+>   several rows were image-only slides in Notion → headings-only stubs,
+>   noted inline). "Labs 1–7 + Quiz 1" actually live in a "Computer
+>   Organisation and Execution" DB (collection://37536a73-c2e3-4386-8f5b-65df55de290f),
+>   fully migrated (17 rows: Labs 1–9 + 6.5 + "Laboratory 10 & 11", Quiz 1,
+>   Checkpoint, QuAC ISA v1.1, Unix Commands; no Quiz 2–7 exist). Data Mining
+>   topic notes (Evaluation, Naive Bayes, model quality) added; ML sub-DB rows
+>   done; Statistical Machine Learning DB confirmed zero rows. Signed S3 image
+>   links dropped (they expire) in this run's files. Do not re-run.
 
 Conventions for migrating the user's Notion workspace into the Onyx vault.
 Written 2026-06-11; used by the migration agents. Keep this in sync if rules change.
