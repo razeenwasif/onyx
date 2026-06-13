@@ -112,13 +112,36 @@ impl Vault {
         Ok(())
     }
 
-    pub fn rename_note(&mut self, from: &Path, to: &Path) -> Result<()> {
+    /// Rename a note **and** rewrite every `[[link]]` / `[text](link.md)` across
+    /// the vault that pointed at it, so backlinks don't break. Returns the number
+    /// of other notes that were updated.
+    pub fn rename_with_backlinks(&mut self, from: &Path, to: &Path) -> Result<usize> {
+        let old_base = note_basename(from);
+        let new_base = note_basename(to);
         if let Some(parent) = to.parent() {
             fs::create_dir_all(parent)?;
         }
         fs::rename(from, to)?;
+
+        let mut updated = 0;
+        if !old_base.eq_ignore_ascii_case(&new_base) {
+            // Snapshot the note list (the tree isn't refreshed yet; `from` is now `to`).
+            let notes = self.tree.notes.clone();
+            for note in notes {
+                let path = if note == from { to.to_path_buf() } else { note };
+                let Ok(content) = fs::read_to_string(&path) else {
+                    continue;
+                };
+                let rewritten =
+                    crate::markdown::parse::rename_link_targets(&content, &old_base, &new_base);
+                if rewritten != content {
+                    atomic_write(&path, rewritten.as_bytes())?;
+                    updated += 1;
+                }
+            }
+        }
         self.refresh();
-        Ok(())
+        Ok(updated)
     }
 
     /// Resolve a wikilink target (case-insensitive, optionally `folder/name`)

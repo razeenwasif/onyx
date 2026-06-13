@@ -470,6 +470,106 @@ fn clean_tag(s: &str) -> String {
         .to_string()
 }
 
+/// Rewrite every link that points to the note basename `old` so it points to
+/// `new` (for a safe rename). Handles `[[old]]`, `[[folder/old]]`,
+/// `[[old|alias]]`, `[[old#heading]]`, and `[text](folder/old.md)` —
+/// matching on the link target's final path component (case-insensitive),
+/// preserving folder prefix, alias, and heading anchor.
+pub fn rename_link_targets(content: &str, old: &str, new: &str) -> String {
+    let old_lc = old.to_lowercase();
+
+    // Wikilinks: [[target#anchor|alias]]
+    let s = wikilink_rename_re()
+        .replace_all(content, |c: &regex::Captures| {
+            let whole = c.get(0).unwrap().as_str();
+            let inner = &c[1];
+            let (path_anchor, alias) = match inner.split_once('|') {
+                Some((p, a)) => (p, Some(a)),
+                None => (inner, None),
+            };
+            let (path, anchor) = match path_anchor.split_once('#') {
+                Some((p, a)) => (p, Some(a)),
+                None => (path_anchor, None),
+            };
+            let (folder, base) = match path.rsplit_once('/') {
+                Some((f, b)) => (Some(f), b),
+                None => (None, path),
+            };
+            if base.to_lowercase() != old_lc {
+                return whole.to_string();
+            }
+            let mut out = String::from("[[");
+            if let Some(f) = folder {
+                out.push_str(f);
+                out.push('/');
+            }
+            out.push_str(new);
+            if let Some(a) = anchor {
+                out.push('#');
+                out.push_str(a);
+            }
+            if let Some(a) = alias {
+                out.push('|');
+                out.push_str(a);
+            }
+            out.push_str("]]");
+            out
+        })
+        .into_owned();
+
+    // Markdown links to a local `.md`: [text](folder/old.md#frag)
+    mdlink_rename_re()
+        .replace_all(&s, |c: &regex::Captures| {
+            let whole = c.get(0).unwrap().as_str();
+            let text = &c[1];
+            let dest = &c[2];
+            if has_uri_scheme(dest) {
+                return whole.to_string();
+            }
+            let (path, frag) = match dest.split_once('#') {
+                Some((p, f)) => (p, Some(f)),
+                None => (dest, None),
+            };
+            let Some(stem_path) = path
+                .strip_suffix(".md")
+                .or_else(|| path.strip_suffix(".markdown"))
+            else {
+                return whole.to_string();
+            };
+            let (folder, base) = match stem_path.rsplit_once('/') {
+                Some((f, b)) => (Some(f), b),
+                None => (None, stem_path),
+            };
+            if base.to_lowercase() != old_lc {
+                return whole.to_string();
+            }
+            let mut out = format!("[{text}](");
+            if let Some(f) = folder {
+                out.push_str(f);
+                out.push('/');
+            }
+            out.push_str(new);
+            out.push_str(".md");
+            if let Some(fr) = frag {
+                out.push('#');
+                out.push_str(fr);
+            }
+            out.push(')');
+            out
+        })
+        .into_owned()
+}
+
+fn wikilink_rename_re() -> &'static Regex {
+    static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"\[\[([^\]\[]+)\]\]").unwrap())
+}
+
+fn mdlink_rename_re() -> &'static Regex {
+    static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"\[([^\]]*)\]\(([^)\s]+)\)").unwrap())
+}
+
 /// If `line` is a markdown task item (`- [ ]` / `* [x]` / `+ [X]`, with optional
 /// indentation), return the line with its checkbox flipped. `None` otherwise.
 pub fn toggle_task_marker(line: &str) -> Option<String> {
@@ -566,6 +666,19 @@ pub fn parse_callout_header(text: &str) -> Option<CalloutHeader> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn renames_link_targets() {
+        let src = "see [[Old]], [[Old|alias]], [[Old#heading]], [[folder/Old]], and [t](folder/Old.md) and [[Keep]]";
+        let out = rename_link_targets(src, "Old", "New");
+        assert_eq!(
+            out,
+            "see [[New]], [[New|alias]], [[New#heading]], [[folder/New]], and [t](folder/New.md) and [[Keep]]"
+        );
+        // Web links untouched; case-insensitive match.
+        let src = "[[old]] [x](https://old.md)";
+        assert_eq!(rename_link_targets(src, "Old", "New"), "[[New]] [x](https://old.md)");
+    }
 
     #[test]
     fn toggles_task_markers() {

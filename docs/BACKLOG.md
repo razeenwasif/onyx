@@ -221,6 +221,16 @@ single-note delete (negligible leak today), SIMD literal search via
 
 ## Done
 
+### Safe rename — rewrite backlinks  (2026-06-14)
+
+Renaming a note (`:rename <new>` or file-tree `r`) now rewrites every link that
+pointed at it across the vault, so backlinks never dangle.
+`markdown::parse::rename_link_targets` rewrites `[[old]]`, `[[folder/old]]`,
+`[[old|alias]]`, `[[old#heading]]`, and `[text](folder/old.md)` (basename match,
+case-insensitive, web links untouched). `Vault::rename_with_backlinks` renames
+the file then atomically rewrites each affected note, returning the relink count
+(shown in the status). Replaced the old link-blind `rename_note`. Tested + pyte.
+
 ### Editing polish: aliases, outline jump, #tag autocomplete, task toggle, word count  (2026-06-14)
 
 A bundle of Obsidian-staple quality-of-life features.

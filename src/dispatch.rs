@@ -1050,17 +1050,21 @@ fn apply_prompt(app: &mut App, action: PromptAction, value: String) {
             if let Some(p) = from {
                 let parent = p.parent().unwrap_or_else(|| std::path::Path::new("."));
                 let target = parent.join(format!("{}.md", vault::sanitize_title(v)));
-                if let Err(e) = app.vault.rename_note(&p, &target) {
-                    app.set_status(format!("rename failed: {e}"));
-                } else {
-                    // Keep the open document's path in sync only if it's the one
-                    // we renamed.
-                    if let Some(doc) = app.doc.as_mut() {
-                        if doc.path.as_deref() == Some(p.as_path()) {
-                            doc.path = Some(target.clone());
+                match app.vault.rename_with_backlinks(&p, &target) {
+                    Err(e) => app.set_status(format!("rename failed: {e}")),
+                    Ok(updated) => {
+                        if let Some(doc) = app.doc.as_mut() {
+                            if doc.path.as_deref() == Some(p.as_path()) {
+                                doc.path = Some(target.clone());
+                            }
                         }
+                        let note = vault::note_basename(&target);
+                        app.set_status(match updated {
+                            0 => format!("renamed to {note}"),
+                            1 => format!("renamed to {note} · 1 note relinked"),
+                            n => format!("renamed to {note} · {n} notes relinked"),
+                        });
                     }
-                    app.set_status(format!("renamed to {}", target.display()));
                 }
             }
         }
@@ -1343,10 +1347,18 @@ fn run_ex_command(app: &mut App, raw: &str) {
             if let Some(p) = app.doc.as_ref().and_then(|d| d.path.clone()) {
                 let parent = p.parent().unwrap_or_else(|| std::path::Path::new("."));
                 let target = parent.join(format!("{}.md", vault::sanitize_title(args)));
-                if let Err(e) = app.vault.rename_note(&p, &target) {
-                    app.set_status(format!("rename failed: {e}"));
-                } else if let Some(doc) = app.doc.as_mut() {
-                    doc.path = Some(target);
+                match app.vault.rename_with_backlinks(&p, &target) {
+                    Err(e) => app.set_status(format!("rename failed: {e}")),
+                    Ok(updated) => {
+                        if let Some(doc) = app.doc.as_mut() {
+                            doc.path = Some(target.clone());
+                        }
+                        let note = vault::note_basename(&target);
+                        app.set_status(match updated {
+                            0 => format!("renamed to {note}"),
+                            n => format!("renamed to {note} · {n} relinked"),
+                        });
+                    }
                 }
             }
         }
