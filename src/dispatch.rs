@@ -610,6 +610,19 @@ fn sidebar_keys(app: &mut App, key: KeyEvent) {
 
 fn sidebar_open_selected(app: &mut App) {
     match app.sidebar_tab {
+        SidebarTab::Pages => {
+            let current = match app.doc.as_ref().and_then(|d| d.path.clone()) {
+                Some(p) => p,
+                None => return,
+            };
+            let entries =
+                crate::page_nav::page_entries(&app.vault.tree, &app.vault.root, &current);
+            if let Some(e) = entries.get(app.sidebar_selected) {
+                let target = e.target.clone();
+                let _ = app.open_note(target);
+                app.sidebar_selected = 0;
+            }
+        }
         SidebarTab::Backlinks => {
             let path = match app.doc.as_ref().and_then(|d| d.path.clone()) {
                 Some(p) => p,
@@ -1187,6 +1200,21 @@ fn run_ex_command(app: &mut App, raw: &str) {
             }
         }
         "graph" => app.open_graph(),
+        "up" | "parent" => {
+            match app.doc.as_ref().and_then(|d| d.path.clone()) {
+                Some(cur) => {
+                    match crate::page_nav::parent_page(&app.vault.tree, &app.vault.root, &cur) {
+                        Some(p) => {
+                            if let Err(e) = app.open_note(p) {
+                                app.set_status(format!("open failed: {e}"));
+                            }
+                        }
+                        None => app.set_status("already at the top of this branch"),
+                    }
+                }
+                None => app.set_status("no note open"),
+            }
+        }
         "database" | "db" | "table" => open_database_cmd(app, args, false),
         "board" | "kanban" => open_database_cmd(app, args, true),
         "calendar" | "cal" => app.open_calendar(),

@@ -132,6 +132,8 @@ pub enum FullPane {
 /// pane in the lower half — see `App::show_calendar` — not a tab.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SidebarTab {
+    /// Nested-structure navigation: parent / sibling / child pages of the note.
+    Pages,
     Backlinks,
     Outline,
     Tags,
@@ -140,6 +142,7 @@ pub enum SidebarTab {
 impl SidebarTab {
     pub fn label(&self) -> &'static str {
         match self {
+            SidebarTab::Pages => "Pages",
             SidebarTab::Backlinks => "Backlinks",
             SidebarTab::Outline => "Outline",
             SidebarTab::Tags => "Tags",
@@ -148,15 +151,17 @@ impl SidebarTab {
 
     pub fn next(self) -> Self {
         match self {
+            SidebarTab::Pages => SidebarTab::Backlinks,
             SidebarTab::Backlinks => SidebarTab::Outline,
             SidebarTab::Outline => SidebarTab::Tags,
-            SidebarTab::Tags => SidebarTab::Backlinks,
+            SidebarTab::Tags => SidebarTab::Pages,
         }
     }
 
     pub fn prev(self) -> Self {
         match self {
-            SidebarTab::Backlinks => SidebarTab::Tags,
+            SidebarTab::Pages => SidebarTab::Tags,
+            SidebarTab::Backlinks => SidebarTab::Pages,
             SidebarTab::Outline => SidebarTab::Backlinks,
             SidebarTab::Tags => SidebarTab::Outline,
         }

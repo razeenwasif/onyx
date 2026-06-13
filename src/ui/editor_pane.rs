@@ -13,7 +13,17 @@ use crate::editor::Mode;
 pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
     let focused = app.focus == Focus::Editor;
     let title = match &app.doc {
-        Some(d) => format!("{}  {}", d.title(), d.mode.label()),
+        Some(d) => {
+            let mode = d.mode.label();
+            // Breadcrumb trail of the note's location, fit to the pane width
+            // (leaving room for the trailing mode label + border padding).
+            let max = (area.width as usize).saturating_sub(mode.chars().count() + 6).max(8);
+            let crumb = match d.path.as_ref() {
+                Some(p) => crate::page_nav::breadcrumb(&app.vault.root, p, max),
+                None => d.title(),
+            };
+            format!("{crumb}  {mode}")
+        }
         None => "Editor".into(),
     };
     let block = super::pane_block(&title, focused, &app.theme);

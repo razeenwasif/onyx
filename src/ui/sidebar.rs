@@ -8,6 +8,7 @@ use ratatui::widgets::{List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 
 use crate::app::{App, Focus, SidebarTab};
+use crate::page_nav::{self, PageKind};
 use crate::vault;
 
 pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
@@ -51,6 +52,7 @@ fn draw_tabbed(frame: &mut Frame, area: Rect, app: &mut App) {
 
     draw_tabs(frame, split[0], app);
     match app.sidebar_tab {
+        SidebarTab::Pages => draw_pages(frame, split[1], app),
         SidebarTab::Backlinks => draw_backlinks(frame, split[1], app),
         SidebarTab::Outline => draw_outline(frame, split[1], app),
         SidebarTab::Tags => draw_tags(frame, split[1], app),
@@ -69,6 +71,7 @@ fn draw_tabs(frame: &mut Frame, area: Rect, app: &App) {
     let theme = &app.theme;
     let mut spans: Vec<Span<'static>> = Vec::new();
     for (i, tab) in [
+        SidebarTab::Pages,
         SidebarTab::Backlinks,
         SidebarTab::Outline,
         SidebarTab::Tags,
@@ -88,6 +91,53 @@ fn draw_tabs(frame: &mut Frame, area: Rect, app: &App) {
     }
     let p = Paragraph::new(Line::from(spans));
     frame.render_widget(p, area);
+}
+
+fn draw_pages(frame: &mut Frame, area: Rect, app: &mut App) {
+    let theme = &app.theme;
+    let current = match app.doc.as_ref().and_then(|d| d.path.clone()) {
+        Some(p) => p,
+        None => {
+            let p = Paragraph::new("Open a note to navigate its pages.").style(theme.s_subtle());
+            frame.render_widget(p, area);
+            return;
+        }
+    };
+    let entries = page_nav::page_entries(&app.vault.tree, &app.vault.root, &current);
+    if entries.is_empty() {
+        let p = Paragraph::new("— no sibling or child pages —").style(theme.s_subtle());
+        frame.render_widget(p, area);
+        return;
+    }
+    let items: Vec<ListItem> = entries
+        .iter()
+        .map(|e| {
+            // `marker` orients the row; the Up label already carries its own ↑.
+            let (marker, marker_style) = match e.kind {
+                PageKind::Up => ("", theme.s_accent()),
+                PageKind::Folder => ("▸ ", theme.s_accent()),
+                PageKind::Note if e.is_current => ("● ", theme.s_accent()),
+                PageKind::Note => ("· ", theme.s_subtle()),
+            };
+            let label_style = if e.is_current {
+                theme.s_accent().add_modifier(Modifier::BOLD)
+            } else if e.kind == PageKind::Up {
+                theme.s_accent()
+            } else {
+                theme.s_normal()
+            };
+            ListItem::new(Line::from(vec![
+                Span::styled(marker.to_string(), marker_style),
+                Span::styled(e.label.clone(), label_style),
+            ]))
+        })
+        .collect();
+    let mut state = ListState::default();
+    if app.sidebar_selected < items.len() {
+        state.select(Some(app.sidebar_selected));
+    }
+    let list = List::new(items).highlight_style(theme.s_selection());
+    frame.render_stateful_widget(list, area, &mut state);
 }
 
 fn draw_backlinks(frame: &mut Frame, area: Rect, app: &mut App) {

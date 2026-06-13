@@ -105,6 +105,22 @@ impl FileTree {
         self.notes.iter().any(|p| p == path)
     }
 
+    /// Find the tree node for an absolute path inside the vault (the root, a
+    /// directory, or a note). Returns `None` if the path isn't in the tree.
+    pub fn node_at(&self, path: &Path) -> Option<&TreeNode> {
+        if path == self.root.path {
+            return Some(&self.root);
+        }
+        let rel = path.strip_prefix(&self.root.path).ok()?;
+        let mut cur = &self.root;
+        let mut acc = self.root.path.clone();
+        for comp in rel.components() {
+            acc.push(comp.as_os_str());
+            cur = cur.children.iter().find(|n| n.path == acc)?;
+        }
+        Some(cur)
+    }
+
     /// Flatten the tree to a linear list of (depth, node) for rendering.
     pub fn flatten<'a>(&'a self, expanded: &dyn ExpansionSet) -> Vec<&'a TreeNode> {
         let mut out = Vec::new();

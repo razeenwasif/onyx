@@ -43,7 +43,10 @@ FOREGROUND Agent calls (background agents get auto-denied on every tool).
    `:database <folder>` / `:board` / file-tree `t` shows a folder's notes as a
    table keyed by frontmatter props, or a kanban board grouped by an auto-picked
    select-like property; sort, direction toggle, and live filter.
-3. **Nested structure polish** — child-page navigation, breadcrumbs.
+3. **Nested structure polish** ✅ DONE (2026-06-13, see § Done) — breadcrumb
+   trail in the editor title, a "Pages" sidebar tab (parent ↑ / child folders /
+   sibling notes, with the current page marked), and `:up` to jump to the
+   containing page.
 4. **Block editing** — callouts (`> [!note]`), toggles, columns, slash-command
    insert. (Callouts already noted below.)
 5. **Notion import** — once the MCP is connected: a `:notion import` flow that
@@ -208,6 +211,26 @@ single-note delete (negligible leak today), SIMD literal search via
 ---
 
 ## Done
+
+### Notion hybrid — Phase 3: nested-structure navigation  (2026-06-13)
+
+Treat the folder hierarchy as a Notion page tree (a folder's "page" = its
+namesake note `Foo/Foo.md`, else `_schema.md`, else its first note).
+
+- New `src/page_nav.rs` (pure, 7 unit tests): `representative_note`,
+  `parent_page`, `page_entries` (Up / child-folder / sibling-note rows, current
+  marked), and `breadcrumb`/`join_breadcrumb` (trailing-segments-kept, leading
+  `…` elision to fit width). `FileTree::node_at(path)` added to walk to a node.
+- **Breadcrumbs**: the editor pane title shows the note's trail, e.g.
+  `… › Anime Watchlist - Tracker › Animes › Oshi no Ko`, width-fitted
+  (`editor_pane::draw`).
+- **Pages sidebar tab** (`SidebarTab::Pages`, now first in the tab cycle):
+  lists ↑ parent, child folders (drill in), and sibling notes; Enter opens.
+  Rendered by `sidebar::draw_pages`, handled in `dispatch::sidebar_open_selected`.
+- **`:up` / `:parent`** ex-command jumps to the containing page.
+- Verified end-to-end (pyte): breadcrumb on a deep note, the Pages tab on a
+  parent page (↑ + 5 child DB folders + current ●), and Enter drilling into a
+  child (breadcrumb follows).
 
 ### Notion hybrid — Phase 2: database / table + board views  (2026-06-13)
 

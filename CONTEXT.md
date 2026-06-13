@@ -14,9 +14,11 @@ _Last updated: 2026-06-13._
 > `xProjectsx/Work/`); `Notion/` removed; vault `.md` count unchanged at 1071.
 > Phase 2 (database/table + board views over a folder, keyed by frontmatter
 > properties) is built and verified — `src/db_view.rs` + `src/ui/database.rs`,
-> opened via `:database`/`:board`/file-tree `t`. **Next up: Phase 3** — nested-
-> structure polish (child-page navigation, breadcrumbs), then Phase 4 blocks
-> (callouts/toggles/columns/slash-insert). See the BACKLOG epic.
+> opened via `:database`/`:board`/file-tree `t`. **Phase 3 (nested-structure
+> navigation) is also done** — `src/page_nav.rs` powers breadcrumbs in the
+> editor title, a "Pages" sidebar tab (parent/child/sibling pages), and `:up`.
+> **Next up: Phase 4** — block editing (callouts `> [!note]`, toggles, columns,
+> slash-command insert), then Phase 5 (`:notion import`). See the BACKLOG epic.
 
 ---
 

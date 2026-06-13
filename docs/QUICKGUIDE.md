@@ -495,6 +495,14 @@ Open one with `:database [folder]` (aliases `:db`, `:table`; `:board` opens in b
 
 The active view is rebuilt from the index on external changes (`handle_fs_events` → `rebuild_database`, preserving mode/sort/group/filter/selection) and cleared on vault switch. It's closed while a note is open (opening a row sets `doc` and `database = None`).
 
+### 9.3 Nested-structure navigation (Notion hybrid, Phase 3)
+
+The vault's folder hierarchy doubles as a Notion-style **page tree**. A folder's representative "page" is its namesake note (`Foo/Foo.md`), else its database page (`Foo/_schema.md`), else its first contained note. The pure logic lives in `src/page_nav.rs` (`representative_note`, `parent_page`, `page_entries`, `breadcrumb`) over `FileTree` (`node_at` walks to a node); 7 unit tests cover it.
+
+- **Breadcrumbs**: `editor_pane::draw` builds the pane title from `page_nav::breadcrumb(root, path, max)` — the ancestor trail joined with ` › `, fit to the pane width by keeping the trailing segments whole and eliding older ancestors with a leading `…`.
+- **Pages sidebar tab** (`SidebarTab::Pages`, first in the tab cycle): `sidebar::draw_pages` lists `page_entries` — an `↑ parent` row, the current folder's child *folders* (each opening that folder's representative page), and its *notes* (the open note marked with `●`). Enter opens the selected row (`dispatch::sidebar_open_selected`), which naturally re-scopes the list to the new note's folder for drill-down/up.
+- **`:up` / `:parent`** opens `page_nav::parent_page` — the page containing the current note (from a folder's own page it steps up another level).
+
 ---
 
 ## 10. Indexing and link resolution
