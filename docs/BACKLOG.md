@@ -221,6 +221,19 @@ single-note delete (negligible leak today), SIMD literal search via
 
 ## Done
 
+### Inline property editing + split view  (2026-06-14)
+
+- **Inline property editing** (`:props`) — a modal over the open note that lists
+  its frontmatter properties; `e` edits a value, `a` adds (`key: value`), `d`
+  deletes, with inline text fields. Edits go through the *buffer*
+  (`App::set_open_doc_property` via `markdown::parse::set_frontmatter_property`),
+  so they join the note's undo history and save normally (no disk/buffer races).
+  `Focus::Properties`, `PropsEditState`, `ui/props.rs`.
+- **Split view** (`:vsplit [note]`) — the right pane renders a *second* open note
+  read-only alongside the editor (instead of the active note's preview);
+  `:swap` swaps which note is active/editable, `:only` closes the split.
+  `App::split_doc` + `split_content`/`toggle_split`/`swap_split`, `ui/splitview.rs`.
+
 ### Editor tabs (multiple open notes)  (2026-06-14)
 
 Open several notes at once with a tab bar above the editor. Design keeps

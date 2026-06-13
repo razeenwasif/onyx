@@ -85,6 +85,8 @@ pub enum Focus {
     Database,
     /// Vault-wide task rollup overlay.
     Tasks,
+    /// Inline frontmatter-property editor for the open note.
+    Properties,
     Help,
     Settings,
     Prompt,
@@ -317,6 +319,24 @@ pub struct TasksState {
     pub selected: usize,
 }
 
+/// An active inline edit within the property editor.
+#[derive(Debug, Clone)]
+pub struct PropEdit {
+    /// True when adding a new property (the buffer holds `key: value`); false
+    /// when editing `key`'s value (the buffer holds just the value).
+    pub is_add: bool,
+    pub key: String,
+    pub buffer: String,
+}
+
+/// Inline frontmatter-property editor state for the open note.
+#[derive(Debug, Default)]
+pub struct PropsEditState {
+    pub items: Vec<(String, String)>,
+    pub selected: usize,
+    pub editing: Option<PropEdit>,
+}
+
 #[derive(Debug)]
 pub struct CalendarState {
     pub cursor: NaiveDate,
@@ -399,9 +419,14 @@ pub struct App {
     pub graph_global: bool,
     pub calendar: CalendarState,
     pub tasks: TasksState,
+    pub props_edit: PropsEditState,
 
     /// Active database view (a folder shown as a table/board), or None.
     pub database: Option<DatabaseView>,
+
+    /// When set, the right pane shows this note rendered read-only (a vertical
+    /// split) instead of the active note's preview.
+    pub split_doc: Option<PathBuf>,
 
     // Left-column side panes.
     pub quicknote: QuicknoteState,
@@ -492,7 +517,9 @@ impl App {
             graph_global: true,
             calendar: CalendarState::today(),
             tasks: TasksState::default(),
+            props_edit: PropsEditState::default(),
             database: None,
+            split_doc: None,
             quicknote: QuicknoteState::new(quicknote_text),
             todos,
             bookmarks,
@@ -638,6 +665,7 @@ impl App {
         self.doc = None;
         self.tab_paths.clear();
         self.tabs.clear();
+        self.split_doc = None;
         self.database = None;
         self.graph_focus = None;
         self.fullscreen = None;
@@ -1335,6 +1363,59 @@ impl App {
     pub fn forget_tab(&mut self, path: &Path) {
         self.tab_paths.retain(|p| p != path);
         self.tabs.retain(|d| d.path.as_deref() != Some(path));
+        if self.split_doc.as_deref() == Some(path) {
+            self.split_doc = None;
+        }
+    }
+
+    /// The first open tab that isn't the active note (for `:vsplit`).
+    fn next_other_tab(&self) -> Option<PathBuf> {
+        let cur = self.doc.as_ref().and_then(|d| d.path.clone());
+        self.tab_paths.iter().find(|p| Some(p.as_path()) != cur.as_deref()).cloned()
+    }
+
+    /// Toggle the split view: off if on, else show another open note alongside.
+    pub fn toggle_split(&mut self) {
+        if self.split_doc.is_some() {
+            self.split_doc = None;
+            return;
+        }
+        match self.next_other_tab() {
+            Some(p) => {
+                self.split_doc = Some(p);
+                self.show_preview = true;
+            }
+            None => self.set_status("open another note first to split"),
+        }
+    }
+
+    /// Show `path` in the split pane.
+    pub fn split_with(&mut self, path: PathBuf) {
+        self.split_doc = Some(path);
+        self.show_preview = true;
+    }
+
+    /// Swap the active note with the split note.
+    pub fn swap_split(&mut self) {
+        if let Some(sp) = self.split_doc.clone() {
+            let prev = self.doc.as_ref().and_then(|d| d.path.clone());
+            let _ = self.open_note(sp);
+            self.split_doc = prev;
+        }
+    }
+
+    /// The split note's `(name, content)` — from its open buffer if it's a tab,
+    /// else read from disk.
+    pub fn split_content(&self) -> Option<(String, String)> {
+        let path = self.split_doc.as_ref()?;
+        let name = vault::note_basename(path);
+        if self.doc.as_ref().and_then(|d| d.path.as_ref()) == Some(path) {
+            return Some((name, self.doc.as_ref().unwrap().buffer.to_string()));
+        }
+        if let Some(d) = self.tabs.iter().find(|d| d.path.as_deref() == Some(path.as_path())) {
+            return Some((name, d.buffer.to_string()));
+        }
+        self.vault.read_note(path).ok().map(|c| (name, c))
     }
 
     pub fn save_current(&mut self) -> Result<()> {
@@ -2247,6 +2328,108 @@ impl App {
         self.focus = Focus::Editor;
     }
 
+    /// Open the inline frontmatter-property editor for the current note.
+    pub fn open_props_editor(&mut self) {
+        if self.doc.as_ref().and_then(|d| d.path.as_ref()).is_none() {
+            self.set_status("open a note to edit its properties");
+            return;
+        }
+        self.props_edit = PropsEditState::default();
+        self.rebuild_props_items();
+        self.last_focus = self.focus;
+        self.focus = Focus::Properties;
+    }
+
+    fn rebuild_props_items(&mut self) {
+        let src = self
+            .doc
+            .as_ref()
+            .map(|d| d.buffer.to_string())
+            .unwrap_or_default();
+        self.props_edit.items = crate::markdown::parse::extract_frontmatter_properties(&src)
+            .into_iter()
+            .map(|(k, v)| (k, v.join(", ")))
+            .collect();
+        if self.props_edit.selected >= self.props_edit.items.len() {
+            self.props_edit.selected = self.props_edit.items.len().saturating_sub(1);
+        }
+    }
+
+    /// Apply a frontmatter property change to the *open buffer* (so it joins the
+    /// note's undo history and is saved normally), then re-read the list.
+    fn set_open_doc_property(&mut self, key: &str, value: Option<&str>) {
+        if let Some(doc) = self.doc.as_mut() {
+            let content = doc.buffer.to_string();
+            let updated = crate::markdown::parse::set_frontmatter_property(&content, key, value);
+            if updated != content {
+                doc.history.record(&doc.buffer);
+                let cur = doc.buffer.cursor;
+                doc.buffer = Buffer::from_string(updated);
+                doc.buffer.cursor = cur;
+                doc.buffer.clamp_cursor();
+                doc.dirty = true;
+            }
+        }
+        *self.preview_cache.borrow_mut() = None;
+        self.rebuild_props_items();
+    }
+
+    pub fn props_move(&mut self, delta: i64) {
+        let n = self.props_edit.items.len();
+        if n == 0 {
+            return;
+        }
+        let cur = self.props_edit.selected.min(n - 1) as i64;
+        self.props_edit.selected = (cur + delta).clamp(0, n as i64 - 1) as usize;
+    }
+
+    pub fn props_begin_edit(&mut self) {
+        if let Some((k, v)) = self.props_edit.items.get(self.props_edit.selected).cloned() {
+            self.props_edit.editing = Some(PropEdit {
+                is_add: false,
+                key: k,
+                buffer: v,
+            });
+        }
+    }
+
+    pub fn props_begin_add(&mut self) {
+        self.props_edit.editing = Some(PropEdit {
+            is_add: true,
+            key: String::new(),
+            buffer: String::new(),
+        });
+    }
+
+    pub fn props_delete_selected(&mut self) {
+        if let Some((k, _)) = self.props_edit.items.get(self.props_edit.selected).cloned() {
+            self.set_open_doc_property(&k, None);
+        }
+    }
+
+    /// Commit the active inline edit.
+    pub fn props_commit_edit(&mut self) {
+        let Some(edit) = self.props_edit.editing.take() else {
+            return;
+        };
+        if edit.is_add {
+            // Parse `key: value` (or `key = value`).
+            let raw = edit.buffer.trim();
+            let split = raw.find(':').or_else(|| raw.find('='));
+            if let Some(i) = split {
+                let key = raw[..i].trim().to_string();
+                let val = raw[i + 1..].trim().to_string();
+                if !key.is_empty() {
+                    self.set_open_doc_property(&key, Some(&val));
+                }
+            } else if !raw.is_empty() {
+                self.set_open_doc_property(raw, Some(""));
+            }
+        } else {
+            self.set_open_doc_property(&edit.key, Some(edit.buffer.trim()));
+        }
+    }
+
     pub fn focus_quicknote(&mut self) {
         self.show_left = true;
         self.show_quicknote = true;
@@ -2374,6 +2557,14 @@ impl App {
             return;
         }
         match self.focus {
+            Focus::Properties => {
+                // First Esc cancels an in-progress field edit; the next closes.
+                if self.props_edit.editing.is_some() {
+                    self.props_edit.editing = None;
+                } else {
+                    self.close_overlay();
+                }
+            }
             Focus::Palette | Focus::Switcher | Focus::Search | Focus::Help | Focus::Settings | Focus::Prompt | Focus::Tasks => {
                 self.close_overlay();
             }

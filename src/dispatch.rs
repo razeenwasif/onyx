@@ -36,6 +36,7 @@ pub fn on_key(app: &mut App, key: KeyEvent) {
         Focus::Graph => graph_keys(app, key),
         Focus::Database => database_keys(app, key),
         Focus::Tasks => tasks_keys(app, key),
+        Focus::Properties => props_keys(app, key),
         Focus::Settings => help_keys(app, key),
         Focus::Editor => editor_keys(app, key),
         Focus::Preview => preview_keys(app, key),
@@ -86,9 +87,10 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
                 .as_ref()
                 .map(|d| d.mode == Mode::Insert)
                 .unwrap_or(false);
-        // While typing into the database filter box, `:` is literal text.
+        // While typing into the database filter or a property field, `:` is text.
         let db_filtering = app.database.as_ref().map(|d| d.filtering).unwrap_or(false);
-        if !in_text_overlay && !in_insert && !db_filtering {
+        let prop_editing = app.focus == Focus::Properties && app.props_edit.editing.is_some();
+        if !in_text_overlay && !in_insert && !db_filtering && !prop_editing {
             app.open_cmdline();
             return true;
         }
@@ -667,6 +669,35 @@ fn follow_wikilink_at_cursor(app: &mut App) {
             // Create a new note with that title.
             let _ = app.create_note(target);
         }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Inline property editor
+// -----------------------------------------------------------------------------
+
+fn props_keys(app: &mut App, key: KeyEvent) {
+    // While editing a field, capture text input. (Esc cancels via global_shortcut.)
+    if let Some(edit) = app.props_edit.editing.as_mut() {
+        match key.code {
+            KeyCode::Enter => app.props_commit_edit(),
+            KeyCode::Backspace => {
+                edit.buffer.pop();
+            }
+            KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                edit.buffer.push(c);
+            }
+            _ => {}
+        }
+        return;
+    }
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => app.props_move(1),
+        KeyCode::Char('k') | KeyCode::Up => app.props_move(-1),
+        KeyCode::Char('e') | KeyCode::Enter => app.props_begin_edit(),
+        KeyCode::Char('a') => app.props_begin_add(),
+        KeyCode::Char('d') => app.props_delete_selected(),
+        _ => {}
     }
 }
 
@@ -1338,6 +1369,7 @@ fn run_ex_command(app: &mut App, raw: &str) {
         }
         "task" | "toggle" => app.toggle_task_on_current_line(),
         "tasks" => app.open_tasks(),
+        "props" | "properties" | "prop" => app.open_props_editor(),
         "bookmark" | "pin" => app.toggle_bookmark_current(),
         "tabnext" | "tabn" | "bnext" | "bn" => app.cycle_tab(1),
         "tabprev" | "tabprevious" | "tabp" | "bprev" | "bp" => app.cycle_tab(-1),
@@ -1374,6 +1406,17 @@ fn run_ex_command(app: &mut App, raw: &str) {
         "preview" => {
             app.show_preview = !app.show_preview;
         }
+        "vsplit" | "split" | "vs" => {
+            if args.is_empty() {
+                app.toggle_split();
+            } else if let Some(p) = app.vault.resolve_link(args) {
+                app.split_with(p);
+            } else {
+                app.set_status(format!("E447: can't find note \"{args}\""));
+            }
+        }
+        "only" | "unsplit" => app.split_doc = None,
+        "swap" => app.swap_split(),
         "fzf" | "files" => request_external(app, PendingExternal::Fzf, "fzf"),
         "rg" | "livegrep" | "grep" => request_external(app, PendingExternal::FzfGrep, "fzf"),
         "yazi" | "files!" | "browse" => request_external(app, PendingExternal::Yazi, "yazi"),

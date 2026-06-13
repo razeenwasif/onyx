@@ -12,9 +12,11 @@ pub mod home;
 pub mod palette;
 pub mod preview;
 pub mod prompt;
+pub mod props;
 pub mod quicknote;
 pub mod search;
 pub mod sidebar;
+pub mod splitview;
 pub mod status;
 pub mod switcher;
 pub mod tabline;
@@ -68,6 +70,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         Focus::Prompt => prompt::draw(frame, area, app),
         Focus::Confirm => confirm::draw(frame, area, app),
         Focus::Tasks => tasks::draw(frame, area, app),
+        Focus::Properties => props::draw(frame, area, app),
         _ => {}
     }
     if app.help_open && app.focus != Focus::Help {
@@ -126,7 +129,11 @@ fn draw_body(frame: &mut Frame, area: Rect, app: &mut App) {
                 ])
                 .split(body);
             editor_pane::draw(frame, center_split[0], app);
-            preview::draw(frame, center_split[1], app);
+            if app.split_doc.is_some() {
+                splitview::draw(frame, center_split[1], app);
+            } else {
+                preview::draw(frame, center_split[1], app);
+            }
         } else {
             editor_pane::draw(frame, body, app);
         }

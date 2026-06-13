@@ -16,7 +16,9 @@ A modern, premium markdown notes TUI — an Obsidian-inspired terminal vault.
 - **Nested-page navigation** — a breadcrumb trail in the editor and a **Pages** sidebar tab for jumping between a note's parent, child, and sibling pages (`:up` to go to the containing page)
 - **Blocks** — styled **callouts** (`> [!note]`/`[!warning]`/`[!tip]`/…), **collapsible** callouts (`[!note]-`, toggled in the preview), side-by-side **columns** (`::: columns … +++ … :::`), and a **`/` slash menu** in the editor to insert any of them
 - **Notion import** — `:notion import <folder>` cleans an unzipped Notion "Markdown & CSV" export into the vault (strips id suffixes, links → wikilinks, CSV databases → note folders with frontmatter + `_schema.md`)
-- Backlinks panel, outline panel, and tag panel in the right sidebar
+- **Editor tabs** (`Ctrl-PgUp/PgDn`, `Ctrl-W`) and a **split view** (`:vsplit`) to read a second note beside the one you're editing
+- **Editable properties** — `:props` edits a note's frontmatter inline; database **board** cards move between groups (`H`/`L`) by rewriting their property
+- Backlinks, outline (click to jump), tag, and **Pages** (parent/child) panels in the right sidebar
 - Command palette (`Ctrl-P`) and quick switcher (`Ctrl-O`) with fuzzy matching
 - Full-vault content search (`Ctrl-Shift-F`) and a vault-wide **task rollup** (`:tasks`) of every `- [ ]` checkbox
 - ASCII graph view (`Ctrl-G`) centered on the current note
