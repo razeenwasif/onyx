@@ -470,6 +470,91 @@ fn clean_tag(s: &str) -> String {
         .to_string()
 }
 
+/// Quote a YAML scalar value when it contains characters that need it.
+fn yaml_value(s: &str) -> String {
+    let t = s.trim();
+    let needs_quote = t.is_empty()
+        || t.contains([':', '#', '[', ']', '{', '}', ',', '"', '\'', '\n'])
+        || t.starts_with(['-', '?', '&', '*', '!', '|', '>', '@', '`', ' '])
+        || matches!(t, "true" | "false" | "null" | "yes" | "no");
+    if needs_quote {
+        format!("\"{}\"", t.replace('\\', "\\\\").replace('"', "\\\""))
+    } else {
+        t.to_string()
+    }
+}
+
+/// Set (or, with `value = None`, remove) a top-level `key` in a note's YAML
+/// frontmatter, returning the new content. Updates the key in place if present,
+/// appends it otherwise, and creates a frontmatter block if the note has none.
+/// Removing the last property drops the block entirely.
+pub fn set_frontmatter_property(content: &str, key: &str, value: Option<&str>) -> String {
+    let lines: Vec<&str> = content.lines().collect();
+    let has_fm = lines.first().map(|l| l.trim_end() == "---").unwrap_or(false);
+    let trailing_nl = content.ends_with('\n');
+
+    // No frontmatter: create one only if we're setting a value.
+    if !has_fm {
+        return match value {
+            Some(v) => format!("---\n{key}: {}\n---\n\n{content}", yaml_value(v)),
+            None => content.to_string(),
+        };
+    }
+    let Some(fm_end) = lines
+        .iter()
+        .enumerate()
+        .skip(1)
+        .find(|(_, l)| l.trim_end() == "---")
+        .map(|(i, _)| i)
+    else {
+        return content.to_string(); // malformed; leave as-is
+    };
+
+    let mut new_fm: Vec<String> = Vec::new();
+    let mut found = false;
+    for line in &lines[1..fm_end] {
+        let is_key = line.contains(':')
+            && line
+                .split_once(':')
+                .map(|(k, _)| k.trim().eq_ignore_ascii_case(key))
+                .unwrap_or(false);
+        if is_key {
+            found = true;
+            if let Some(v) = value {
+                new_fm.push(format!("{key}: {}", yaml_value(v)));
+            }
+        } else {
+            new_fm.push(line.to_string());
+        }
+    }
+    if !found {
+        if let Some(v) = value {
+            new_fm.push(format!("{key}: {}", yaml_value(v)));
+        }
+    }
+
+    let body = &lines[fm_end + 1..];
+    let mut out = String::new();
+    if !new_fm.is_empty() {
+        out.push_str("---\n");
+        for l in &new_fm {
+            out.push_str(l);
+            out.push('\n');
+        }
+        out.push_str("---\n");
+    }
+    for (i, l) in body.iter().enumerate() {
+        out.push_str(l);
+        if i + 1 < body.len() {
+            out.push('\n');
+        }
+    }
+    if trailing_nl && !out.ends_with('\n') {
+        out.push('\n');
+    }
+    out
+}
+
 /// If `line` is a markdown task item, return `(done, text)` where `text` is the
 /// task text after the checkbox. `None` for non-task lines.
 pub fn task_line(line: &str) -> Option<(bool, &str)> {
@@ -691,6 +776,30 @@ mod tests {
         // Web links untouched; case-insensitive match.
         let src = "[[old]] [x](https://old.md)";
         assert_eq!(rename_link_targets(src, "Old", "New"), "[[New]] [x](https://old.md)");
+    }
+
+    #[test]
+    fn sets_and_removes_frontmatter_properties() {
+        let src = "---\nsource: notion\nType: Wants\n---\n\n# Claude\nbody\n";
+        // Update existing key in place.
+        let out = set_frontmatter_property(src, "Type", Some("Needs"));
+        assert!(out.contains("Type: Needs"));
+        assert!(!out.contains("Type: Wants"));
+        assert!(out.contains("# Claude") && out.contains("source: notion"));
+        // Add a new key.
+        let out = set_frontmatter_property(src, "Amount", Some("20"));
+        assert!(out.contains("Amount: 20"));
+        // Remove a key.
+        let out = set_frontmatter_property(src, "Type", None);
+        assert!(!out.contains("Type:"));
+        assert!(out.contains("source: notion"));
+        // Create frontmatter when there is none.
+        let out = set_frontmatter_property("# Bare\n", "Status", Some("Open"));
+        assert!(out.starts_with("---\nStatus: Open\n---\n"));
+        assert!(out.contains("# Bare"));
+        // A value needing quotes.
+        let out = set_frontmatter_property("# x\n", "K", Some("a: b"));
+        assert!(out.contains("K: \"a: b\""));
     }
 
     #[test]

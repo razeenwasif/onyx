@@ -1610,6 +1610,13 @@ fn database_keys(app: &mut App, key: KeyEvent) {
         return;
     }
 
+    // Moving a board card needs &mut App, so handle it before borrowing the view.
+    if !filtering && matches!(key.code, KeyCode::Char('H') | KeyCode::Char('L')) {
+        let dir = if key.code == KeyCode::Char('L') { 1 } else { -1 };
+        app.board_move_card(dir);
+        return;
+    }
+
     let Some(db) = app.database.as_mut() else {
         return;
     };

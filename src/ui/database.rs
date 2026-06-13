@@ -239,7 +239,7 @@ fn draw_footer(frame: &mut Frame, area: Rect, db: &DatabaseView, theme: &Theme) 
     }
     let hint = match db.mode {
         DbViewMode::Table => "j/k row · h/l cols · s sort · S dir · t board · / filter · ↵ open · Esc close",
-        DbViewMode::Board => "j/k card · h/l group · [ ] group-by · t table · / filter · ↵ open · Esc close",
+        DbViewMode::Board => "j/k card · h/l group · H/L move card · [ ] group-by · t table · ↵ open · Esc",
     };
     let mut spans = vec![Span::styled(hint, theme.s_dim())];
     if !db.filter.is_empty() {

@@ -1918,6 +1918,82 @@ impl App {
         self.focus = self.center_focus();
     }
 
+    /// Set (or remove, with `value = None`) a top-level frontmatter property on a
+    /// note file, then reindex so views reflect it.
+    fn set_note_property(&mut self, path: &Path, key: &str, value: Option<&str>) -> Result<()> {
+        let content = self.vault.read_note(path)?;
+        let updated = crate::markdown::parse::set_frontmatter_property(&content, key, value);
+        if updated != content {
+            self.vault.write_note(path, &updated)?;
+            self.record_self_write(path);
+            self.vault.refresh();
+            // Keep an open, clean copy of this note in sync with the new disk text.
+            if self.doc.as_ref().and_then(|d| d.path.as_ref()) == Some(&path.to_path_buf())
+                && self.doc.as_ref().map(|d| !d.dirty).unwrap_or(false)
+            {
+                self.reload_current();
+            }
+        }
+        Ok(())
+    }
+
+    /// Move the selected board card to the previous/next group, rewriting that
+    /// note's group-by frontmatter property to the new group's value (editable
+    /// kanban). `dir` is -1 (prev) or +1 (next).
+    pub fn board_move_card(&mut self, dir: i64) {
+        let (key, path, target_label, value) = {
+            let Some(db) = self.database.as_ref() else {
+                return;
+            };
+            if db.mode != db_view::DbViewMode::Board {
+                self.set_status("switch to board mode (t) to move cards");
+                return;
+            }
+            let Some(key) = db.group_by.clone() else {
+                self.set_status("pick a group-by column first ([ / ])");
+                return;
+            };
+            let groups = db.groups();
+            let target_gi = db.board_group as i64 + dir;
+            if target_gi < 0 || target_gi as usize >= groups.len() {
+                return;
+            }
+            let target_label = groups[target_gi as usize].0.clone();
+            let Some((_, idxs)) = groups.get(db.board_group) else {
+                return;
+            };
+            let Some(&ri) = idxs.get(db.board_card) else {
+                return;
+            };
+            let path = db.rows[ri].path.clone();
+            // The synthetic "—" group means "no value" → clear the property.
+            let value = (target_label != "—").then(|| target_label.clone());
+            (key, path, target_label, value)
+        };
+
+        if let Err(e) = self.set_note_property(&path, &key, value.as_deref()) {
+            self.set_status(format!("move failed: {e}"));
+            return;
+        }
+        self.rebuild_database();
+        // Follow the moved card to its new group.
+        if let Some(db) = self.database.as_mut() {
+            let groups = db.groups();
+            let mut found = None;
+            for (gi, (_, idxs)) in groups.iter().enumerate() {
+                if let Some(ci) = idxs.iter().position(|&i| db.rows[i].path == path) {
+                    found = Some((gi, ci));
+                    break;
+                }
+            }
+            if let Some((gi, ci)) = found {
+                db.board_group = gi;
+                db.board_card = ci;
+            }
+        }
+        self.set_status(format!("moved to {target_label}"));
+    }
+
     /// Import an unzipped Notion "Markdown & CSV" export into the vault under
     /// `Notion Import/`, cleaning hash-suffixed names, rewriting links to
     /// wikilinks, and turning CSV databases into note folders with frontmatter.

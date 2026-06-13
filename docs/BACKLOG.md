@@ -221,6 +221,15 @@ single-note delete (negligible leak today), SIMD literal search via
 
 ## Done
 
+### Editable kanban (board view)  (2026-06-14)
+
+In the database board view, `H`/`L` move the selected card to the previous/next
+group, rewriting that note's group-by frontmatter property to the new group's
+value (the synthetic "—" group clears it). `markdown::parse::set_frontmatter_property`
+(in-place set / append / remove, creates a block when absent, YAML-quotes as
+needed) + `App::set_note_property` (write + reindex + reload-if-open) +
+`App::board_move_card` (relocates the selection to follow the card). Tested + pyte.
+
 ### Bookmarks / pinned notes  (2026-06-14)
 
 Pin notes for quick access. `:bookmark`/`:pin` (current note) or file-tree `b`
