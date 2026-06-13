@@ -4,12 +4,18 @@ Running list of work to do. Newest items at the top of "Open". Move items to "Do
 
 ## Open
 
-### ⭐ EPIC: Notion + Obsidian hybrid (+ migrate the user's Notion)
+### ⭐ EPIC: Notion + Obsidian hybrid (+ migrate the user's Notion) — ✅ COMPLETE (2026-06-14)
 
 **Direction (2026-06-11).** Evolve Onyx from a pure-Obsidian markdown vault into a
 **Notion/Obsidian hybrid**, and migrate the user's Notion workspace in. The user
 wants all three Notion capabilities: databases+properties, block editing, and
 nested-page structure.
+
+**All five phases shipped** (see § Done for each): page properties (1),
+database/table + board views (2), nested-structure navigation (3), block editing
+— callouts/columns/collapsible toggles/slash menu (4), and a `:notion import`
+export importer (5). The user's own Notion workspace was migrated + reorganized
+into the vault (below). Nothing in this epic remains open.
 
 **Migration status: ✅ COMPLETE + REORGANIZED (2026-06-13).** 394 notes were
 migrated, then relocated out of the temporary `Notion/` staging subtree into the
@@ -50,10 +56,10 @@ FOREGROUND Agent calls (background agents get auto-denied on every tool).
 4. **Block editing** ✅ DONE (2026-06-13, see § Done) — styled callouts
    (`> [!note]`/`[!warning]`/…), interactive collapsible callouts (`-`/`+`),
    side-by-side `::: columns` blocks, and a `/` slash-command insert menu.
-5. **Notion import** — once the MCP is connected: a `:notion import` flow that
-   walks pages/databases and writes notes + frontmatter into the vault. ← NEXT.
-   (The 2026-06 migration did this ad-hoc via MCP agents; this would make it a
-   first-class in-app command.)
+5. **Notion import** ✅ DONE (2026-06-14, see § Done) — `:notion import <folder>`
+   imports an unzipped Notion "Markdown & CSV" export (self-contained, no
+   network: the app can't use the MCP, and a static-token API client wouldn't
+   share the OAuth stack Google/OneDrive need — so the export route was chosen).
 
 Start at Phase 1; let the user's real Notion structure (once the MCP is live)
 refine the property types and view design in Phase 2.
@@ -214,6 +220,30 @@ single-note delete (negligible leak today), SIMD literal search via
 ---
 
 ## Done
+
+### Notion hybrid — Phase 5: `:notion import` export importer  (2026-06-14)
+
+A self-contained importer for a Notion "Export → Markdown & CSV" dump (unzipped).
+Chosen over a live API client because Onyx can't reach the MCP and Notion's
+static-token auth wouldn't share the OAuth stack Google/OneDrive will need — so
+no network deps were added.
+
+- New `src/notion_import.rs` (pure helpers + a 2-pass driver, 5 tests):
+  `clean_component` (strips ` <32-hex>` Notion ids, keeping extensions),
+  `parse_csv` (RFC-4180), `rewrite_links` (internal `.md` → `[[wikilink]]`,
+  attachments → cleaned relative path, web links untouched, percent-decoded,
+  anchors dropped), `csv_row_frontmatter` (CSV columns → YAML, multi-value →
+  inline list, title column skipped). `import_export` walks the export:
+  pass 1 turns each CSV into a `_schema.md` + a row→frontmatter map; pass 2
+  rewrites/links each `.md`, injects the matching row's frontmatter, and copies
+  attachments — all create-only (collisions kept as ` (Notion)`), nothing
+  outside the destination touched.
+- `App::import_notion` writes under `<vault>/Notion Import/`, refreshes the
+  index/graph, and reports counts; `:notion import <folder>` (dispatch, `~`
+  expanded; a `.zip` path gets an "unzip first" hint). Glossary entry added.
+- Verified end-to-end: a synthetic export → cleaned names, `[[Claude]]`
+  wikilink, injected `Type`/`Amount`/`Tags` frontmatter, `_schema.md`, copied
+  attachment.
 
 ### Notion hybrid — Phase 4: block editing (callouts, columns, fold, slash menu)  (2026-06-13)
 

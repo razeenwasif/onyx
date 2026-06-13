@@ -21,9 +21,14 @@ _Last updated: 2026-06-13._
 > interactive collapsible callouts (`[!note]-`, toggled in the preview with
 > j/k + Space), side-by-side `::: columns` blocks, and a `/` slash-insert menu.
 > See `src/markdown/render.rs` (split_blocks/callouts/columns) +
-> `App::{preview_collapsed, slash_complete}`. **Next up: Phase 5** — a
-> first-class `:notion import` command (the 2026-06 migration did this ad-hoc
-> via MCP agents). The Notion-hybrid epic is otherwise complete.
+> `App::{preview_collapsed, slash_complete}`. **Phase 5 (`:notion import`) is
+> also done** — `src/notion_import.rs` imports an unzipped Notion "Markdown &
+> CSV" export (clean names, links→wikilinks, CSV→note folders + frontmatter +
+> _schema), create-only under `Notion Import/`. **The entire Notion-hybrid epic
+> (Phases 1–5) is complete.** Open BACKLOG items now are the non-Notion ones:
+> Google Calendar/Drive sync (the real network + OAuth build — also covers
+> OneDrive), unlinked-mentions + search operators, scrollable help, configurable
+> external tools. No active Notion work remains.
 
 ---
 

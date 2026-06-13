@@ -1663,6 +1663,48 @@ impl App {
         self.focus = self.center_focus();
     }
 
+    /// Import an unzipped Notion "Markdown & CSV" export into the vault under
+    /// `Notion Import/`, cleaning hash-suffixed names, rewriting links to
+    /// wikilinks, and turning CSV databases into note folders with frontmatter.
+    pub fn import_notion(&mut self, src: &Path) {
+        if !src.exists() {
+            self.set_status(format!("no such folder: {}", src.display()));
+            return;
+        }
+        if src.is_file() {
+            let hint = if src.extension().map(|e| e == "zip").unwrap_or(false) {
+                " — unzip it first, then point at the folder"
+            } else {
+                ""
+            };
+            self.set_status(format!("expected an export folder, not a file{hint}"));
+            return;
+        }
+        let dest = self.vault.root.join("Notion Import");
+        match crate::notion_import::import_export(src, &dest) {
+            Ok(r) => {
+                self.vault.refresh();
+                *self.preview_cache.borrow_mut() = None;
+                self.graph_sim = None;
+                let extra = if r.collisions > 0 {
+                    format!(", {} renamed", r.collisions)
+                } else {
+                    String::new()
+                };
+                let dest_name = r
+                    .dest
+                    .file_name()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "Notion Import".to_string());
+                self.set_status(format!(
+                    "imported {} notes, {} databases, {} attachments → {dest_name}/{extra}",
+                    r.notes, r.databases, r.attachments
+                ));
+            }
+            Err(e) => self.set_status(format!("import failed: {e}")),
+        }
+    }
+
     pub fn focus_quicknote(&mut self) {
         self.show_left = true;
         self.show_quicknote = true;

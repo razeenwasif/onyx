@@ -95,6 +95,7 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: ":rename <n>", action: "Rename current note",      group: "Ex commands (vim)" },
     KeyHelp { keys: ":delete",     action: "Delete current note",      group: "Ex commands (vim)" },
     KeyHelp { keys: ":vault <p>",  action: "Open / create vault",      group: "Ex commands (vim)" },
+    KeyHelp { keys: ":notion import <dir>", action: "Import a Notion export folder", group: "Ex commands (vim)" },
     KeyHelp { keys: ":set theme=…",action: "Switch theme",             group: "Ex commands (vim)" },
     KeyHelp { keys: ":set (no)preview / (no)numbers / (no)wrap", action: "Toggle a layout/editor switch", group: "Ex commands (vim)" },
     KeyHelp { keys: ":set editor-width=N", action: "Editor pane width (20-80%)", group: "Ex commands (vim)" },

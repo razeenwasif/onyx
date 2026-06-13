@@ -1237,6 +1237,16 @@ fn run_ex_command(app: &mut App, raw: &str) {
             }
         }
         "help" | "h" => app.open_help(),
+        "notion" => {
+            // `:notion import <unzipped-export-folder>` (path may contain spaces).
+            match args.strip_prefix("import").map(str::trim) {
+                Some(p) if !p.is_empty() => {
+                    let path = expand_tilde(p);
+                    app.import_notion(&path);
+                }
+                _ => app.set_status("usage: :notion import <unzipped-export-folder>"),
+            }
+        }
         "set" => apply_set(app, args),
         "vault" => {
             if args.is_empty() {
@@ -1462,6 +1472,21 @@ fn apply_set(app: &mut App, args: &str) {
         other => app.set_status(format!("unknown :set option: {other}")),
     }
     let _ = app.config.save();
+}
+
+/// Expand a leading `~` to the user's home directory.
+fn expand_tilde(p: &str) -> std::path::PathBuf {
+    if let Some(rest) = p.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(rest);
+        }
+    }
+    if p == "~" {
+        if let Some(home) = dirs::home_dir() {
+            return home;
+        }
+    }
+    std::path::PathBuf::from(p)
 }
 
 fn open_vault_path(app: &mut App, path: &str) {

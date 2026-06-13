@@ -10,6 +10,7 @@ mod external;
 mod graph_sim;
 mod keymap;
 mod markdown;
+mod notion_import;
 mod page_nav;
 mod theme;
 mod todo;
