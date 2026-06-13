@@ -34,6 +34,7 @@ pub fn on_key(app: &mut App, key: KeyEvent) {
         Focus::Sidebar => sidebar_keys(app, key),
         Focus::Calendar => calendar_keys(app, key),
         Focus::Graph => graph_keys(app, key),
+        Focus::Database => database_keys(app, key),
         Focus::Settings => help_keys(app, key),
         Focus::Editor | Focus::Preview => editor_keys(app, key),
     }
@@ -75,7 +76,9 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
                 .as_ref()
                 .map(|d| d.mode == Mode::Insert)
                 .unwrap_or(false);
-        if !in_text_overlay && !in_insert {
+        // While typing into the database filter box, `:` is literal text.
+        let db_filtering = app.database.as_ref().map(|d| d.filtering).unwrap_or(false);
+        if !in_text_overlay && !in_insert && !db_filtering {
             app.open_cmdline();
             return true;
         }
@@ -83,6 +86,13 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
 
     if !ctrl {
         return false;
+    }
+
+    // The database view is modal: swallow other ctrl shortcuts (except quit) so
+    // focus can't drift out from under it. Esc and `:` are handled above; plain
+    // keys fall through to the database key handler.
+    if app.database.is_some() && key.code != KeyCode::Char('q') {
+        return true;
     }
 
     // Don't let global ctrl- shortcuts steal from text-entry/modal overlays.
@@ -296,6 +306,20 @@ fn filetree_keys(app: &mut App, key: KeyEvent) {
                     // Rename the *selected* node, not whatever doc is open.
                     app.prompt.target = Some(node.path);
                 }
+            }
+        }
+        // Open the selected folder (or the selected note's folder) as a database.
+        KeyCode::Char('t') => {
+            if let Some(node) = selected_node(app) {
+                let folder = if node.is_dir {
+                    node.path
+                } else {
+                    node.path
+                        .parent()
+                        .map(|p| p.to_path_buf())
+                        .unwrap_or_else(|| app.vault.root.clone())
+                };
+                app.open_database(folder);
             }
         }
         _ => {}
@@ -1163,6 +1187,8 @@ fn run_ex_command(app: &mut App, raw: &str) {
             }
         }
         "graph" => app.open_graph(),
+        "database" | "db" | "table" => open_database_cmd(app, args, false),
+        "board" | "kanban" => open_database_cmd(app, args, true),
         "calendar" | "cal" => app.open_calendar(),
         "todo" | "todos" => app.focus_todo(),
         "quicknote" | "scratch" | "qn" => app.focus_quicknote(),
@@ -1207,6 +1233,49 @@ fn run_ex_command(app: &mut App, raw: &str) {
             app.set_status(format!("E492: not an editor command: {other}"));
         }
     }
+}
+
+/// Open a folder as a database view. `args` is an optional vault-relative (or
+/// absolute) folder; empty means "infer from context" (the open note's folder,
+/// the file-tree selection, or the vault root). `board` opens in board mode.
+fn open_database_cmd(app: &mut App, args: &str, board: bool) {
+    let Some(folder) = resolve_db_folder(app, args) else {
+        app.set_status(format!("E447: no such folder \"{args}\""));
+        return;
+    };
+    app.open_database(folder);
+    if board {
+        if let Some(db) = app.database.as_mut() {
+            if db.mode != crate::db_view::DbViewMode::Board {
+                db.toggle_mode();
+            }
+        }
+    }
+}
+
+/// Resolve the folder a database command should target.
+fn resolve_db_folder(app: &App, args: &str) -> Option<std::path::PathBuf> {
+    if !args.is_empty() {
+        let direct = std::path::PathBuf::from(args);
+        let p = if direct.is_absolute() {
+            direct
+        } else {
+            app.vault.root.join(args)
+        };
+        return p.is_dir().then_some(p);
+    }
+    // Current note's folder, else the file-tree selection, else the vault root.
+    if let Some(parent) = app.doc.as_ref().and_then(|d| d.path.clone()).and_then(|p| p.parent().map(|x| x.to_path_buf())) {
+        return Some(parent);
+    }
+    if let Some(node) = selected_node(app) {
+        return Some(if node.is_dir {
+            node.path
+        } else {
+            node.path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| app.vault.root.clone())
+        });
+    }
+    Some(app.vault.root.clone())
 }
 
 /// Queue an external tool for the event loop, but only if it's installed.
@@ -1329,6 +1398,66 @@ fn graph_keys(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Tab => app.toggle_pane_focus(true),
         KeyCode::BackTab => app.toggle_pane_focus(false),
+        _ => {}
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Database view (table / board over a folder)
+// -----------------------------------------------------------------------------
+
+fn database_keys(app: &mut App, key: KeyEvent) {
+    // Opening a row needs `&mut app`, so handle it before borrowing the view.
+    let filtering = app.database.as_ref().map(|d| d.filtering).unwrap_or(false);
+    if !filtering && matches!(key.code, KeyCode::Enter | KeyCode::Char('o') | KeyCode::Char('l'))
+    {
+        let path = app.database.as_ref().and_then(|d| d.selected_path());
+        if let Some(p) = path {
+            app.database = None;
+            if let Err(e) = app.open_note(p) {
+                app.set_status(format!("open failed: {e}"));
+            }
+        }
+        return;
+    }
+
+    let Some(db) = app.database.as_mut() else {
+        return;
+    };
+
+    // Filter-edit mode captures text input live.
+    if db.filtering {
+        match key.code {
+            KeyCode::Enter => db.filtering = false,
+            KeyCode::Backspace => {
+                db.filter.pop();
+                db.clamp();
+            }
+            KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                db.filter.push(c);
+                db.clamp();
+            }
+            _ => {}
+        }
+        return;
+    }
+
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => db.move_sel(1),
+        KeyCode::Char('k') | KeyCode::Up => db.move_sel(-1),
+        KeyCode::Char('h') | KeyCode::Left => db.move_horiz(-1),
+        KeyCode::Char('l') | KeyCode::Right => db.move_horiz(1),
+        KeyCode::Char('g') | KeyCode::Home => db.goto_first(),
+        KeyCode::Char('G') | KeyCode::End => db.goto_last(),
+        KeyCode::Char('t') | KeyCode::Tab => db.toggle_mode(),
+        KeyCode::Char('s') => db.cycle_sort(),
+        KeyCode::Char('S') => {
+            db.sort_desc = !db.sort_desc;
+            db.clamp();
+        }
+        KeyCode::Char('[') => db.cycle_group(false),
+        KeyCode::Char(']') => db.cycle_group(true),
+        KeyCode::Char('/') => db.filtering = true,
         _ => {}
     }
 }

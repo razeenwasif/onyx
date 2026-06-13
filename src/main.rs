@@ -2,6 +2,7 @@
 
 mod app;
 mod config;
+mod db_view;
 mod dispatch;
 mod editor;
 mod error;

@@ -3,16 +3,20 @@
 Pick-up notes for resuming work. For deep architecture see **`docs/QUICKGUIDE.md`**;
 for the task queue see **`docs/BACKLOG.md`**. This file is the "where we are right now".
 
-_Last updated: 2026-06-12._
+_Last updated: 2026-06-13._
 
-> **Resume here (2026-06-12, evening): Notion migration ✅ COMPLETE.** 394 notes
-> under `~/OnyxVault/Notion/` (Finance 52, Degree Planning 50, Courses 125,
-> Entertainment 164, Work 3), verified in Onyx — all indexed with parsed
-> properties, 184 wikilink targets. Final report: `docs/NOTION_MIGRATION.md`.
-> Harness lesson: migration/worker agents must be FOREGROUND Agent calls
-> (background agents are auto-denied every tool). Next up:
-> **Phase 2 — database/table + board views** keyed by frontmatter properties
-> (`:database <folder>`), per the BACKLOG epic.
+> **Resume here (2026-06-13): Notion migration COMPLETE + REORGANIZED, and
+> Notion-hybrid Phase 2 SHIPPED.** The 394 migrated notes were relocated out of
+> the temporary `Notion/` subtree into the real vault structure (Finance →
+> `07 - Business/05 - Finance`, Data Science → `02 - Data Science`, Cyber
+> Security → `04 - IT Infrastructure & Networking`, Physics of Quantum
+> Information → `05 - Physics`, new `11 - Degree Planning/`, `Entertainment/`,
+> `xProjectsx/Work/`); `Notion/` removed; vault `.md` count unchanged at 1071.
+> Phase 2 (database/table + board views over a folder, keyed by frontmatter
+> properties) is built and verified — `src/db_view.rs` + `src/ui/database.rs`,
+> opened via `:database`/`:board`/file-tree `t`. **Next up: Phase 3** — nested-
+> structure polish (child-page navigation, breadcrumbs), then Phase 4 blocks
+> (callouts/toggles/columns/slash-insert). See the BACKLOG epic.
 
 ---
 

@@ -1,8 +1,15 @@
 # Notion → Onyx migration spec
 
-> **STATUS: ✅ MIGRATION COMPLETE (2026-06-12). 394 files under
-> `~/OnyxVault/Notion/`.** Lesson for future agent runs: **agents must run in
-> the FOREGROUND** (background agents get auto-denied on every tool — verified).
+> **STATUS: ✅ MIGRATION COMPLETE + REORGANIZED (2026-06-13).** All 394 files
+> were migrated to a temporary `~/OnyxVault/Notion/<Domain>/` staging subtree,
+> then relocated into the real vault structure and `Notion/` was removed (see
+> `scripts/reorg_notion.py` and the BACKLOG migration-status note for the
+> destination map). The per-domain details below describe the *staging* layout
+> as migrated; the content now lives under `02 - Data Science`,
+> `04 - IT Infrastructure & Networking`, `05 - Physics`,
+> `07 - Business/05 - Finance`, `11 - Degree Planning`, `Entertainment`, and
+> `xProjectsx/Work`. Lesson for future agent runs: **agents must run in the
+> FOREGROUND** (background agents get auto-denied on every tool — verified).
 > - **Finance ✅ COMPLETE** (52 files). Do not re-run.
 > - **Work ✅ COMPLETE** (3 files: Work.md, interview questions.md, Job Search/
 >   _schema.md — the Job Search DB has zero rows; confirmed empty).

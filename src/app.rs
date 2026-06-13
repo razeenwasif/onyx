@@ -16,6 +16,7 @@ use ratatui::text::Text;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::config::Config;
+use crate::db_view::{self, DatabaseView};
 use crate::editor::{Buffer, Document, History, Mode};
 use crate::error::Result;
 use crate::graph_sim::{EdgeKind, GraphSim};
@@ -77,6 +78,8 @@ pub enum Focus {
     Search,
     Graph,
     Calendar,
+    /// A folder rendered as a Notion-style database (table / board view).
+    Database,
     Help,
     Settings,
     Prompt,
@@ -326,6 +329,9 @@ pub struct App {
     pub graph_global: bool,
     pub calendar: CalendarState,
 
+    /// Active database view (a folder shown as a table/board), or None.
+    pub database: Option<DatabaseView>,
+
     // Left-column side panes.
     pub quicknote: QuicknoteState,
     pub todos: TodoList,
@@ -404,6 +410,7 @@ impl App {
             graph_sim: None,
             graph_global: true,
             calendar: CalendarState::today(),
+            database: None,
             quicknote: QuicknoteState::new(quicknote_text),
             todos,
             sidebar_selected: 0,
@@ -507,6 +514,7 @@ impl App {
         self.recent_self_writes.clear();
 
         self.doc = None;
+        self.database = None;
         self.graph_focus = None;
         self.fullscreen = None;
         self.tree_selected = 0;
@@ -888,6 +896,9 @@ impl App {
             self.tree_selected = len.saturating_sub(1);
         }
         self.reconcile_open_doc();
+        if self.database.is_some() {
+            self.rebuild_database();
+        }
         self.needs_redraw = true;
     }
 
@@ -1349,6 +1360,100 @@ impl App {
         GraphSim::new(paths, edges, center_idx, center, self.graph_global, pin_center)
     }
 
+    /// Open the folder at `folder` (absolute) as a Notion-style database view:
+    /// its direct-child notes become rows and their frontmatter properties
+    /// become columns. No-ops with a status message when the folder is empty.
+    pub fn open_database(&mut self, folder: PathBuf) {
+        match self.build_database(folder) {
+            Some(view) => {
+                self.last_focus = self.focus;
+                self.database = Some(view);
+                self.focus = Focus::Database;
+                self.needs_redraw = true;
+            }
+            None => self.set_status("no notes in that folder to show as a database"),
+        }
+    }
+
+    /// Build a database view from the index for `folder`'s direct-child notes,
+    /// or `None` if there are none. `_schema.md` sidecars are excluded.
+    fn build_database(&self, folder: PathBuf) -> Option<DatabaseView> {
+        let mut items: Vec<db_view::RowInput> = Vec::new();
+        for (p, m) in &self.vault.index.notes {
+            if p.parent() != Some(folder.as_path()) {
+                continue;
+            }
+            let base = vault::note_basename(p);
+            if base.eq_ignore_ascii_case("_schema") {
+                continue;
+            }
+            let name = if m.title.trim().is_empty() {
+                base
+            } else {
+                m.title.clone()
+            };
+            items.push((p.to_path_buf(), name, m.properties.clone()));
+        }
+        if items.is_empty() {
+            return None;
+        }
+        items.sort_by(|a, b| a.0.cmp(&b.0));
+        let (columns, rows) = db_view::build_rows(items);
+        let group_by = db_view::pick_group_by(&columns, &rows);
+        let title = folder
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "vault".to_string());
+        Some(DatabaseView {
+            folder,
+            title,
+            mode: db_view::DbViewMode::Table,
+            columns,
+            rows,
+            selected: 0,
+            col_offset: 0,
+            sort_by: None,
+            sort_desc: false,
+            group_by,
+            board_group: 0,
+            board_card: 0,
+            filter: String::new(),
+            filtering: false,
+        })
+    }
+
+    /// Rebuild the active database view from the (possibly-changed) index,
+    /// preserving the user's mode/sort/group/filter/selection. Called after an
+    /// external change refreshes the index.
+    pub fn rebuild_database(&mut self) {
+        let Some(old) = self.database.take() else {
+            return;
+        };
+        if let Some(mut v) = self.build_database(old.folder.clone()) {
+            v.mode = old.mode;
+            v.sort_by = old.sort_by;
+            v.sort_desc = old.sort_desc;
+            v.group_by = old.group_by;
+            v.filter = old.filter;
+            v.filtering = old.filtering;
+            v.selected = old.selected;
+            v.col_offset = old.col_offset;
+            v.board_group = old.board_group;
+            v.board_card = old.board_card;
+            v.clamp();
+            self.database = Some(v);
+        } else {
+            // The folder went empty — leave the view closed.
+            self.focus = self.center_focus();
+        }
+    }
+
+    /// Close the database view, returning focus to the editor/home.
+    pub fn close_database(&mut self) {
+        self.database = None;
+        self.focus = self.center_focus();
+    }
+
     pub fn focus_quicknote(&mut self) {
         self.show_left = true;
         self.show_quicknote = true;
@@ -1493,6 +1598,18 @@ impl App {
             Focus::Quicknote => {
                 self.save_quicknote();
                 self.focus = self.center_focus();
+            }
+            Focus::Database => {
+                // First Esc cancels an in-progress filter; the next closes the view.
+                if let Some(db) = self.database.as_mut() {
+                    if db.filtering {
+                        db.filtering = false;
+                        db.filter.clear();
+                        db.clamp();
+                        return;
+                    }
+                }
+                self.close_database();
             }
             Focus::Graph | Focus::Calendar | Focus::Todo => {
                 self.focus = self.center_focus();

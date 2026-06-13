@@ -11,13 +11,17 @@ Running list of work to do. Newest items at the top of "Open". Move items to "Do
 wants all three Notion capabilities: databases+properties, block editing, and
 nested-page structure.
 
-**Migration status: ✅ COMPLETE (2026-06-12).** 394 notes under
-`~/OnyxVault/Notion/` (Finance 52, Degree Planning 50, Courses 125,
-Entertainment 164, Work 3) — every domain done, verified in Onyx (all 394
-indexed with parsed properties; 184 wikilink targets). Spec + final per-domain
-report: `docs/NOTION_MIGRATION.md`. Key harness lesson recorded there:
-migration agents must run as FOREGROUND Agent calls (background agents get
-auto-denied on every tool).
+**Migration status: ✅ COMPLETE + REORGANIZED (2026-06-13).** 394 notes were
+migrated, then relocated out of the temporary `Notion/` staging subtree into the
+existing vault structure and `Notion/` was removed (Finance → `07 - Business/
+05 - Finance`; Data Science courses → `02 - Data Science`; Cyber Security →
+`04 - IT Infrastructure & Networking`; Physics of Quantum Information →
+`05 - Physics`; new `11 - Degree Planning/`, `Entertainment/`, `xProjectsx/Work/`).
+DB folders kept intact so the Phase 2 database views work on them. Relocation was
+collision-safe (one clash kept as `… (Notion).md`); vault `.md` count unchanged at
+1071. Spec + per-domain report: `docs/NOTION_MIGRATION.md`; reorg script:
+`scripts/reorg_notion.py`. Harness lesson: migration/worker agents must run as
+FOREGROUND Agent calls (background agents get auto-denied on every tool).
 
 **Notion → Onyx mapping:**
 
@@ -35,9 +39,10 @@ auto-denied on every tool).
 1. **Page properties** ✅ DONE (2026-06-11, see § Done) — parse arbitrary YAML
    frontmatter into ordered key→values on `NoteMeta.properties`; cached; rendered
    as a Properties block in the preview.
-2. **Database / table + board views** — `:database <folder>` (or a pane) that
-   shows a folder's notes as a table keyed by frontmatter props; board (kanban)
-   grouped by a select-like property; sort/filter.
+2. **Database / table + board views** ✅ DONE (2026-06-13, see § Done) —
+   `:database <folder>` / `:board` / file-tree `t` shows a folder's notes as a
+   table keyed by frontmatter props, or a kanban board grouped by an auto-picked
+   select-like property; sort, direction toggle, and live filter.
 3. **Nested structure polish** — child-page navigation, breadcrumbs.
 4. **Block editing** — callouts (`> [!note]`), toggles, columns, slash-command
    insert. (Callouts already noted below.)
@@ -203,6 +208,27 @@ single-note delete (negligible leak today), SIMD literal search via
 ---
 
 ## Done
+
+### Notion hybrid — Phase 2: database / table + board views  (2026-06-13)
+
+A folder rendered as a Notion-style database: each direct-child note is a row,
+its frontmatter properties are columns.
+
+- New `src/db_view.rs`: `DatabaseView` (folder + computed columns/rows + UI
+  state) and pure logic — `build_rows` (columns ordered by frequency, housekeeping
+  keys `source`/`notion-url` pushed right), `pick_group_by` (auto-select a
+  select-like board column), `visible_indices` (filter + numeric/lexical sort,
+  empties last), `groups`, and clamped no-wrap navigation. 8 unit tests.
+- New `src/ui/database.rs`: table renderer (frequency-ordered columns, sort
+  arrows, selected-row highlight, horizontal column scroll) and board renderer
+  (windowed group columns, per-group card lists). Modal, fills the body.
+- `App::{open_database, build_database, rebuild_database, close_database}` +
+  `Focus::Database`; rebuilt on external change, cleared on vault switch.
+- `dispatch::database_keys` (j/k, h/l, g/G, s/S sort, [/] group-by, t/Tab mode,
+  `/` live filter, Enter open) + ex-commands `:database`/`:db`/`:table`/`:board`
+  + file-tree `t`. `global_shortcut` swallows stray ctrl keys while it's open.
+- Verified end-to-end (pyte): table/board/sort/filter/open on the migrated
+  Expenses DB (auto-grouped Needs/Wants/Savings) and on relocated folders.
 
 ### Notion hybrid — Phase 1: page properties  (2026-06-11)
 

@@ -3,6 +3,7 @@
 pub mod calendar;
 pub mod cmdline;
 pub mod confirm;
+pub mod database;
 pub mod editor_pane;
 pub mod file_tree;
 pub mod graph;
@@ -45,10 +46,15 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         status::draw(frame, outer[2], app);
     }
 
-    match app.fullscreen {
-        Some(FullPane::Graph) => graph::draw(frame, outer[1], app, true),
-        Some(FullPane::Calendar) => draw_calendar_fullscreen(frame, outer[1], app),
-        None => draw_body(frame, outer[1], app),
+    if app.database.is_some() {
+        // The database view is modal and fills the whole body for max width.
+        database::draw_body(frame, outer[1], app);
+    } else {
+        match app.fullscreen {
+            Some(FullPane::Graph) => graph::draw(frame, outer[1], app, true),
+            Some(FullPane::Calendar) => draw_calendar_fullscreen(frame, outer[1], app),
+            None => draw_body(frame, outer[1], app),
+        }
     }
 
     // Overlays.
