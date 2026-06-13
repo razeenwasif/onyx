@@ -221,6 +221,13 @@ single-note delete (negligible leak today), SIMD literal search via
 
 ## Done
 
+### Bookmarks / pinned notes  (2026-06-14)
+
+Pin notes for quick access. `:bookmark`/`:pin` (current note) or file-tree `b`
+(selected note) toggles a pin; pinned notes show a `★` in the file tree and a
+**Bookmarks** section atop the Home page. Persisted to `.onyx/bookmarks.json`
+(`App::bookmarks`, `Vault::bookmarks_path`, `HomeAction::OpenBookmark`).
+
 ### Vault task rollup (`:tasks`)  (2026-06-14)
 
 `:tasks` scans every note for `- [ ]`/`- [x]` checkboxes and shows them in a

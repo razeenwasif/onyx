@@ -32,7 +32,13 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
     ];
 
     let mut recent_header = false;
+    let mut bookmark_header = false;
     for (i, it) in items.iter().enumerate() {
+        if matches!(it.action, HomeAction::OpenBookmark(_)) && !bookmark_header {
+            lines.push(Line::raw(""));
+            lines.push(Line::styled("   Bookmarks", theme.s_subtle()));
+            bookmark_header = true;
+        }
         if matches!(it.action, HomeAction::OpenRecent(_)) && !recent_header {
             lines.push(Line::raw(""));
             lines.push(Line::styled("   Recent notes", theme.s_subtle()));

@@ -37,6 +37,8 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: "m",           action: "New folder (in selected folder)", group: "File tree" },
     KeyHelp { keys: "d",           action: "Delete selected note",     group: "File tree" },
     KeyHelp { keys: "r",           action: "Rename selected note",     group: "File tree" },
+    KeyHelp { keys: "t",           action: "Open folder as database",  group: "File tree" },
+    KeyHelp { keys: "b",           action: "Pin/unpin note (bookmark)",group: "File tree" },
 
     KeyHelp { keys: "i / a",       action: "Enter insert mode",        group: "Editor (Normal)" },
     KeyHelp { keys: "I / A",       action: "Insert at line start/end", group: "Editor (Normal)" },

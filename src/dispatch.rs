@@ -341,6 +341,14 @@ fn filetree_keys(app: &mut App, key: KeyEvent) {
                 app.open_database(folder);
             }
         }
+        // Pin/unpin the selected note.
+        KeyCode::Char('b') => {
+            if let Some(node) = selected_node(app) {
+                if !node.is_dir {
+                    app.toggle_bookmark(node.path);
+                }
+            }
+        }
         _ => {}
     }
 }
@@ -1313,6 +1321,7 @@ fn run_ex_command(app: &mut App, raw: &str) {
         }
         "task" | "toggle" => app.toggle_task_on_current_line(),
         "tasks" => app.open_tasks(),
+        "bookmark" | "pin" => app.toggle_bookmark_current(),
         "graph" => app.open_graph(),
         "up" | "parent" => {
             match app.doc.as_ref().and_then(|d| d.path.clone()) {

@@ -74,11 +74,16 @@ fn render_row<'a>(row: &TreeRow, app: &App, theme: &crate::theme::Theme) -> List
     } else {
         theme.s_normal()
     };
-    ListItem::new(Line::from(vec![
+    let mut spans = vec![
         Span::raw(indent),
         Span::styled(format!("{} ", icon), theme.s_subtle()),
         Span::styled(name, style),
-    ]))
+    ];
+    // A pin marker for bookmarked notes.
+    if !row.is_dir && app.is_bookmarked(&row.path) {
+        spans.push(Span::styled(" ★", theme.s_accent()));
+    }
+    ListItem::new(Line::from(spans))
 }
 
 /// Currently-selected file-tree row, given flattened ordering.

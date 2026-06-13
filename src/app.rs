@@ -145,6 +145,7 @@ pub enum HomeAction {
     Switcher,
     DailyNote,
     OpenRecent(PathBuf),
+    OpenBookmark(PathBuf),
 }
 
 /// One selectable row on the Home start page.
@@ -401,6 +402,9 @@ pub struct App {
     pub quicknote: QuicknoteState,
     pub todos: TodoList,
 
+    /// Pinned/bookmarked notes (absolute paths), shown on the Home page.
+    pub bookmarks: Vec<PathBuf>,
+
     // Right sidebar lists
     pub sidebar_selected: usize,
 
@@ -438,6 +442,7 @@ impl App {
         let quicknote_text =
             std::fs::read_to_string(vault.quicknote_path()).unwrap_or_default();
         let todos = TodoList::load(&vault.todos_path());
+        let bookmarks = load_bookmarks(&vault);
         let watcher = VaultWatcher::new(&vault.root);
 
         Self {
@@ -483,6 +488,7 @@ impl App {
             database: None,
             quicknote: QuicknoteState::new(quicknote_text),
             todos,
+            bookmarks,
             sidebar_selected: 0,
             status_msg: None,
             pending_external: None,
@@ -567,6 +573,45 @@ impl App {
         let _ = self.todos.save(&self.vault.todos_path());
     }
 
+    pub fn is_bookmarked(&self, path: &Path) -> bool {
+        self.bookmarks.iter().any(|p| p == path)
+    }
+
+    /// Pin/unpin a note; persists to `.onyx/bookmarks.json`.
+    pub fn toggle_bookmark(&mut self, path: PathBuf) {
+        if let Some(pos) = self.bookmarks.iter().position(|p| p == &path) {
+            self.bookmarks.remove(pos);
+            self.set_status(format!("unpinned {}", vault::note_basename(&path)));
+        } else {
+            self.bookmarks.push(path.clone());
+            self.set_status(format!("pinned {}", vault::note_basename(&path)));
+        }
+        self.save_bookmarks();
+    }
+
+    /// Pin/unpin the currently-open note.
+    pub fn toggle_bookmark_current(&mut self) {
+        match self.doc.as_ref().and_then(|d| d.path.clone()) {
+            Some(p) => self.toggle_bookmark(p),
+            None => self.set_status("no note open to pin"),
+        }
+    }
+
+    fn save_bookmarks(&self) {
+        let rels: Vec<String> = self
+            .bookmarks
+            .iter()
+            .map(|p| vault::note_relpath(&self.vault.root, p))
+            .collect();
+        if let Ok(json) = serde_json::to_string_pretty(&rels) {
+            let path = self.vault.bookmarks_path();
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::write(path, json);
+        }
+    }
+
     /// Swap to a different vault, resetting all vault-derived state (open doc,
     /// file-tree selection, expanded folders, graph focus, and the per-vault
     /// quicknote/todo side panes). Persists the new vault as `last_vault`.
@@ -595,6 +640,7 @@ impl App {
         let qn = std::fs::read_to_string(self.vault.quicknote_path()).unwrap_or_default();
         self.quicknote = QuicknoteState::new(qn);
         self.todos = TodoList::load(&self.vault.todos_path());
+        self.bookmarks = load_bookmarks(&self.vault);
 
         self.focus = Focus::FileTree;
         self.set_status(format!("vault: {}", self.vault.root.display()));
@@ -660,18 +706,28 @@ impl App {
                 action: HomeAction::DailyNote,
             },
         ];
-        for (p, _) in self.vault.index.recent_notes().into_iter().take(8) {
-            let label = vault::note_basename(&p);
-            let rel = vault::note_relpath(&self.vault.root, &p);
-            let hint = Path::new(&rel)
+        let folder_hint = |p: &Path| {
+            let rel = vault::note_relpath(&self.vault.root, p);
+            Path::new(&rel)
                 .parent()
                 .map(|d| d.to_string_lossy().to_string())
                 .filter(|d| !d.is_empty())
-                .unwrap_or_default();
+                .unwrap_or_default()
+        };
+        // Pinned notes first (skipping any that vanished).
+        for p in self.bookmarks.iter().filter(|p| p.exists()) {
+            items.push(HomeItem {
+                icon: "★",
+                label: vault::note_basename(p),
+                hint: folder_hint(p),
+                action: HomeAction::OpenBookmark(p.clone()),
+            });
+        }
+        for (p, _) in self.vault.index.recent_notes().into_iter().take(8) {
             items.push(HomeItem {
                 icon: "•",
-                label,
-                hint,
+                label: vault::note_basename(&p),
+                hint: folder_hint(&p),
                 action: HomeAction::OpenRecent(p),
             });
         }
@@ -689,7 +745,7 @@ impl App {
                     self.set_status(format!("daily note failed: {e}"));
                 }
             }
-            HomeAction::OpenRecent(p) => {
+            HomeAction::OpenRecent(p) | HomeAction::OpenBookmark(p) => {
                 if let Err(e) = self.open_note(p) {
                     self.set_status(format!("open failed: {e}"));
                 }
@@ -2157,6 +2213,17 @@ impl App {
             _ => {}
         }
     }
+}
+
+/// Load pinned notes from `.onyx/bookmarks.json` (a JSON array of vault-relative
+/// paths), dropping any that no longer exist.
+fn load_bookmarks(vault: &Vault) -> Vec<PathBuf> {
+    let raw = std::fs::read_to_string(vault.bookmarks_path()).unwrap_or_default();
+    let rels: Vec<String> = serde_json::from_str(&raw).unwrap_or_default();
+    rels.into_iter()
+        .map(|r| vault.root.join(r))
+        .filter(|p| p.exists())
+        .collect()
 }
 
 /// The full `/` slash-command catalog (Notion-style block inserts). Built fresh

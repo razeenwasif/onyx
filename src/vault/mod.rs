@@ -76,6 +76,10 @@ impl Vault {
         self.data_dir().join("todos.md")
     }
 
+    pub fn bookmarks_path(&self) -> PathBuf {
+        self.data_dir().join("bookmarks.json")
+    }
+
     pub fn read_note(&self, path: &Path) -> Result<String> {
         Ok(fs::read_to_string(path)?)
     }
