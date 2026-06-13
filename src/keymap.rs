@@ -91,6 +91,7 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: ":mkdir <path>",action: "Create a folder",          group: "Ex commands (vim)" },
     KeyHelp { keys: ":help",       action: "Open this help",           group: "Ex commands (vim)" },
     KeyHelp { keys: ":today",      action: "Open today's daily note",  group: "Ex commands (vim)" },
+    KeyHelp { keys: ":tasks",      action: "Vault-wide task rollup",   group: "Ex commands (vim)" },
     KeyHelp { keys: ":graph",      action: "Open graph view",          group: "Ex commands (vim)" },
     KeyHelp { keys: ":preview",    action: "Toggle preview pane",      group: "Ex commands (vim)" },
     KeyHelp { keys: ":search <q>", action: "Vault content search",     group: "Ex commands (vim)" },

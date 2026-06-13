@@ -470,6 +470,19 @@ fn clean_tag(s: &str) -> String {
         .to_string()
 }
 
+/// If `line` is a markdown task item, return `(done, text)` where `text` is the
+/// task text after the checkbox. `None` for non-task lines.
+pub fn task_line(line: &str) -> Option<(bool, &str)> {
+    let rest = line.trim_start();
+    let after = ["- ", "* ", "+ "].iter().find_map(|b| rest.strip_prefix(b))?;
+    let done = match after.get(..3)? {
+        "[ ]" => false,
+        "[x]" | "[X]" => true,
+        _ => return None,
+    };
+    Some((done, after[3..].trim()))
+}
+
 /// Rewrite every link that points to the note basename `old` so it points to
 /// `new` (for a safe rename). Handles `[[old]]`, `[[folder/old]]`,
 /// `[[old|alias]]`, `[[old#heading]]`, and `[text](folder/old.md)` —
@@ -678,6 +691,15 @@ mod tests {
         // Web links untouched; case-insensitive match.
         let src = "[[old]] [x](https://old.md)";
         assert_eq!(rename_link_targets(src, "Old", "New"), "[[New]] [x](https://old.md)");
+    }
+
+    #[test]
+    fn detects_task_lines() {
+        assert_eq!(task_line("- [ ] open one"), Some((false, "open one")));
+        assert_eq!(task_line("  * [x] done"), Some((true, "done")));
+        assert_eq!(task_line("+ [X] also done"), Some((true, "also done")));
+        assert_eq!(task_line("- not a task"), None);
+        assert_eq!(task_line("normal text"), None);
     }
 
     #[test]

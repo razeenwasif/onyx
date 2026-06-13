@@ -17,7 +17,7 @@ A modern, premium markdown notes TUI — an Obsidian-inspired terminal vault.
 - **Notion import** — `:notion import <folder>` cleans an unzipped Notion "Markdown & CSV" export into the vault (strips id suffixes, links → wikilinks, CSV databases → note folders with frontmatter + `_schema.md`)
 - Backlinks panel, outline panel, and tag panel in the right sidebar
 - Command palette (`Ctrl-P`) and quick switcher (`Ctrl-O`) with fuzzy matching
-- Full-vault content search (`Ctrl-Shift-F`)
+- Full-vault content search (`Ctrl-Shift-F`) and a vault-wide **task rollup** (`:tasks`) of every `- [ ]` checkbox
 - ASCII graph view (`Ctrl-G`) centered on the current note
 - Monthly calendar with daily-notes (`Ctrl-K`)
 - Vim-style modal editing in the editor pane, with a `:` ex command line (`:w`, `:e`, `:e!`, `:w!`, …)

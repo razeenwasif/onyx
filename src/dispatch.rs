@@ -35,6 +35,7 @@ pub fn on_key(app: &mut App, key: KeyEvent) {
         Focus::Calendar => calendar_keys(app, key),
         Focus::Graph => graph_keys(app, key),
         Focus::Database => database_keys(app, key),
+        Focus::Tasks => tasks_keys(app, key),
         Focus::Settings => help_keys(app, key),
         Focus::Editor => editor_keys(app, key),
         Focus::Preview => preview_keys(app, key),
@@ -646,6 +647,21 @@ fn follow_wikilink_at_cursor(app: &mut App) {
             // Create a new note with that title.
             let _ = app.create_note(target);
         }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Task rollup overlay
+// -----------------------------------------------------------------------------
+
+fn tasks_keys(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => app.tasks_move(1),
+        KeyCode::Char('k') | KeyCode::Up => app.tasks_move(-1),
+        KeyCode::Char('g') | KeyCode::Home => app.tasks_move(i64::MIN / 2),
+        KeyCode::Char('G') | KeyCode::End => app.tasks_move(i64::MAX / 2),
+        KeyCode::Enter | KeyCode::Char('o') => app.tasks_open_selected(),
+        _ => {}
     }
 }
 
@@ -1296,6 +1312,7 @@ fn run_ex_command(app: &mut App, raw: &str) {
             }
         }
         "task" | "toggle" => app.toggle_task_on_current_line(),
+        "tasks" => app.open_tasks(),
         "graph" => app.open_graph(),
         "up" | "parent" => {
             match app.doc.as_ref().and_then(|d| d.path.clone()) {

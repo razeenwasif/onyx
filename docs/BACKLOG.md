@@ -221,6 +221,14 @@ single-note delete (negligible leak today), SIMD literal search via
 
 ## Done
 
+### Vault task rollup (`:tasks`)  (2026-06-14)
+
+`:tasks` scans every note for `- [ ]`/`- [x]` checkboxes and shows them in a
+centered overlay (open first, then done), each with its `note:line`; Enter jumps
+to the task. `markdown::parse::task_line` parses a checkbox line; `App::open_tasks`
++ `TasksState` + `ui/tasks.rs` + `Focus::Tasks`. Synchronous scan (capped at
+5000); skips fenced code. (Future: background the scan; toggle from the rollup.)
+
 ### Safe rename — rewrite backlinks  (2026-06-14)
 
 Renaming a note (`:rename <new>` or file-tree `r`) now rewrites every link that

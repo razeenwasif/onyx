@@ -83,6 +83,8 @@ pub enum Focus {
     Calendar,
     /// A folder rendered as a Notion-style database (table / board view).
     Database,
+    /// Vault-wide task rollup overlay.
+    Tasks,
     Help,
     Settings,
     Prompt,
@@ -299,6 +301,21 @@ pub enum SearchMsg {
     Done(u64),
 }
 
+/// One row in the vault-wide task rollup.
+#[derive(Debug, Clone)]
+pub struct TaskItem {
+    pub path: PathBuf,
+    pub line: usize,
+    pub text: String,
+    pub done: bool,
+}
+
+#[derive(Debug, Default)]
+pub struct TasksState {
+    pub items: Vec<TaskItem>,
+    pub selected: usize,
+}
+
 #[derive(Debug)]
 pub struct CalendarState {
     pub cursor: NaiveDate,
@@ -375,6 +392,7 @@ pub struct App {
     /// Whether the graph shows the whole vault (true) or a local neighborhood.
     pub graph_global: bool,
     pub calendar: CalendarState,
+    pub tasks: TasksState,
 
     /// Active database view (a folder shown as a table/board), or None.
     pub database: Option<DatabaseView>,
@@ -461,6 +479,7 @@ impl App {
             graph_sim: None,
             graph_global: true,
             calendar: CalendarState::today(),
+            tasks: TasksState::default(),
             database: None,
             quicknote: QuicknoteState::new(quicknote_text),
             todos,
@@ -1885,6 +1904,82 @@ impl App {
         }
     }
 
+    /// Scan the whole vault for task checkboxes and open the rollup overlay
+    /// (open tasks first, then completed). Reads files synchronously.
+    pub fn open_tasks(&mut self) {
+        use crate::markdown::parse::task_line;
+        let mut items: Vec<TaskItem> = Vec::new();
+        'outer: for path in &self.vault.tree.notes {
+            let Ok(content) = std::fs::read_to_string(path) else {
+                continue;
+            };
+            let mut in_code = false;
+            for (i, line) in content.lines().enumerate() {
+                let t = line.trim_start();
+                if t.starts_with("```") || t.starts_with("~~~") {
+                    in_code = !in_code;
+                    continue;
+                }
+                if in_code {
+                    continue;
+                }
+                if let Some((done, text)) = task_line(line) {
+                    if !text.is_empty() {
+                        items.push(TaskItem {
+                            path: path.clone(),
+                            line: i,
+                            text: text.to_string(),
+                            done,
+                        });
+                    }
+                }
+                if items.len() >= 5000 {
+                    break 'outer;
+                }
+            }
+        }
+        // Open tasks first, then done; stable within by path then line.
+        items.sort_by(|a, b| {
+            a.done
+                .cmp(&b.done)
+                .then_with(|| a.path.cmp(&b.path))
+                .then_with(|| a.line.cmp(&b.line))
+        });
+        let open = items.iter().filter(|t| !t.done).count();
+        self.tasks = TasksState { items, selected: 0 };
+        self.last_focus = self.focus;
+        self.focus = Focus::Tasks;
+        self.set_status(format!("{} tasks · {open} open", self.tasks.items.len()));
+    }
+
+    pub fn tasks_move(&mut self, delta: i64) {
+        let n = self.tasks.items.len();
+        if n == 0 {
+            return;
+        }
+        let cur = self.tasks.selected.min(n - 1) as i64;
+        self.tasks.selected = (cur + delta).clamp(0, n as i64 - 1) as usize;
+    }
+
+    /// Open the selected task's note with the cursor on its line.
+    pub fn tasks_open_selected(&mut self) {
+        let Some(item) = self.tasks.items.get(self.tasks.selected).cloned() else {
+            return;
+        };
+        if let Err(e) = self.open_note(item.path) {
+            self.set_status(format!("open failed: {e}"));
+            return;
+        }
+        if let Some(doc) = self.doc.as_mut() {
+            let line = item.line.min(doc.buffer.line_count().saturating_sub(1));
+            doc.buffer.cursor.line = line;
+            doc.buffer.cursor.col = 0;
+            doc.buffer.goal_col = 0;
+            doc.scroll = line;
+        }
+        self.focus = Focus::Editor;
+    }
+
     pub fn focus_quicknote(&mut self) {
         self.show_left = true;
         self.show_quicknote = true;
@@ -2012,7 +2107,7 @@ impl App {
             return;
         }
         match self.focus {
-            Focus::Palette | Focus::Switcher | Focus::Search | Focus::Help | Focus::Settings | Focus::Prompt => {
+            Focus::Palette | Focus::Switcher | Focus::Search | Focus::Help | Focus::Settings | Focus::Prompt | Focus::Tasks => {
                 self.close_overlay();
             }
             Focus::Confirm => {

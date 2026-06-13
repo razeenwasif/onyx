@@ -17,6 +17,7 @@ pub mod search;
 pub mod sidebar;
 pub mod status;
 pub mod switcher;
+pub mod tasks;
 pub mod title_bar;
 pub mod todo;
 
@@ -65,6 +66,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         Focus::Help => help::draw(frame, area, app),
         Focus::Prompt => prompt::draw(frame, area, app),
         Focus::Confirm => confirm::draw(frame, area, app),
+        Focus::Tasks => tasks::draw(frame, area, app),
         _ => {}
     }
     if app.help_open && app.focus != Focus::Help {
