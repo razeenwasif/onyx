@@ -17,8 +17,13 @@ _Last updated: 2026-06-13._
 > opened via `:database`/`:board`/file-tree `t`. **Phase 3 (nested-structure
 > navigation) is also done** — `src/page_nav.rs` powers breadcrumbs in the
 > editor title, a "Pages" sidebar tab (parent/child/sibling pages), and `:up`.
-> **Next up: Phase 4** — block editing (callouts `> [!note]`, toggles, columns,
-> slash-command insert), then Phase 5 (`:notion import`). See the BACKLOG epic.
+> **Phase 4 (block editing) is also done** — styled callouts (`> [!note]`…),
+> interactive collapsible callouts (`[!note]-`, toggled in the preview with
+> j/k + Space), side-by-side `::: columns` blocks, and a `/` slash-insert menu.
+> See `src/markdown/render.rs` (split_blocks/callouts/columns) +
+> `App::{preview_collapsed, slash_complete}`. **Next up: Phase 5** — a
+> first-class `:notion import` command (the 2026-06 migration did this ad-hoc
+> via MCP agents). The Notion-hybrid epic is otherwise complete.
 
 ---
 

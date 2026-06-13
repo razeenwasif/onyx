@@ -112,6 +112,82 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
     if focused && app.link_complete.is_some() {
         draw_link_popup(frame, inner, app, gutter_w as u16);
     }
+    // `/` slash-command popup, anchored at the cursor.
+    if focused && app.slash_complete.is_some() {
+        draw_slash_popup(frame, inner, app, gutter_w as u16);
+    }
+}
+
+/// Draw the `/` slash-command popup near the caret (mirrors `draw_link_popup`).
+fn draw_slash_popup(frame: &mut Frame, inner: Rect, app: &App, gutter_w: u16) {
+    let Some(sc) = &app.slash_complete else {
+        return;
+    };
+    let Some(doc) = &app.doc else {
+        return;
+    };
+    if sc.matches.is_empty() || doc.buffer.cursor.line < doc.scroll {
+        return;
+    }
+    let theme = &app.theme;
+    let cursor = doc.buffer.cursor;
+    let display_col = doc.buffer.display_col(cursor.line, cursor.col);
+    let caret_x = inner.x + gutter_w + display_col as u16;
+    let caret_y = inner.y + (cursor.line - doc.scroll) as u16;
+    if caret_y >= inner.y + inner.height {
+        return;
+    }
+
+    let visible = sc.matches.len().min(8) as u16;
+    let popup_h = visible + 2;
+    let label_w = sc
+        .matches
+        .iter()
+        .map(|m| m.label.chars().count() + 4)
+        .max()
+        .unwrap_or(12);
+    let popup_w = ((label_w as u16) + 4).clamp(20, 48).min(inner.width.max(1));
+
+    let below = caret_y + 1;
+    let y = if below + popup_h <= inner.y + inner.height {
+        below
+    } else if caret_y >= inner.y + popup_h {
+        caret_y - popup_h
+    } else {
+        (inner.y + inner.height).saturating_sub(popup_h).max(inner.y)
+    };
+    // Anchor under the `/` (query width + 1 cell back).
+    let back = sc.query.chars().count() as u16 + 1;
+    let mut x = caret_x.saturating_sub(back);
+    if x + popup_w > inner.x + inner.width {
+        x = (inner.x + inner.width).saturating_sub(popup_w);
+    }
+    x = x.max(inner.x);
+
+    let rect = Rect {
+        x,
+        y,
+        width: popup_w,
+        height: popup_h,
+    };
+    frame.render_widget(Clear, rect);
+    let items: Vec<ListItem> = sc
+        .matches
+        .iter()
+        .map(|m| {
+            ListItem::new(Line::from(vec![
+                Span::styled(format!("{:<3}", m.icon), theme.s_accent()),
+                Span::styled(m.label.clone(), theme.s_normal()),
+            ]))
+        })
+        .collect();
+    let mut state = ListState::default();
+    state.select(Some(sc.selected));
+    let list = List::new(items)
+        .block(super::pane_block("insert", true, theme))
+        .highlight_style(theme.s_selection())
+        .highlight_symbol("▸ ");
+    frame.render_stateful_widget(list, rect, &mut state);
 }
 
 /// Draw the wikilink autocomplete popup near the caret. Prefers to sit just
@@ -202,6 +278,21 @@ fn render_line(line: &str, theme: &crate::theme::Theme) -> Vec<Span<'static>> {
         let mut spans: Vec<Span<'static>> = Vec::new();
         spans.push(Span::raw(" ".repeat(leading)));
         spans.push(Span::styled("▎ ".to_string(), theme.s_accent()));
+        // Highlight a callout header marker (`[!note]`, `[!warning]-`, …).
+        if rest.starts_with("[!") {
+            if let Some(close) = rest.find(']') {
+                let mut end = close + 1;
+                if matches!(rest.as_bytes().get(end), Some(b'-') | Some(b'+')) {
+                    end += 1;
+                }
+                spans.push(Span::styled(
+                    rest[..end].to_string(),
+                    theme.s_accent().add_modifier(Modifier::BOLD),
+                ));
+                spans.extend(inline_spans(&rest[end..], theme));
+                return spans;
+            }
+        }
         spans.extend(inline_spans(rest, theme));
         return spans;
     }

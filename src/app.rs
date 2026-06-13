@@ -40,6 +40,9 @@ pub struct PreviewCache {
     pub rev: u64,
     pub width: u16,
     pub theme_gen: u64,
+    /// Signature of the fold state (collapsed set + selected callout) so toggling
+    /// a callout re-renders even though the note text didn't change.
+    pub fold_sig: u64,
     pub text: Text<'static>,
 }
 
@@ -98,6 +101,27 @@ pub struct LinkComplete {
     /// Candidate note names to insert (already filtered + ranked).
     pub matches: Vec<String>,
     /// Index into `matches` of the highlighted candidate.
+    pub selected: usize,
+}
+
+/// One insertable block in the `/` slash-command menu.
+#[derive(Debug, Clone)]
+pub struct SlashItem {
+    pub icon: &'static str,
+    pub label: String,
+    /// Text inserted at the cursor; `after` is inserted following it and the
+    /// cursor is then moved back to sit between the two (so e.g. a code fence
+    /// lands the caret on its empty body line).
+    pub before: String,
+    pub after: String,
+}
+
+/// State of the `/` slash-command popup (active in insert mode after a `/` at a
+/// word boundary). Mirrors the `[[` wikilink popup.
+#[derive(Debug, Clone)]
+pub struct SlashComplete {
+    pub query: String,
+    pub matches: Vec<SlashItem>,
     pub selected: usize,
 }
 
@@ -305,6 +329,13 @@ pub struct App {
 
     // `[[wikilink]]` autocomplete popup (Some while typing inside `[[`).
     pub link_complete: Option<LinkComplete>,
+    // `/` slash-command insert popup (Some while typing `/cmd` at a boundary).
+    pub slash_complete: Option<SlashComplete>,
+
+    // Preview fold state for collapsible callouts: indices (document order) of
+    // foldable callouts that are collapsed, and the fold cursor in the preview.
+    pub preview_collapsed: HashSet<usize>,
+    pub preview_fold_sel: usize,
 
     // File tree state
     pub tree_selected: usize,
@@ -397,6 +428,9 @@ impl App {
             last_focus: Focus::Home,
             home_selected: 0,
             link_complete: None,
+            slash_complete: None,
+            preview_collapsed: HashSet::new(),
+            preview_fold_sel: 0,
             tree_selected: 0,
             expanded_dirs: expanded,
             expanded_gen: 0,
@@ -764,9 +798,158 @@ impl App {
         self.link_complete = None;
     }
 
+    /// Recompute the `/` slash-command popup from the cursor context. Active in
+    /// insert mode when the cursor sits just after a `/word` whose `/` is at the
+    /// start of the line or after whitespace (so URLs/dates/fractions don't
+    /// trigger it). Never competes with the `[[` wikilink popup.
+    pub fn refresh_slash_complete(&mut self) {
+        let in_insert = self
+            .doc
+            .as_ref()
+            .map(|d| d.mode == Mode::Insert)
+            .unwrap_or(false);
+        if !in_insert || self.link_complete.is_some() {
+            self.slash_complete = None;
+            return;
+        }
+        let query = {
+            let doc = self.doc.as_ref().unwrap();
+            let li = doc.buffer.cursor.line;
+            let byte = doc.buffer.col_to_byte(li, doc.buffer.cursor.col);
+            let prefix = &doc.buffer.line(li)[..byte];
+            match prefix.rfind('/') {
+                Some(pos) => {
+                    let boundary = pos == 0
+                        || prefix[..pos]
+                            .chars()
+                            .next_back()
+                            .map(|c| c.is_whitespace())
+                            .unwrap_or(true);
+                    let after = &prefix[pos + 1..];
+                    if !boundary || after.contains(char::is_whitespace) {
+                        self.slash_complete = None;
+                        return;
+                    }
+                    after.to_string()
+                }
+                None => {
+                    self.slash_complete = None;
+                    return;
+                }
+            }
+        };
+        let matches = compute_slash_matches(&query);
+        if matches.is_empty() {
+            self.slash_complete = None;
+            return;
+        }
+        self.slash_complete = Some(SlashComplete {
+            query,
+            matches,
+            selected: 0,
+        });
+    }
+
+    /// Move the slash-popup selection (wraps).
+    pub fn slash_complete_move(&mut self, down: bool) {
+        if let Some(sc) = self.slash_complete.as_mut() {
+            let n = sc.matches.len();
+            if n == 0 {
+                return;
+            }
+            sc.selected = if down {
+                (sc.selected + 1) % n
+            } else {
+                (sc.selected + n - 1) % n
+            };
+        }
+    }
+
+    /// Accept the highlighted slash item: replace the typed `/query` with the
+    /// block snippet and place the caret inside it. Returns false if nothing to do.
+    pub fn accept_slash_complete(&mut self) -> bool {
+        let Some(sc) = self.slash_complete.take() else {
+            return false;
+        };
+        let Some(item) = sc.matches.get(sc.selected).cloned() else {
+            return false;
+        };
+        let Some(doc) = self.doc.as_mut() else {
+            return false;
+        };
+        doc.history.record(&doc.buffer);
+        // Delete the typed `/query` (cursor is right after it).
+        for _ in 0..(sc.query.graphemes(true).count() + 1) {
+            doc.buffer.backspace();
+        }
+        doc.buffer.insert_str(&item.before);
+        if !item.after.is_empty() {
+            doc.buffer.insert_str(&item.after);
+            for _ in 0..item.after.graphemes(true).count() {
+                doc.buffer.move_left();
+            }
+        }
+        doc.dirty = true;
+        true
+    }
+
+    /// Dismiss the slash popup without inserting (stay in insert mode).
+    pub fn cancel_slash_complete(&mut self) {
+        self.slash_complete = None;
+    }
+
+    /// Seed the preview's fold state from a note's source: foldable callouts
+    /// marked `-` start collapsed; the fold cursor resets to the top.
+    fn seed_preview_folds(&mut self, source: &str) {
+        let defaults = crate::markdown::foldable_callouts(source);
+        self.preview_collapsed = defaults
+            .iter()
+            .enumerate()
+            .filter(|(_, collapsed)| **collapsed)
+            .map(|(i, _)| i)
+            .collect();
+        self.preview_fold_sel = 0;
+    }
+
+    /// Number of foldable callouts in the open note (for clamping the fold cursor).
+    pub fn foldable_count(&self) -> usize {
+        self.doc
+            .as_ref()
+            .map(|d| crate::markdown::foldable_callouts(&d.buffer.to_string()).len())
+            .unwrap_or(0)
+    }
+
+    /// Move the preview's fold cursor among foldable callouts (no wrap).
+    pub fn preview_fold_move(&mut self, delta: i64) {
+        let n = self.foldable_count();
+        if n == 0 {
+            return;
+        }
+        let cur = self.preview_fold_sel.min(n - 1) as i64;
+        self.preview_fold_sel = (cur + delta).clamp(0, n as i64 - 1) as usize;
+        *self.preview_cache.borrow_mut() = None;
+        self.needs_redraw = true;
+    }
+
+    /// Collapse/expand the foldable callout under the preview's fold cursor.
+    pub fn preview_fold_toggle(&mut self) {
+        let n = self.foldable_count();
+        if n == 0 {
+            self.set_status("no collapsible callouts in this note");
+            return;
+        }
+        let idx = self.preview_fold_sel.min(n - 1);
+        if !self.preview_collapsed.remove(&idx) {
+            self.preview_collapsed.insert(idx);
+        }
+        *self.preview_cache.borrow_mut() = None;
+        self.needs_redraw = true;
+    }
+
     pub fn open_note(&mut self, path: PathBuf) -> Result<()> {
         // Save current dirty doc silently first? No — let the user save explicitly.
         let text = self.vault.read_note(&path)?;
+        self.seed_preview_folds(&text);
         let mut doc = Document::from_text(Some(path.clone()), text);
         doc.disk_mtime = vault::file_mtime(&path);
         self.doc = Some(doc);
@@ -851,6 +1034,7 @@ impl App {
         match self.vault.read_note(&path) {
             Ok(text) => {
                 let mt = vault::file_mtime(&path);
+                self.seed_preview_folds(&text);
                 if let Some(d) = self.doc.as_mut() {
                     d.buffer = Buffer::from_string(text);
                     d.buffer.clamp_cursor();
@@ -1636,7 +1820,7 @@ impl App {
                 }
                 self.close_database();
             }
-            Focus::Graph | Focus::Calendar | Focus::Todo => {
+            Focus::Graph | Focus::Calendar | Focus::Todo | Focus::Preview => {
                 self.focus = self.center_focus();
             }
             // Esc from Home drops to the file tree if it's visible.
@@ -1645,6 +1829,7 @@ impl App {
             }
             Focus::Editor => {
                 self.link_complete = None;
+                self.slash_complete = None;
                 if let Some(doc) = self.doc.as_mut() {
                     doc.mode = Mode::Normal;
                     doc.pending_op = None;
@@ -1654,6 +1839,52 @@ impl App {
             _ => {}
         }
     }
+}
+
+/// The full `/` slash-command catalog (Notion-style block inserts). Built fresh
+/// each call so dynamic items (today's date) stay current.
+fn slash_items() -> Vec<SlashItem> {
+    let date = today().format("%Y-%m-%d").to_string();
+    let mk = |icon: &'static str, label: &str, before: &str, after: &str| SlashItem {
+        icon,
+        label: label.to_string(),
+        before: before.to_string(),
+        after: after.to_string(),
+    };
+    vec![
+        mk("◆", "Callout (note)", "> [!note] ", ""),
+        mk("✦", "Callout (tip)", "> [!tip] ", ""),
+        mk("⚠", "Callout (warning)", "> [!warning] ", ""),
+        mk("⛔", "Callout (danger)", "> [!danger] ", ""),
+        mk("❝", "Callout (quote)", "> [!quote] ", ""),
+        mk("▾", "Callout (foldable)", "> [!note]- ", ""),
+        mk("▦", "Columns", "::: columns\n", "\n+++\n\n:::"),
+        mk("⌗", "Code block", "```\n", "\n```"),
+        mk("☷", "Table", "| Header | Header |\n| --- | --- |\n| Cell | Cell |", ""),
+        mk("☐", "To-do", "- [ ] ", ""),
+        mk("•", "Bullet list", "- ", ""),
+        mk("1.", "Numbered list", "1. ", ""),
+        mk("H1", "Heading 1", "# ", ""),
+        mk("H2", "Heading 2", "## ", ""),
+        mk("H3", "Heading 3", "### ", ""),
+        mk("—", "Divider", "---\n", ""),
+        mk("◷", &format!("Date — {date}"), &date, ""),
+    ]
+}
+
+/// Fuzzy-rank slash items against `query` (empty query lists them all).
+fn compute_slash_matches(query: &str) -> Vec<SlashItem> {
+    let items = slash_items();
+    if query.is_empty() {
+        return items;
+    }
+    let matcher = SkimMatcherV2::default();
+    let mut scored: Vec<(i64, SlashItem)> = items
+        .into_iter()
+        .filter_map(|it| matcher.fuzzy_match(&it.label, query).map(|s| (s, it)))
+        .collect();
+    scored.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
+    scored.into_iter().map(|(_, it)| it).collect()
 }
 
 /// Convenience: KeyEvent helpers.

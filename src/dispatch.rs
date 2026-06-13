@@ -36,7 +36,8 @@ pub fn on_key(app: &mut App, key: KeyEvent) {
         Focus::Graph => graph_keys(app, key),
         Focus::Database => database_keys(app, key),
         Focus::Settings => help_keys(app, key),
-        Focus::Editor | Focus::Preview => editor_keys(app, key),
+        Focus::Editor => editor_keys(app, key),
+        Focus::Preview => preview_keys(app, key),
     }
 }
 
@@ -47,9 +48,13 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
 
     // ESC handled per-focus below — except we want it to close graph too.
     if let KeyCode::Esc = key.code {
-        // First Esc dismisses the wikilink popup but keeps insert mode.
+        // First Esc dismisses an open insert-mode popup but keeps insert mode.
         if app.link_complete.is_some() {
             app.cancel_link_complete();
+            return true;
+        }
+        if app.slash_complete.is_some() {
+            app.cancel_slash_complete();
             return true;
         }
         app.escape();
@@ -413,6 +418,25 @@ fn editor_insert(app: &mut App, key: KeyEvent) {
         }
     }
 
+    // The `/` slash-command popup captures the same navigation keys.
+    if app.slash_complete.is_some() {
+        match key.code {
+            KeyCode::Up => {
+                app.slash_complete_move(false);
+                return;
+            }
+            KeyCode::Down => {
+                app.slash_complete_move(true);
+                return;
+            }
+            KeyCode::Tab | KeyCode::Enter => {
+                app.accept_slash_complete();
+                return;
+            }
+            _ => {}
+        }
+    }
+
     {
         let doc = app.doc.as_mut().unwrap();
         match key.code {
@@ -467,8 +491,9 @@ fn editor_insert(app: &mut App, key: KeyEvent) {
         }
     }
 
-    // Update (or dismiss) the wikilink popup based on the new cursor context.
+    // Update (or dismiss) the wikilink + slash popups from the new cursor context.
     app.refresh_link_complete();
+    app.refresh_slash_complete();
 }
 
 fn editor_normal(app: &mut App, key: KeyEvent) {
@@ -591,6 +616,23 @@ fn follow_wikilink_at_cursor(app: &mut App) {
             // Create a new note with that title.
             let _ = app.create_note(target);
         }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Preview (read-only) — navigate & toggle collapsible callouts
+// -----------------------------------------------------------------------------
+
+fn preview_keys(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Tab => app.toggle_pane_focus(true),
+        KeyCode::BackTab => app.toggle_pane_focus(false),
+        KeyCode::Char('j') | KeyCode::Down => app.preview_fold_move(1),
+        KeyCode::Char('k') | KeyCode::Up => app.preview_fold_move(-1),
+        KeyCode::Char('g') => app.preview_fold_move(i64::MIN / 2),
+        KeyCode::Char('G') => app.preview_fold_move(i64::MAX / 2),
+        KeyCode::Char(' ') | KeyCode::Enter => app.preview_fold_toggle(),
+        _ => {}
     }
 }
 

@@ -487,9 +487,69 @@ pub fn extract_tags(source: &str) -> Vec<String> {
     out
 }
 
+/// A parsed callout/admonition header, from the content of a blockquote's first
+/// line (Obsidian syntax: `[!note]`, `[!warning]- collapsed title`, `[!tip]+ …`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CalloutHeader {
+    /// Lowercased type, e.g. `note`, `warning`, `tip`.
+    pub kind: String,
+    /// True when a `-`/`+` fold marker is present (the callout is collapsible).
+    pub foldable: bool,
+    /// True for `-` (start collapsed); only meaningful when `foldable`.
+    pub collapsed_default: bool,
+    /// The remaining title text after the marker (may be empty).
+    pub title: String,
+}
+
+/// Parse a callout header from the text *inside* a blockquote line (i.e. with the
+/// `>` prefixes already stripped, as pulldown-cmark yields it). Returns `None`
+/// when the text isn't a `[!type]` callout marker.
+pub fn parse_callout_header(text: &str) -> Option<CalloutHeader> {
+    let t = text.trim_start();
+    let rest = t.strip_prefix("[!")?;
+    let close = rest.find(']')?;
+    let kind = rest[..close].trim().to_ascii_lowercase();
+    if kind.is_empty() || kind.contains(char::is_whitespace) {
+        return None;
+    }
+    let after = &rest[close + 1..];
+    let (foldable, collapsed_default, title_rest) = match after.chars().next() {
+        Some('-') => (true, true, &after[1..]),
+        Some('+') => (true, false, &after[1..]),
+        _ => (false, false, after),
+    };
+    Some(CalloutHeader {
+        kind,
+        foldable,
+        collapsed_default,
+        title: title_rest.trim().to_string(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn callout_header_variants() {
+        let h = parse_callout_header("[!note] Heads up").unwrap();
+        assert_eq!(h.kind, "note");
+        assert!(!h.foldable);
+        assert_eq!(h.title, "Heads up");
+
+        let h = parse_callout_header("[!WARNING]- Folded").unwrap();
+        assert_eq!(h.kind, "warning");
+        assert!(h.foldable && h.collapsed_default);
+        assert_eq!(h.title, "Folded");
+
+        let h = parse_callout_header("[!tip]+").unwrap();
+        assert_eq!(h.kind, "tip");
+        assert!(h.foldable && !h.collapsed_default);
+        assert_eq!(h.title, "");
+
+        assert!(parse_callout_header("just a quote").is_none());
+        assert!(parse_callout_header("[!bad type] x").is_none());
+    }
 
     #[test]
     fn parses_simple_wikilink() {

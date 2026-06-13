@@ -47,10 +47,13 @@ FOREGROUND Agent calls (background agents get auto-denied on every tool).
    trail in the editor title, a "Pages" sidebar tab (parent ↑ / child folders /
    sibling notes, with the current page marked), and `:up` to jump to the
    containing page.
-4. **Block editing** — callouts (`> [!note]`), toggles, columns, slash-command
-   insert. (Callouts already noted below.)
+4. **Block editing** ✅ DONE (2026-06-13, see § Done) — styled callouts
+   (`> [!note]`/`[!warning]`/…), interactive collapsible callouts (`-`/`+`),
+   side-by-side `::: columns` blocks, and a `/` slash-command insert menu.
 5. **Notion import** — once the MCP is connected: a `:notion import` flow that
-   walks pages/databases and writes notes + frontmatter into the vault.
+   walks pages/databases and writes notes + frontmatter into the vault. ← NEXT.
+   (The 2026-06 migration did this ad-hoc via MCP agents; this would make it a
+   first-class in-app command.)
 
 Start at Phase 1; let the user's real Notion structure (once the MCP is live)
 refine the property types and view design in Phase 2.
@@ -211,6 +214,30 @@ single-note delete (negligible leak today), SIMD literal search via
 ---
 
 ## Done
+
+### Notion hybrid — Phase 4: block editing (callouts, columns, fold, slash menu)  (2026-06-13)
+
+Notion-style block extensions on top of CommonMark, plus a slash-command inserter.
+
+- **Callouts**: `> [!note] Title` / `[!warning]` / `[!tip]` / `[!danger]` / … render
+  as a styled block (type icon + colored bar). Detected by a line-level pre-pass
+  (`markdown::render::split_blocks`) so cmark's inline tokenization can't break
+  them; the body is rendered as markdown and barred. Editor inline-highlights the
+  `[!type]` marker. `markdown::parse::parse_callout_header` is the shared parser.
+- **Collapsible toggles**: `[!note]-` (start collapsed) / `[!note]+`. The preview
+  is now navigable — `j`/`k` move a fold cursor among foldable callouts, `Space`/
+  `Enter` collapse/expand. State on `App::{preview_collapsed, preview_fold_sel}`,
+  seeded from the markers on open; `render_to_text_with(collapsed, selected)`
+  hides collapsed bodies and shows `▸`/`▾`; the preview cache key includes a fold
+  signature so toggles re-render.
+- **Columns**: `::: columns` … `+++` … `:::` renders each column at a sub-width
+  and stitches them side-by-side with a separator (`stitch_columns`/`fit_line`).
+- **Slash menu**: `/` at a word boundary in insert mode opens a fuzzy block
+  picker (`App::slash_complete`, mirrors the `[[` popup) — callouts, columns,
+  code block, table, to-do, lists, headings, divider, today's date. Accepting
+  inserts the snippet and places the caret inside it.
+- 50 tests (callout parse + render, collapse, columns); verified end-to-end via
+  pyte. Help glossary + status hints updated.
 
 ### Resizable editor | preview split  (2026-06-13)
 

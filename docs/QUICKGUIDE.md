@@ -477,6 +477,15 @@ The preview pane caches its rendered `Text` on `App::preview_cache` (a `RefCell`
 
 Wikilinks and tags are not CommonMark constructs. They're extracted by regex in `markdown::parse` and woven into the rendered text in `render::split_into_segments`. When indexing, `extract_links` / `extract_md_links` / `extract_all_tags` (inline `#tags` **and** YAML frontmatter `tags:`) are called on each note's content in `NoteIndex::ingest`.
 
+**Block extensions (Notion hybrid, Phase 4).** On top of CommonMark, `render.rs` recognizes two block types via a line-level pre-pass (`split_blocks`) — done *before* cmark so its inline tokenization can't break them:
+
+- **Callouts** — a blockquote whose first line is `> [!type] Title` (Obsidian's vocabulary: note/info/tip/success/question/warning/danger/example/quote/todo/…). Rendered as a header (type icon + colored bar via `callout_visual`) with the body rendered as markdown and prefixed by the same bar. `markdown::parse::parse_callout_header` is the shared parser (also used by the editor's inline marker highlight in `editor_pane::render_line`). A `-`/`+` suffix (`[!note]-`) makes the callout **foldable**.
+- **Columns** — `::: columns` … `+++` … `:::`. Each `+++`-separated chunk renders at `width/N` and `stitch_columns`/`fit_line` lay them out side-by-side with a ` │ ` separator.
+
+**Interactive folding.** Foldable callouts are indexed in document order (`foldable_callouts(source)` is the source of truth, derived from the same `split_blocks`). The preview is focusable: `j`/`k` move `App::preview_fold_sel`, `Space`/`Enter` toggle membership in `App::preview_collapsed`; `render_to_text_with(collapsed, selected)` then renders collapsed callouts as just their header (`▸`) and highlights the fold cursor. The fold state is seeded from the `-` markers on note open and feeds a `fold_sig` in the preview cache key so a toggle re-renders.
+
+**Slash menu.** Typing `/` at a word boundary in insert mode opens `App::slash_complete` (mirrors the `[[` popup): a fuzzy list of block snippets — callouts, columns, code block, table, to-do, lists, headings, divider, today's date. Accepting deletes the `/query` and inserts the snippet, placing the caret inside (`before`/`after` split). Handled in `dispatch::editor_insert`, rendered by `editor_pane::draw_slash_popup`.
+
 ### 9.1 `[[wikilink]]` autocomplete
 
 While the editor is in insert mode and the cursor sits just after an unclosed `[[`, Onyx shows a fuzzy completion popup of note names (`App::link_complete: Option<LinkComplete>`). After every insert-mode edit, `dispatch::editor_insert` calls `App::refresh_link_complete`, which scans the current line's prefix for the last `[[` (rejecting any `[`/`]` after it) and, if open, fuzzy-ranks note basenames via `compute_link_matches` (the same `SkimMatcherV2` the switcher uses; an empty query lists recent notes). The popup is rendered by `draw_link_popup` in `editor_pane.rs`, anchored under the `[[` at the caret (flips above when there's no room below).

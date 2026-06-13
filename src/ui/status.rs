@@ -92,7 +92,7 @@ fn hint_for_focus(focus: Focus) -> &'static str {
         Focus::Quicknote => "· type to edit · autosaves · Tab/Esc leave",
         Focus::Todo => "· j/k move · Space toggle · a add · e edit · d delete",
         Focus::Editor => "· i insert · Ctrl-S save · Ctrl-Enter follow link · Ctrl-/ help",
-        Focus::Preview => "· read-only preview · Tab returns to editor",
+        Focus::Preview => "· j/k fold cursor · Space toggle callout · Tab/Esc back to editor",
         Focus::Sidebar => "· n/p tab (Pages·Backlinks·Outline·Tags) · j/k move · Enter open",
         Focus::Calendar => "· h/j/k/l move · o open day · Enter fullscreen · t today",
         Focus::Palette => "· type to filter · Enter run · Esc cancel",

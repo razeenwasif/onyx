@@ -51,6 +51,11 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: "u / Ctrl-R",  action: "Undo / redo",              group: "Editor (Normal)" },
     KeyHelp { keys: "Ctrl-Enter",  action: "Follow wikilink at cursor",group: "Editor" },
     KeyHelp { keys: "[[",          action: "Wikilink autocomplete",    group: "Editor (Insert)" },
+    KeyHelp { keys: "/",           action: "Slash menu — insert a block", group: "Editor (Insert)" },
+
+    KeyHelp { keys: "j / k",       action: "Move fold cursor",         group: "Preview" },
+    KeyHelp { keys: "Space / Enter",action: "Collapse/expand a callout",group: "Preview" },
+    KeyHelp { keys: "Tab / Esc",   action: "Back to editor",           group: "Preview" },
 
     KeyHelp { keys: "h j k l",     action: "Move cursor (calendar)",   group: "Calendar" },
     KeyHelp { keys: "o / Space",   action: "Open daily note for day",  group: "Calendar" },
