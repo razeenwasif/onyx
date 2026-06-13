@@ -212,6 +212,19 @@ single-note delete (negligible leak today), SIMD literal search via
 
 ## Done
 
+### Resizable editor | preview split  (2026-06-13)
+
+The center editor/preview divider was a hardcoded 55/45. Now it's adjustable
+and persisted.
+
+- `LayoutConfig.editor_split_percent` (default 55); `ui::mod::draw_body` uses it
+  (clamped 20–80) instead of the fixed percentages.
+- `App::resize_editor_split(delta)` nudges it ±, clamps, persists, and reports
+  the ratio in the status bar. Bound to **Ctrl-←/→** in `global_shortcut`
+  (works from any non-overlay focus, intercepted before the editor sees the
+  arrows). Also `:set editor-width=<20-80>`.
+- Glossary entries added (help overlay + palette).
+
 ### Notion hybrid — Phase 3: nested-structure navigation  (2026-06-13)
 
 Treat the folder hierarchy as a Notion page tree (a folder's "page" = its

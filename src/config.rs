@@ -57,6 +57,9 @@ pub struct EditorConfig {
 pub struct LayoutConfig {
     pub sidebar_left_width: u16,
     pub sidebar_right_width: u16,
+    /// The editor pane's share of the center area, in percent (the preview takes
+    /// the rest). Clamped to a sane range at render time. Adjust with Ctrl-←/→.
+    pub editor_split_percent: u16,
     pub show_preview: bool,
     pub show_left_sidebar: bool,
     pub show_right_sidebar: bool,
@@ -112,6 +115,7 @@ impl Default for LayoutConfig {
         Self {
             sidebar_left_width: 26,
             sidebar_right_width: 30,
+            editor_split_percent: 55,
             show_preview: true,
             show_left_sidebar: true,
             show_right_sidebar: true,

@@ -1174,6 +1174,26 @@ impl App {
         self.graph_sim = None; // rebuild with the new scope
     }
 
+    /// Move the editor|preview divider by `delta` percentage points (the editor's
+    /// share), clamped to [20, 80]. The new ratio is persisted to config.
+    pub fn resize_editor_split(&mut self, delta: i16) {
+        let cur = self.config.layout.editor_split_percent.clamp(20, 80) as i16;
+        let next = (cur + delta).clamp(20, 80) as u16;
+        if next != self.config.layout.editor_split_percent {
+            self.config.layout.editor_split_percent = next;
+            let _ = self.config.save();
+            self.needs_redraw = true;
+        }
+        if self.show_preview {
+            self.set_status(format!("editor {next}% · preview {}%", 100 - next));
+        } else {
+            self.set_status(format!(
+                "editor {next}% · preview {}% (preview hidden — Ctrl-E to show)",
+                100 - next
+            ));
+        }
+    }
+
     /// True when a graph is currently on screen (pane or fullscreen).
     pub fn graph_visible(&self) -> bool {
         if self.fullscreen == Some(FullPane::Graph) {

@@ -548,6 +548,7 @@ autosave_idle_ms = 2500
 [layout]
 sidebar_left_width = 26
 sidebar_right_width = 30
+editor_split_percent = 55  # editor's share of the center; preview takes the rest. Ctrl-←/→ to resize
 show_preview = true
 show_left_sidebar = true
 show_right_sidebar = true

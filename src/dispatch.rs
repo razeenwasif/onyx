@@ -164,6 +164,15 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
             app.open_help();
             true
         }
+        // Move the editor|preview divider (Ctrl-← shrinks the editor, Ctrl-→ grows it).
+        KeyCode::Left if !in_text_overlay => {
+            app.resize_editor_split(-5);
+            true
+        }
+        KeyCode::Right if !in_text_overlay => {
+            app.resize_editor_split(5);
+            true
+        }
         KeyCode::Char('1') if !in_text_overlay => {
             if app.show_left {
                 app.focus = Focus::FileTree;
@@ -1379,6 +1388,21 @@ fn apply_set(app: &mut App, args: &str) {
                 app.set_status(format!("theme: {}", app.theme.name));
             }
             None => app.set_status(format!("unknown theme: {name}")),
+        }
+        return;
+    }
+    if let Some(val) = args
+        .strip_prefix("editor-width=")
+        .or_else(|| args.strip_prefix("editorwidth="))
+        .map(str::trim)
+    {
+        match val.parse::<i16>() {
+            Ok(pct) => {
+                // Set absolutely by nudging from the current value.
+                let cur = app.config.layout.editor_split_percent as i16;
+                app.resize_editor_split(pct - cur);
+            }
+            Err(_) => app.set_status("usage: :set editor-width=<20-80>"),
         }
         return;
     }

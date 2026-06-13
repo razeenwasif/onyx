@@ -101,9 +101,14 @@ fn draw_body(frame: &mut Frame, area: Rect, app: &mut App) {
         // No note open → the interactive start page fills the center (no preview).
         home::draw(frame, center, app);
     } else if app.show_preview {
+        // Editor|preview divider, adjustable with Ctrl-←/→ (persisted).
+        let editor_pct = app.config.layout.editor_split_percent.clamp(20, 80);
         let center_split = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(55), Constraint::Percentage(45)])
+            .constraints([
+                Constraint::Percentage(editor_pct),
+                Constraint::Percentage(100 - editor_pct),
+            ])
             .split(center);
         editor_pane::draw(frame, center_split[0], app);
         preview::draw(frame, center_split[1], app);
