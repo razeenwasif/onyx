@@ -335,6 +335,11 @@ pub struct App {
     pub theme: Theme,
     pub vault: Vault,
     pub doc: Option<Document>,
+    /// Open editor tabs in display order (the active tab's path is `doc.path`).
+    pub tab_paths: Vec<PathBuf>,
+    /// Background tabs: open documents other than the active one (kept so each
+    /// tab preserves its own buffer/cursor/scroll/dirty state).
+    pub tabs: Vec<Document>,
     pub focus: Focus,
     pub last_focus: Focus,
 
@@ -458,6 +463,8 @@ impl App {
             sidebar_tab: SidebarTab::Backlinks,
             vault,
             doc: None,
+            tab_paths: Vec::new(),
+            tabs: Vec::new(),
             focus: Focus::Home,
             last_focus: Focus::Home,
             home_selected: 0,
@@ -629,6 +636,8 @@ impl App {
         self.recent_self_writes.clear();
 
         self.doc = None;
+        self.tab_paths.clear();
+        self.tabs.clear();
         self.database = None;
         self.graph_focus = None;
         self.fullscreen = None;
@@ -1202,21 +1211,130 @@ impl App {
     }
 
     pub fn open_note(&mut self, path: PathBuf) -> Result<()> {
-        // Save current dirty doc silently first? No — let the user save explicitly.
+        // Already the active tab? Nothing to do.
+        if self.doc.as_ref().and_then(|d| d.path.as_ref()) == Some(&path) {
+            return Ok(());
+        }
+        // The current note becomes a background tab (keeping its buffer state).
+        self.stash_active();
+        // If `path` is already an open tab, re-activate its stashed document.
+        if let Some(pos) = self
+            .tabs
+            .iter()
+            .position(|d| d.path.as_deref() == Some(path.as_path()))
+        {
+            let doc = self.tabs.remove(pos);
+            self.activate_doc(doc, path);
+            return Ok(());
+        }
+        // Otherwise read it fresh and add a new tab.
         let text = self.vault.read_note(&path)?;
-        self.seed_preview_folds(&text);
         let mut doc = Document::from_text(Some(path.clone()), text);
         doc.disk_mtime = vault::file_mtime(&path);
+        if !self.tab_paths.iter().any(|p| p == &path) {
+            self.tab_paths.push(path.clone());
+        }
+        self.activate_doc(doc, path);
+        Ok(())
+    }
+
+    /// Stash the active document as a background tab (no-op for a pathless
+    /// scratch buffer, which is simply dropped).
+    fn stash_active(&mut self) {
+        if let Some(doc) = self.doc.take() {
+            if let Some(p) = doc.path.clone() {
+                if !self.tab_paths.iter().any(|x| x == &p) {
+                    self.tab_paths.push(p);
+                }
+                self.tabs.push(doc);
+            }
+        }
+    }
+
+    /// Make `doc` (for `path`) the active document and update derived state.
+    fn activate_doc(&mut self, doc: Document, path: PathBuf) {
+        self.seed_preview_folds(&doc.buffer.to_string());
         self.doc = Some(doc);
         self.focus = Focus::Editor;
         self.set_status(format!("Opened {}", vault::note_relpath(&self.vault.root, &path)));
         self.graph_focus = Some(path);
-        // Re-center the (local) graph on the newly-opened note.
         if !self.graph_global {
             self.graph_sim = None;
         }
         self.sidebar_selected = 0;
-        Ok(())
+    }
+
+    /// Open tabs as `(path, is_active, dirty)` in display order — for the tab bar.
+    pub fn tab_infos(&self) -> Vec<(PathBuf, bool, bool)> {
+        self.tab_paths
+            .iter()
+            .map(|p| {
+                let active = self.doc.as_ref().and_then(|d| d.path.as_ref()) == Some(p);
+                let dirty = if active {
+                    self.doc.as_ref().map(|d| d.dirty).unwrap_or(false)
+                } else {
+                    self.tabs
+                        .iter()
+                        .find(|d| d.path.as_deref() == Some(p.as_path()))
+                        .map(|d| d.dirty)
+                        .unwrap_or(false)
+                };
+                (p.clone(), active, dirty)
+            })
+            .collect()
+    }
+
+    /// Switch to the next/prev tab (wraps).
+    pub fn cycle_tab(&mut self, dir: i64) {
+        if self.tab_paths.len() < 2 {
+            return;
+        }
+        let Some(cur) = self.doc.as_ref().and_then(|d| d.path.clone()) else {
+            return;
+        };
+        let idx = self.tab_paths.iter().position(|p| p == &cur).unwrap_or(0) as i64;
+        let n = self.tab_paths.len() as i64;
+        let next = (((idx + dir) % n) + n) % n;
+        let target = self.tab_paths[next as usize].clone();
+        let _ = self.open_note(target);
+    }
+
+    /// Close the active tab (won't discard unsaved edits unless `force`),
+    /// activating an adjacent tab or falling back to Home.
+    pub fn close_current_tab(&mut self, force: bool) {
+        let dirty = self.doc.as_ref().map(|d| d.dirty).unwrap_or(false);
+        if dirty && !force {
+            self.set_status("unsaved changes — :w to save, or :bd! to discard");
+            return;
+        }
+        let cur = self.doc.as_ref().and_then(|d| d.path.clone());
+        self.doc = None;
+        if let Some(cur) = cur {
+            if let Some(i) = self.tab_paths.iter().position(|p| p == &cur) {
+                self.tab_paths.remove(i);
+                let next = self
+                    .tab_paths
+                    .get(i)
+                    .or_else(|| self.tab_paths.get(i.wrapping_sub(1)))
+                    .cloned();
+                if let Some(np) = next {
+                    if let Some(pos) =
+                        self.tabs.iter().position(|d| d.path.as_deref() == Some(np.as_path()))
+                    {
+                        let doc = self.tabs.remove(pos);
+                        self.activate_doc(doc, np);
+                        return;
+                    }
+                }
+            }
+        }
+        self.focus = self.center_focus();
+    }
+
+    /// Drop a path from the tab set entirely (e.g. when its file is deleted).
+    pub fn forget_tab(&mut self, path: &Path) {
+        self.tab_paths.retain(|p| p != path);
+        self.tabs.retain(|d| d.path.as_deref() != Some(path));
     }
 
     pub fn save_current(&mut self) -> Result<()> {
@@ -1560,7 +1678,13 @@ impl App {
         };
         match res {
             Ok(()) => {
-                // Drop the open doc if it (or its folder) was deleted.
+                // Forget any open tabs at/under the deleted path.
+                let affected: Vec<PathBuf> = self
+                    .tab_paths
+                    .iter()
+                    .filter(|p| *p == path || p.starts_with(path))
+                    .cloned()
+                    .collect();
                 let cleared = self
                     .doc
                     .as_ref()
@@ -1569,9 +1693,20 @@ impl App {
                     .unwrap_or(false);
                 if cleared {
                     self.doc = None;
-                    // No note open → fall back to the Home start page, unless the
-                    // user is actively in the tree/another pane.
-                    if self.focus == Focus::Editor || self.focus == Focus::Preview {
+                }
+                for p in &affected {
+                    self.forget_tab(p);
+                }
+                if cleared {
+                    // Activate an adjacent surviving tab, else fall back to Home.
+                    if let Some(np) = self.tab_paths.first().cloned() {
+                        if let Some(pos) =
+                            self.tabs.iter().position(|d| d.path.as_deref() == Some(np.as_path()))
+                        {
+                            let doc = self.tabs.remove(pos);
+                            self.activate_doc(doc, np);
+                        }
+                    } else if self.focus == Focus::Editor || self.focus == Focus::Preview {
                         self.focus = Focus::Home;
                         self.home_selected = 0;
                     }

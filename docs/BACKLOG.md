@@ -221,6 +221,17 @@ single-note delete (negligible leak today), SIMD literal search via
 
 ## Done
 
+### Editor tabs (multiple open notes)  (2026-06-14)
+
+Open several notes at once with a tab bar above the editor. Design keeps
+`App.doc` as the *active* document (so every existing `app.doc` accessor is
+unchanged) and stashes the other open docs in `App.tabs` with an ordered
+`App.tab_paths`; each tab preserves its own buffer/cursor/scroll/dirty state.
+`open_note` stashes/re-activates; `cycle_tab` (Ctrl-PgUp/PgDn, `:tabn`/`:tabp`),
+`close_current_tab` (Ctrl-W / `:bd`, `:bd!` to discard unsaved), `tab_infos` for
+the bar (`ui/tabline.rs`, shown when ≥2 open, dirty •). Delete/rename/vault-switch
+keep the tab set consistent. Verified end-to-end.
+
 ### Editable kanban (board view)  (2026-06-14)
 
 In the database board view, `H`/`L` move the selected card to the previous/next

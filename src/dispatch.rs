@@ -138,6 +138,18 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
             }
             true
         }
+        KeyCode::Char('w') if !in_text_overlay => {
+            app.close_current_tab(false);
+            true
+        }
+        KeyCode::PageDown if !in_text_overlay => {
+            app.cycle_tab(1);
+            true
+        }
+        KeyCode::PageUp if !in_text_overlay => {
+            app.cycle_tab(-1);
+            true
+        }
         KeyCode::Char('e') if !in_text_overlay => {
             app.show_preview = !app.show_preview;
             true
@@ -1082,6 +1094,11 @@ fn apply_prompt(app: &mut App, action: PromptAction, value: String) {
                                 doc.path = Some(target.clone());
                             }
                         }
+                        for tp in app.tab_paths.iter_mut() {
+                            if *tp == p {
+                                *tp = target.clone();
+                            }
+                        }
                         let note = vault::note_basename(&target);
                         app.set_status(match updated {
                             0 => format!("renamed to {note}"),
@@ -1322,6 +1339,10 @@ fn run_ex_command(app: &mut App, raw: &str) {
         "task" | "toggle" => app.toggle_task_on_current_line(),
         "tasks" => app.open_tasks(),
         "bookmark" | "pin" => app.toggle_bookmark_current(),
+        "tabnext" | "tabn" | "bnext" | "bn" => app.cycle_tab(1),
+        "tabprev" | "tabprevious" | "tabp" | "bprev" | "bp" => app.cycle_tab(-1),
+        "tabclose" | "tabc" | "bd" | "bdelete" => app.close_current_tab(false),
+        "tabclose!" | "tabc!" | "bd!" | "bdelete!" => app.close_current_tab(true),
         "graph" => app.open_graph(),
         "up" | "parent" => {
             match app.doc.as_ref().and_then(|d| d.path.clone()) {
@@ -1378,6 +1399,11 @@ fn run_ex_command(app: &mut App, raw: &str) {
                     Ok(updated) => {
                         if let Some(doc) = app.doc.as_mut() {
                             doc.path = Some(target.clone());
+                        }
+                        for tp in app.tab_paths.iter_mut() {
+                            if *tp == p {
+                                *tp = target.clone();
+                            }
                         }
                         let note = vault::note_basename(&target);
                         app.set_status(match updated {

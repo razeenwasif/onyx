@@ -17,6 +17,7 @@ pub mod search;
 pub mod sidebar;
 pub mod status;
 pub mod switcher;
+pub mod tabline;
 pub mod tasks;
 pub mod title_bar;
 pub mod todo;
@@ -102,20 +103,33 @@ fn draw_body(frame: &mut Frame, area: Rect, app: &mut App) {
     if app.doc.is_none() {
         // No note open → the interactive start page fills the center (no preview).
         home::draw(frame, center, app);
-    } else if app.show_preview {
-        // Editor|preview divider, adjustable with Ctrl-←/→ (persisted).
-        let editor_pct = app.config.layout.editor_split_percent.clamp(20, 80);
-        let center_split = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(editor_pct),
-                Constraint::Percentage(100 - editor_pct),
-            ])
-            .split(center);
-        editor_pane::draw(frame, center_split[0], app);
-        preview::draw(frame, center_split[1], app);
     } else {
-        editor_pane::draw(frame, center, app);
+        // A one-row tab bar tops the center when >1 note is open.
+        let body = if app.tab_paths.len() >= 2 {
+            let rows = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(1), Constraint::Min(0)])
+                .split(center);
+            tabline::draw(frame, rows[0], app);
+            rows[1]
+        } else {
+            center
+        };
+        if app.show_preview {
+            // Editor|preview divider, adjustable with Ctrl-←/→ (persisted).
+            let editor_pct = app.config.layout.editor_split_percent.clamp(20, 80);
+            let center_split = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Percentage(editor_pct),
+                    Constraint::Percentage(100 - editor_pct),
+                ])
+                .split(body);
+            editor_pane::draw(frame, center_split[0], app);
+            preview::draw(frame, center_split[1], app);
+        } else {
+            editor_pane::draw(frame, body, app);
+        }
     }
 
     if app.show_right {
