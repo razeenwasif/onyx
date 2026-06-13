@@ -116,6 +116,72 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
     if focused && app.slash_complete.is_some() {
         draw_slash_popup(frame, inner, app, gutter_w as u16);
     }
+    // `#tag` popup, anchored at the cursor.
+    if focused && app.tag_complete.is_some() {
+        draw_tag_popup(frame, inner, app, gutter_w as u16);
+    }
+}
+
+/// Draw the `#tag` autocomplete popup near the caret (mirrors `draw_link_popup`).
+fn draw_tag_popup(frame: &mut Frame, inner: Rect, app: &App, gutter_w: u16) {
+    let Some(tc) = &app.tag_complete else {
+        return;
+    };
+    let Some(doc) = &app.doc else {
+        return;
+    };
+    if tc.matches.is_empty() || doc.buffer.cursor.line < doc.scroll {
+        return;
+    }
+    let theme = &app.theme;
+    let cursor = doc.buffer.cursor;
+    let display_col = doc.buffer.display_col(cursor.line, cursor.col);
+    let caret_x = inner.x + gutter_w + display_col as u16;
+    let caret_y = inner.y + (cursor.line - doc.scroll) as u16;
+    if caret_y >= inner.y + inner.height {
+        return;
+    }
+
+    let visible = tc.matches.len().min(7) as u16;
+    let popup_h = visible + 2;
+    let label_w = tc.matches.iter().map(|s| s.chars().count() + 1).max().unwrap_or(8);
+    let popup_w = ((label_w as u16) + 4).clamp(16, 40).min(inner.width.max(1));
+
+    let below = caret_y + 1;
+    let y = if below + popup_h <= inner.y + inner.height {
+        below
+    } else if caret_y >= inner.y + popup_h {
+        caret_y - popup_h
+    } else {
+        (inner.y + inner.height).saturating_sub(popup_h).max(inner.y)
+    };
+    // Anchor under the `#` (query width + 1 cell back).
+    let back = tc.query.chars().count() as u16 + 1;
+    let mut x = caret_x.saturating_sub(back);
+    if x + popup_w > inner.x + inner.width {
+        x = (inner.x + inner.width).saturating_sub(popup_w);
+    }
+    x = x.max(inner.x);
+
+    let rect = Rect {
+        x,
+        y,
+        width: popup_w,
+        height: popup_h,
+    };
+    frame.render_widget(Clear, rect);
+    let items: Vec<ListItem> = tc
+        .matches
+        .iter()
+        .map(|t| ListItem::new(Line::from(Span::styled(format!("#{t}"), theme.s_tag()))))
+        .collect();
+    let mut state = ListState::default();
+    state.select(Some(tc.selected));
+    let list = List::new(items)
+        .block(super::pane_block("tags", true, theme))
+        .highlight_style(theme.s_selection())
+        .highlight_symbol("▸ ");
+    frame.render_stateful_widget(list, rect, &mut state);
 }
 
 /// Draw the `/` slash-command popup near the caret (mirrors `draw_link_popup`).

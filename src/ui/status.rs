@@ -43,12 +43,19 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
 
     if let Some(doc) = &app.doc {
         let cur = doc.buffer.cursor;
+        let words: usize = doc
+            .buffer
+            .lines
+            .iter()
+            .map(|l| l.split_whitespace().count())
+            .sum();
         spans.push(Span::styled(
             format!(
-                " {}:{}  {} lines ",
+                " {}:{}  {} lines · {} words ",
                 cur.line + 1,
                 cur.col + 1,
-                doc.buffer.line_count()
+                doc.buffer.line_count(),
+                words
             ),
             theme.s_subtle(),
         ));

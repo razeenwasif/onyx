@@ -125,6 +125,15 @@ pub struct SlashComplete {
     pub selected: usize,
 }
 
+/// State of the `#tag` autocomplete popup (insert mode, after `#word`). Mirrors
+/// the `[[` wikilink popup; `matches` are existing tag names (no `#`).
+#[derive(Debug, Clone)]
+pub struct TagComplete {
+    pub query: String,
+    pub matches: Vec<String>,
+    pub selected: usize,
+}
+
 /// An action on the Home start page.
 #[derive(Debug, Clone)]
 pub enum HomeAction {
@@ -331,6 +340,8 @@ pub struct App {
     pub link_complete: Option<LinkComplete>,
     // `/` slash-command insert popup (Some while typing `/cmd` at a boundary).
     pub slash_complete: Option<SlashComplete>,
+    // `#tag` autocomplete popup (Some while typing `#word` at a boundary).
+    pub tag_complete: Option<TagComplete>,
 
     // Preview fold state for collapsible callouts: indices (document order) of
     // foldable callouts that are collapsed, and the fold cursor in the preview.
@@ -429,6 +440,7 @@ impl App {
             home_selected: 0,
             link_complete: None,
             slash_complete: None,
+            tag_complete: None,
             preview_collapsed: HashSet::new(),
             preview_fold_sel: 0,
             tree_selected: 0,
@@ -737,10 +749,16 @@ impl App {
         }
         let matcher = SkimMatcherV2::default();
         let mut scored: Vec<(i64, String)> = Vec::new();
-        for (p, _) in self.vault.index.all_notes() {
+        for (p, m) in self.vault.index.all_notes() {
             let b = vault::note_basename(&p);
             if let Some(s) = matcher.fuzzy_match(&b, query) {
                 scored.push((s, b));
+            }
+            // Aliases are linkable names too.
+            for alias in &m.aliases {
+                if let Some(s) = matcher.fuzzy_match(alias, query) {
+                    scored.push((s, alias.clone()));
+                }
             }
         }
         scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
@@ -896,6 +914,168 @@ impl App {
     /// Dismiss the slash popup without inserting (stay in insert mode).
     pub fn cancel_slash_complete(&mut self) {
         self.slash_complete = None;
+    }
+
+    /// Recompute the `#tag` autocomplete popup. Active in insert mode after a
+    /// `#word` (word at a boundary, tag-valid chars). Never competes with the
+    /// `[[` or `/` popups.
+    pub fn refresh_tag_complete(&mut self) {
+        let in_insert = self
+            .doc
+            .as_ref()
+            .map(|d| d.mode == Mode::Insert)
+            .unwrap_or(false);
+        if !in_insert || self.link_complete.is_some() || self.slash_complete.is_some() {
+            self.tag_complete = None;
+            return;
+        }
+        let query = {
+            let doc = self.doc.as_ref().unwrap();
+            let li = doc.buffer.cursor.line;
+            let byte = doc.buffer.col_to_byte(li, doc.buffer.cursor.col);
+            let prefix = &doc.buffer.line(li)[..byte];
+            match prefix.rfind('#') {
+                Some(pos) => {
+                    let boundary = pos == 0
+                        || prefix[..pos]
+                            .chars()
+                            .next_back()
+                            .map(|c| c.is_whitespace())
+                            .unwrap_or(true);
+                    let after = &prefix[pos + 1..];
+                    let valid = !after.is_empty()
+                        && after.chars().next().map(|c| c.is_ascii_alphanumeric()).unwrap_or(false)
+                        && after
+                            .chars()
+                            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '/');
+                    if !boundary || !valid {
+                        self.tag_complete = None;
+                        return;
+                    }
+                    after.to_string()
+                }
+                None => {
+                    self.tag_complete = None;
+                    return;
+                }
+            }
+        };
+        let matcher = SkimMatcherV2::default();
+        let mut scored: Vec<(i64, String)> = self
+            .vault
+            .index
+            .all_tags()
+            .into_iter()
+            .filter_map(|(t, _)| matcher.fuzzy_match(&t, &query).map(|s| (s, t)))
+            .collect();
+        scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+        let matches: Vec<String> = scored.into_iter().map(|(_, t)| t).take(50).collect();
+        if matches.is_empty() {
+            self.tag_complete = None;
+            return;
+        }
+        self.tag_complete = Some(TagComplete {
+            query,
+            matches,
+            selected: 0,
+        });
+    }
+
+    pub fn tag_complete_move(&mut self, down: bool) {
+        if let Some(tc) = self.tag_complete.as_mut() {
+            let n = tc.matches.len();
+            if n == 0 {
+                return;
+            }
+            tc.selected = if down {
+                (tc.selected + 1) % n
+            } else {
+                (tc.selected + n - 1) % n
+            };
+        }
+    }
+
+    /// Accept the highlighted tag: replace the typed `#query` fragment with the
+    /// chosen tag (the `#` stays). Returns false if nothing to do.
+    pub fn accept_tag_complete(&mut self) -> bool {
+        let Some(tc) = self.tag_complete.take() else {
+            return false;
+        };
+        let Some(tag) = tc.matches.get(tc.selected).cloned() else {
+            return false;
+        };
+        let Some(doc) = self.doc.as_mut() else {
+            return false;
+        };
+        doc.history.record(&doc.buffer);
+        for _ in 0..tc.query.graphemes(true).count() {
+            doc.buffer.backspace();
+        }
+        doc.buffer.insert_str(&format!("{tag} "));
+        doc.dirty = true;
+        true
+    }
+
+    pub fn cancel_tag_complete(&mut self) {
+        self.tag_complete = None;
+    }
+
+    /// Headings of the open note as `(0-based line, level, text)`, skipping code
+    /// fences. Powers the Outline sidebar tab and its jump-to-heading.
+    pub fn outline_headings(&self) -> Vec<(usize, u8, String)> {
+        let Some(doc) = self.doc.as_ref() else {
+            return Vec::new();
+        };
+        let src = doc.buffer.to_string();
+        let mut out = Vec::new();
+        let mut in_code = false;
+        for (i, line) in src.lines().enumerate() {
+            let t = line.trim_start();
+            if t.starts_with("```") || t.starts_with("~~~") {
+                in_code = !in_code;
+                continue;
+            }
+            if in_code {
+                continue;
+            }
+            let h = t.chars().take_while(|c| *c == '#').count();
+            if (1..=6).contains(&h) && t.chars().nth(h) == Some(' ') {
+                out.push((i, h as u8, t[h + 1..].trim().to_string()));
+            }
+        }
+        out
+    }
+
+    /// Move the editor cursor to the `idx`-th heading and focus the editor.
+    pub fn jump_to_heading(&mut self, idx: usize) {
+        let Some(&(line, _, _)) = self.outline_headings().get(idx) else {
+            return;
+        };
+        if let Some(doc) = self.doc.as_mut() {
+            let line = line.min(doc.buffer.line_count().saturating_sub(1));
+            doc.buffer.cursor.line = line;
+            doc.buffer.cursor.col = 0;
+            doc.buffer.goal_col = 0;
+            doc.scroll = line;
+        }
+        self.focus = Focus::Editor;
+    }
+
+    /// Toggle a `- [ ]` checkbox on the cursor's current line.
+    pub fn toggle_task_on_current_line(&mut self) {
+        let Some(doc) = self.doc.as_mut() else {
+            return;
+        };
+        let li = doc.buffer.cursor.line;
+        let line = doc.buffer.line(li).to_string();
+        match crate::markdown::parse::toggle_task_marker(&line) {
+            Some(new) => {
+                doc.history.record(&doc.buffer);
+                doc.buffer.replace_line(li, &new);
+                doc.dirty = true;
+            }
+            None => self.set_status("not a task line (\"- [ ]\")"),
+        }
     }
 
     /// Seed the preview's fold state from a note's source: foldable callouts
@@ -1872,6 +2052,7 @@ impl App {
             Focus::Editor => {
                 self.link_complete = None;
                 self.slash_complete = None;
+                self.tag_complete = None;
                 if let Some(doc) = self.doc.as_mut() {
                     doc.mode = Mode::Normal;
                     doc.pending_op = None;

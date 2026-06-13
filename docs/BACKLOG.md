@@ -221,6 +221,26 @@ single-note delete (negligible leak today), SIMD literal search via
 
 ## Done
 
+### Editing polish: aliases, outline jump, #tag autocomplete, task toggle, word count  (2026-06-14)
+
+A bundle of Obsidian-staple quality-of-life features.
+
+- **Aliases** — `aliases:` frontmatter is indexed as extra basenames, so
+  `[[Alt Name]]`, the quick switcher, and `[[`-autocomplete all resolve a note
+  by its alternate names (`markdown::parse::extract_frontmatter_aliases`,
+  `NoteMeta.aliases`, `CacheEntry.aliases`, cache version 2→3). Excluded from
+  the Properties block.
+- **Clickable outline** — the Outline sidebar tab now jumps the editor to the
+  selected heading on Enter (`App::outline_headings` is the shared source of
+  truth; `App::jump_to_heading`).
+- **`#tag` autocomplete** — typing `#word` in insert mode opens a fuzzy popup
+  over existing vault tags (`App::tag_complete`, mirrors the `[[` / `/` popups).
+- **Task toggle** — `t` in normal mode (or `:task`) flips a `- [ ]` ↔ `- [x]`
+  checkbox on the current line (`markdown::parse::toggle_task_marker`,
+  `Buffer::replace_line`).
+- **Word count** in the status bar.
+- 58 tests; verified end-to-end via pyte.
+
 ### Notion hybrid — Phase 5: `:notion import` export importer  (2026-06-14)
 
 A self-contained importer for a Notion "Export → Markdown & CSV" dump (unzipped).

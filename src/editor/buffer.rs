@@ -62,6 +62,15 @@ impl Buffer {
         self.lines.get(i).map(|s| s.as_str()).unwrap_or("")
     }
 
+    /// Replace line `i`'s text wholesale (used by the task-checkbox toggle).
+    pub fn replace_line(&mut self, i: usize, text: &str) {
+        if let Some(l) = self.lines.get_mut(i) {
+            *l = text.to_string();
+            self.touch();
+            self.clamp_cursor();
+        }
+    }
+
     pub fn line_count(&self) -> usize {
         self.lines.len()
     }

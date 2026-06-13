@@ -49,9 +49,11 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: "x",           action: "Delete char",              group: "Editor (Normal)" },
     KeyHelp { keys: "d d",         action: "Delete line",              group: "Editor (Normal)" },
     KeyHelp { keys: "u / Ctrl-R",  action: "Undo / redo",              group: "Editor (Normal)" },
+    KeyHelp { keys: "t",           action: "Toggle task checkbox on line", group: "Editor (Normal)" },
     KeyHelp { keys: "Ctrl-Enter",  action: "Follow wikilink at cursor",group: "Editor" },
     KeyHelp { keys: "[[",          action: "Wikilink autocomplete",    group: "Editor (Insert)" },
     KeyHelp { keys: "/",           action: "Slash menu — insert a block", group: "Editor (Insert)" },
+    KeyHelp { keys: "#",           action: "Tag autocomplete",         group: "Editor (Insert)" },
 
     KeyHelp { keys: "j / k",       action: "Move fold cursor",         group: "Preview" },
     KeyHelp { keys: "Space / Enter",action: "Collapse/expand a callout",group: "Preview" },

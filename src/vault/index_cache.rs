@@ -18,8 +18,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 /// Bump when the cached fields change shape, so old caches are ignored.
-/// v2: added per-note `properties`.
-const CACHE_VERSION: u32 = 2;
+/// v2: added per-note `properties`. v3: added `aliases`.
+const CACHE_VERSION: u32 = 3;
 
 /// One note's content-derived facts, keyed in the cache by vault-relative path.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,6 +29,8 @@ pub struct CacheEntry {
     pub title: String,
     pub targets: Vec<String>,
     pub tags: Vec<String>,
+    #[serde(default)]
+    pub aliases: Vec<String>,
     #[serde(default)]
     pub properties: Vec<(String, Vec<String>)>,
     pub size: u64,

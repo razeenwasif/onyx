@@ -6,7 +6,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::markdown::parse::{
-    extract_all_tags, extract_frontmatter_properties, extract_links, extract_md_links,
+    extract_all_tags, extract_frontmatter_aliases, extract_frontmatter_properties, extract_links,
+    extract_md_links,
 };
 
 use super::index_cache::{self, CacheEntry, IndexCache};
@@ -20,6 +21,7 @@ pub(crate) struct ParsedNote {
     pub title: String,
     pub targets: Vec<String>,
     pub tags: Vec<String>,
+    pub aliases: Vec<String>,
     pub properties: Vec<(String, Vec<String>)>,
     pub size: u64,
     pub word_count: usize,
@@ -31,18 +33,19 @@ impl ParsedNote {
         let links = extract_links(content);
         let mut targets: Vec<String> = links.iter().map(|l| l.note_name().to_string()).collect();
         targets.extend(extract_md_links(content));
-        // Page properties, minus `tags`/`tag` (surfaced separately as tags).
+        // Page properties, minus tags/aliases (surfaced separately).
         let properties = extract_frontmatter_properties(content)
             .into_iter()
             .filter(|(k, _)| {
                 let lk = k.to_ascii_lowercase();
-                lk != "tags" && lk != "tag"
+                !matches!(lk.as_str(), "tags" | "tag" | "aliases" | "alias")
             })
             .collect();
         Self {
             title: first_heading_or_basename(content, path),
             targets,
             tags: extract_all_tags(content),
+            aliases: extract_frontmatter_aliases(content),
             properties,
             size: content.len() as u64,
             word_count: content.split_whitespace().count(),
@@ -54,6 +57,7 @@ impl ParsedNote {
             title: entry.title.clone(),
             targets: entry.targets.clone(),
             tags: entry.tags.clone(),
+            aliases: entry.aliases.clone(),
             properties: entry.properties.clone(),
             size: entry.size,
             word_count: entry.word_count,
@@ -71,9 +75,11 @@ pub struct NoteMeta {
     pub outgoing: Vec<Arc<Path>>,
     pub unresolved: Vec<String>,
     pub tags: Vec<Arc<str>>,
+    /// Alternate names from `aliases:` frontmatter (resolve links + switcher).
+    pub aliases: Vec<String>,
     /// Notion-style page properties from YAML frontmatter, in document order
-    /// (`tags`/`tag` excluded — those live in `tags`). Each value is a list
-    /// (scalars are single-element).
+    /// (`tags`/`aliases` excluded — those are handled separately). Each value is
+    /// a list (scalars are single-element).
     pub properties: Vec<(String, Vec<String>)>,
     pub mtime: Option<std::time::SystemTime>,
     pub size: u64,
@@ -157,6 +163,7 @@ impl NoteIndex {
                     title: meta.title.clone(),
                     targets: meta.targets.clone(),
                     tags: meta.tags.iter().map(|t| t.to_string()).collect(),
+                    aliases: meta.aliases.clone(),
                     properties: meta.properties.clone(),
                     size: meta.size,
                     word_count: meta.word_count,
@@ -207,6 +214,13 @@ impl NoteIndex {
         // Build basename/relpath lookups *for this note* before resolving its links.
         let basename = super::note_basename(path).to_lowercase();
         self.by_basename.entry(basename).or_default().push(id.clone());
+        // Aliases resolve like extra basenames, so [[Alt Name]] finds this note.
+        for alias in &parsed.aliases {
+            let key = alias.trim().to_lowercase();
+            if !key.is_empty() {
+                self.by_basename.entry(key).or_default().push(id.clone());
+            }
+        }
         let relpath = super::note_relpath(root, path).to_lowercase();
         // Drop extension from the key so [[folder/note]] resolves.
         let relpath_no_ext = relpath
@@ -227,6 +241,7 @@ impl NoteIndex {
                 outgoing: Vec::new(),
                 unresolved: Vec::new(),
                 tags: tags.clone(),
+                aliases: parsed.aliases.clone(),
                 properties: parsed.properties.clone(),
                 mtime,
                 size: parsed.size,
@@ -421,7 +436,7 @@ impl NoteIndex {
     /// *without* touching the backlink graph. Used by both `remove_note` and the
     /// incremental `update_note`.
     fn unindex_note_meta(&mut self, path: &Path) {
-        if let Some(meta) = self.notes.remove(path) {
+        let aliases = if let Some(meta) = self.notes.remove(path) {
             for t in &meta.tags {
                 if let Some(set) = self.by_tag.get_mut(t) {
                     set.remove(path);
@@ -430,12 +445,24 @@ impl NoteIndex {
                     }
                 }
             }
-        }
-        let basename = crate::vault::note_basename(path).to_lowercase();
-        if let Some(v) = self.by_basename.get_mut(&basename) {
-            v.retain(|p| p.as_ref() != path);
-            if v.is_empty() {
-                self.by_basename.remove(&basename);
+            meta.aliases
+        } else {
+            Vec::new()
+        };
+        // Drop this note from its basename key *and* every alias key.
+        let mut keys = vec![crate::vault::note_basename(path).to_lowercase()];
+        keys.extend(
+            aliases
+                .iter()
+                .map(|a| a.trim().to_lowercase())
+                .filter(|k| !k.is_empty()),
+        );
+        for key in keys {
+            if let Some(v) = self.by_basename.get_mut(&key) {
+                v.retain(|p| p.as_ref() != path);
+                if v.is_empty() {
+                    self.by_basename.remove(&key);
+                }
             }
         }
         // Clear from by_relpath the matching entry (linear scan, vault not huge).
@@ -652,6 +679,27 @@ mod tests {
             cold.as_secs_f64() / warm_dur.as_secs_f64().max(1e-9)
         );
         assert_eq!(full.stats().notes, warm.stats().notes);
+    }
+
+    /// A wikilink to a note's frontmatter alias resolves to that note.
+    #[test]
+    fn alias_resolves_like_a_basename() {
+        let root = std::env::temp_dir().join(format!("onyx-alias-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        write(
+            &root.join("Machine Learning.md"),
+            "---\naliases:\n  - ML\n  - AI/ML\n---\n# Machine Learning\n",
+        );
+        write(&root.join("A.md"), "see [[ML]] and [[AI/ML]]\n");
+
+        let tree = FileTree::scan(&root);
+        let idx = NoteIndex::build(&root, &tree);
+        let ml = root.join("Machine Learning.md");
+        assert_eq!(idx.resolve(&root, "ML").as_deref(), Some(ml.as_path()));
+        // A's links to the aliases resolve to the ML note (backlink proves it).
+        assert_eq!(idx.backlinks_for(&ml), vec![root.join("A.md")]);
+
+        let _ = fs::remove_dir_all(&root);
     }
 
     /// Subfolder-aware note paths: `Projects/Idea` → `<root>/Projects/Idea.md`.

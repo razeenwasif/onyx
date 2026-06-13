@@ -111,7 +111,7 @@ fn build_preview_text(
         .into_iter()
         .filter(|(k, _)| {
             let lk = k.to_ascii_lowercase();
-            lk != "tags" && lk != "tag"
+            !matches!(lk.as_str(), "tags" | "tag" | "aliases" | "alias")
         })
         .collect();
 

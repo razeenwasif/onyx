@@ -470,6 +470,43 @@ fn clean_tag(s: &str) -> String {
         .to_string()
 }
 
+/// If `line` is a markdown task item (`- [ ]` / `* [x]` / `+ [X]`, with optional
+/// indentation), return the line with its checkbox flipped. `None` otherwise.
+pub fn toggle_task_marker(line: &str) -> Option<String> {
+    let indent_len = line.len() - line.trim_start().len();
+    let (indent, rest) = line.split_at(indent_len);
+    let bullet_len = ["- ", "* ", "+ "]
+        .iter()
+        .find(|b| rest.starts_with(**b))
+        .map(|b| b.len())?;
+    let after_bullet = &rest[bullet_len..];
+    let marker = after_bullet.get(..3)?;
+    let flipped = match marker {
+        "[ ]" => "[x]",
+        "[x]" | "[X]" => "[ ]",
+        _ => return None,
+    };
+    Some(format!(
+        "{indent}{}{flipped}{}",
+        &rest[..bullet_len],
+        &after_bullet[3..]
+    ))
+}
+
+/// Alternate names from the `aliases:`/`alias:` frontmatter key (list, inline
+/// array, or scalar — all handled by the property parser). Empty when absent.
+pub fn extract_frontmatter_aliases(source: &str) -> Vec<String> {
+    extract_frontmatter_properties(source)
+        .into_iter()
+        .filter(|(k, _)| {
+            let lk = k.to_ascii_lowercase();
+            lk == "aliases" || lk == "alias"
+        })
+        .flat_map(|(_, v)| v)
+        .filter(|a| !a.trim().is_empty())
+        .collect()
+}
+
 pub fn extract_tags(source: &str) -> Vec<String> {
     let excluded = excluded_ranges(source);
     let mut out = Vec::new();
@@ -529,6 +566,23 @@ pub fn parse_callout_header(text: &str) -> Option<CalloutHeader> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn toggles_task_markers() {
+        assert_eq!(toggle_task_marker("- [ ] buy milk").as_deref(), Some("- [x] buy milk"));
+        assert_eq!(toggle_task_marker("- [x] done").as_deref(), Some("- [ ] done"));
+        assert_eq!(toggle_task_marker("  * [X] indented").as_deref(), Some("  * [ ] indented"));
+        assert_eq!(toggle_task_marker("+ [ ] plus").as_deref(), Some("+ [x] plus"));
+        assert!(toggle_task_marker("- just a bullet").is_none());
+        assert!(toggle_task_marker("plain text").is_none());
+    }
+
+    #[test]
+    fn extracts_aliases() {
+        let src = "---\naliases:\n  - ML\n  - \"Machine Learning\"\n---\n# x\n";
+        assert_eq!(extract_frontmatter_aliases(src), vec!["ML", "Machine Learning"]);
+        assert!(extract_frontmatter_aliases("# no frontmatter\n").is_empty());
+    }
 
     #[test]
     fn callout_header_variants() {

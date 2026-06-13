@@ -178,42 +178,33 @@ fn draw_backlinks(frame: &mut Frame, area: Rect, app: &mut App) {
 
 fn draw_outline(frame: &mut Frame, area: Rect, app: &App) {
     let theme = &app.theme;
-    let src = match &app.doc {
-        Some(d) => d.buffer.to_string(),
-        None => {
-            let p = Paragraph::new("Open a note to see its outline.").style(theme.s_subtle());
-            frame.render_widget(p, area);
-            return;
-        }
-    };
-    let mut items: Vec<ListItem> = Vec::new();
-    let mut in_code = false;
-    for line in src.lines() {
-        let trimmed = line.trim_start();
-        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
-            in_code = !in_code;
-            continue;
-        }
-        if in_code {
-            continue;
-        }
-        let hashes = trimmed.chars().take_while(|c| *c == '#').count();
-        if (1..=6).contains(&hashes) && trimmed.chars().nth(hashes) == Some(' ') {
-            let title = trimmed[hashes + 1..].trim();
-            let indent = "  ".repeat(hashes.saturating_sub(1));
-            items.push(ListItem::new(Line::from(vec![
-                Span::raw(indent),
-                Span::styled(format!("§ {}", title), theme.s_heading(hashes as u8)),
-            ])));
-        }
+    if app.doc.is_none() {
+        let p = Paragraph::new("Open a note to see its outline.").style(theme.s_subtle());
+        frame.render_widget(p, area);
+        return;
     }
-    if items.is_empty() {
+    // Same source of truth the Enter handler uses, so selection → jump line up.
+    let headings = app.outline_headings();
+    if headings.is_empty() {
         let p = Paragraph::new("— no headings —").style(theme.s_subtle());
         frame.render_widget(p, area);
         return;
     }
-    let list = List::new(items).highlight_style(theme.s_selection());
+    let items: Vec<ListItem> = headings
+        .iter()
+        .map(|(_, level, title)| {
+            let indent = "  ".repeat((*level as usize).saturating_sub(1));
+            ListItem::new(Line::from(vec![
+                Span::raw(indent),
+                Span::styled(format!("§ {title}"), theme.s_heading(*level)),
+            ]))
+        })
+        .collect();
     let mut state = ListState::default();
+    if app.sidebar_selected < items.len() {
+        state.select(Some(app.sidebar_selected));
+    }
+    let list = List::new(items).highlight_style(theme.s_selection());
     frame.render_stateful_widget(list, area, &mut state);
 }
 

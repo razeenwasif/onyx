@@ -57,6 +57,10 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
             app.cancel_slash_complete();
             return true;
         }
+        if app.tag_complete.is_some() {
+            app.cancel_tag_complete();
+            return true;
+        }
         app.escape();
         return true;
     }
@@ -437,6 +441,25 @@ fn editor_insert(app: &mut App, key: KeyEvent) {
         }
     }
 
+    // The `#tag` popup captures the same navigation keys.
+    if app.tag_complete.is_some() {
+        match key.code {
+            KeyCode::Up => {
+                app.tag_complete_move(false);
+                return;
+            }
+            KeyCode::Down => {
+                app.tag_complete_move(true);
+                return;
+            }
+            KeyCode::Tab | KeyCode::Enter => {
+                app.accept_tag_complete();
+                return;
+            }
+            _ => {}
+        }
+    }
+
     {
         let doc = app.doc.as_mut().unwrap();
         match key.code {
@@ -491,15 +514,22 @@ fn editor_insert(app: &mut App, key: KeyEvent) {
         }
     }
 
-    // Update (or dismiss) the wikilink + slash popups from the new cursor context.
+    // Update (or dismiss) the insert-mode popups from the new cursor context.
     app.refresh_link_complete();
     app.refresh_slash_complete();
+    app.refresh_tag_complete();
 }
 
 fn editor_normal(app: &mut App, key: KeyEvent) {
     // Ctrl-Enter follows wikilink at cursor.
     if key.modifiers.contains(KeyModifiers::CONTROL) && matches!(key.code, KeyCode::Char('m') | KeyCode::Enter) {
         follow_wikilink_at_cursor(app);
+        return;
+    }
+    // `t` toggles a `- [ ]` checkbox on the current line (needs &mut App, so
+    // handle it before borrowing the doc below).
+    if key.code == KeyCode::Char('t') && key.modifiers.is_empty() {
+        app.toggle_task_on_current_line();
         return;
     }
 
@@ -695,7 +725,8 @@ fn sidebar_open_selected(app: &mut App) {
             }
         }
         SidebarTab::Outline => {
-            // No-op for now; opening headings would require navigation back into the editor.
+            // Jump the editor cursor to the selected heading.
+            app.jump_to_heading(app.sidebar_selected);
         }
     }
 }
@@ -1260,6 +1291,7 @@ fn run_ex_command(app: &mut App, raw: &str) {
                 app.set_status(format!("daily note failed: {e}"));
             }
         }
+        "task" | "toggle" => app.toggle_task_on_current_line(),
         "graph" => app.open_graph(),
         "up" | "parent" => {
             match app.doc.as_ref().and_then(|d| d.path.clone()) {
