@@ -21,14 +21,23 @@ _Last updated: 2026-06-13._
 > interactive collapsible callouts (`[!note]-`, toggled in the preview with
 > j/k + Space), side-by-side `::: columns` blocks, and a `/` slash-insert menu.
 > See `src/markdown/render.rs` (split_blocks/callouts/columns) +
-> `App::{preview_collapsed, slash_complete}`. **Phase 5 (`:notion import`) is
-> also done** — `src/notion_import.rs` imports an unzipped Notion "Markdown &
-> CSV" export (clean names, links→wikilinks, CSV→note folders + frontmatter +
-> _schema), create-only under `Notion Import/`. **The entire Notion-hybrid epic
-> (Phases 1–5) is complete.** Open BACKLOG items now are the non-Notion ones:
-> Google Calendar/Drive sync (the real network + OAuth build — also covers
-> OneDrive), unlinked-mentions + search operators, scrollable help, configurable
-> external tools. No active Notion work remains.
+> `App::{preview_collapsed, slash_complete}`. **Phase 5 (`:notion import`)** is
+> done — `src/notion_import.rs`. **The Notion-hybrid epic (Phases 1–5) is
+> complete.**
+>
+> **Editing-polish batch (2026-06-14) also shipped** (see § Done in BACKLOG):
+> aliases, clickable outline, `#tag` autocomplete, `t` task-toggle, word count,
+> safe rename (rewrites backlinks), `:tasks` rollup, bookmarks (`★`/Home),
+> editable kanban (`H`/`L` rewrites a card's property), **editor tabs**
+> (`App.{tab_paths,tabs}`, Ctrl-PgUp/PgDn/W), **inline property editing**
+> (`:props`), and **split view** (`:vsplit`). 61 tests, clippy-clean.
+>
+> **The only thing left on the roadmap is external sync** — Google Calendar +
+> Drive and OneDrive. That's the real network + OAuth build (ureq on a worker
+> thread + OAuth device flow + token refresh; feature-gate it); design the OAuth
+> stack there since Notion (done, static-token export) doesn't share it. Other
+> small open items: unlinked-mentions, search operators, scrollable help,
+> configurable external tools.
 
 ---
 
