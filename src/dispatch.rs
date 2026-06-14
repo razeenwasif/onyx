@@ -798,8 +798,9 @@ fn sidebar_open_selected(app: &mut App) {
                 Some(p) => p,
                 None => return,
             };
-            let backs = app.vault.index.backlinks_for(&path);
-            if let Some(p) = backs.get(app.sidebar_selected).cloned() {
+            // Rows are backlinks then unlinked mentions; open whichever is selected.
+            let rows = app.backlink_rows(&path);
+            if let Some((p, _unlinked)) = rows.get(app.sidebar_selected).cloned() {
                 let _ = app.open_note(p);
             }
         }
@@ -1233,6 +1234,12 @@ fn apply_prompt(app: &mut App, action: PromptAction, value: String) {
 fn help_keys(app: &mut App, key: KeyEvent) {
     match key.code {
         KeyCode::Esc | KeyCode::Char('q') | KeyCode::Enter => app.close_overlay(),
+        KeyCode::Char('j') | KeyCode::Down => app.help_scroll_by(1),
+        KeyCode::Char('k') | KeyCode::Up => app.help_scroll_by(-1),
+        KeyCode::Char('d') | KeyCode::PageDown => app.help_scroll_by(10),
+        KeyCode::Char('u') | KeyCode::PageUp => app.help_scroll_by(-10),
+        KeyCode::Char('g') | KeyCode::Home => app.help_scroll = 0,
+        KeyCode::Char('G') | KeyCode::End => app.help_scroll_by(i64::MAX / 2),
         _ => {}
     }
 }

@@ -34,17 +34,22 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
     .style(theme.s_normal());
     frame.render_widget(prompt, split[0]);
 
-    let summary = format!(
-        "{} matches  · Tab focus results · Enter open · Esc cancel",
-        app.search.results.len()
-    );
+    let summary = if app.search.query.trim().is_empty() {
+        "operators: tag:foo · path:bar · line:N  · Tab results · Esc cancel".to_string()
+    } else {
+        format!(
+            "{} matches  · tag:/path:/line: filters · Tab results · Enter open · Esc cancel",
+            app.search.results.len()
+        )
+    };
     let summary_p = Paragraph::new(summary).style(theme.s_subtle());
     frame.render_widget(summary_p, split[1]);
 
     if app.search.selected >= app.search.results.len() {
         app.search.selected = app.search.results.len().saturating_sub(1);
     }
-    let needle = app.search.query.to_lowercase();
+    // Highlight only the free-text part of the query, not the `tag:`/`path:` ops.
+    let needle = crate::app::parse_search_query(&app.search.query).needle.to_lowercase();
     let items: Vec<ListItem> = app
         .search
         .results

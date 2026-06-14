@@ -89,15 +89,10 @@ edited in-session don't re-parse on the next launch.
 
 ---
 
-### Obsidian feel — unlinked mentions & search operators
+### Obsidian feel — unlinked mentions & search operators ✅ DONE (see § Done)
 
-**Context.** `[[` autocomplete shipped (see § Done). Remaining feel items:
-
-- Unlinked mentions: in the Backlinks sidebar tab, also list notes that mention
-  this note's title in plain text but don't link it (a cheap content scan, can
-  reuse the background search worker).
-- Search operators in vault search: `tag:foo`, `path:bar`, `line:N` (the index
-  already supports tag lookup).
+Both shipped: unlinked mentions now render below real backlinks in the Backlinks
+pane (`~` glyph), and vault search supports `tag:`/`path:`/`line:N` operators.
 
 ---
 
@@ -149,20 +144,10 @@ doc export, and the optional `rclone mount` docs page.
 
 ---
 
-### Make the help overlay scrollable
+### Make the help overlay scrollable ✅ DONE (see § Done)
 
-**Context.** Help (`Ctrl-/` / `:help`) shows the keybinding glossary in a 32-row centered overlay backed by a plain ratatui `List`. After adding the "Ex commands (vim)" group, the glossary is taller than the viewport and the new section is clipped off-screen. Users can't see `:q`, `:w`, etc.
-
-**Change.**
-
-- In `src/ui/help.rs`, swap the plain `List::new(items)` for a stateful `List` and track a `scroll: usize` on `App` (or `help_scroll` for clarity).
-- In `src/dispatch.rs::help_keys`, add `j`/`k` and `Up`/`Down` (plus `PageUp`/`PageDown`, `g`/`G`) to scroll the list.
-- Render the current scroll position somewhere unobtrusive ("`12/47`" in the title) so users know there's more below.
-
-**Acceptance.**
-
-- Opening help on an 80×24 terminal can reach the "Ex commands (vim)" group via `j` or `Down`.
-- `Esc` / `q` / `Enter` still close.
+`help_scroll` on `App` + a windowed renderer in `ui/help.rs` (position shown in
+the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ---
 
@@ -192,6 +177,28 @@ doc export, and the optional `rclone mount` docs page.
 ---
 
 ## Done
+
+### Obsidian-feel bundle: unlinked mentions · search operators · scrollable help  (2026-06-14)
+
+Three feel items in one pass.
+
+- **Unlinked mentions.** The Backlinks pane now lists notes that mention the open
+  note's name/aliases in plain text without linking it (`~` glyph, below real
+  backlinks; legend "N backlinks · M unlinked"). Computed on a background worker
+  (`unlinked_worker` + `contains_word` whole-word match, epoch/gen cancellation
+  like search), cached per note (`UnlinkedState`), refreshed each tick when the
+  open note changes (`maybe_refresh_unlinked`/`drain_unlinked`), gated on the
+  right sidebar being visible. `index.meta()` added for alias lookup; both real
+  backlinks and mentions are openable via `App::backlink_rows`.
+- **Search operators.** Vault search parses `tag:foo`, `path:bar`, `line:N`
+  (`parse_search_query` → `SearchQuery`). `tag:`/`path:` pre-filter the file set
+  via the index (ANDed); free text still line-scans; filters-only queries list
+  one hit per matching note. Highlight uses only the free-text part.
+- **Scrollable help.** `help_scroll` + windowed `ui/help.rs` (title shows
+  `start–end/total`); `j/k`, `d/u`, `g/G`, arrows, PageUp/Dn.
+- 79 tests (3 new: operator parsing ×2, `contains_word` boundaries). Default +
+  `--features cloud` clippy-clean; verified e2e via pyte (unlinked mention shows
+  for a 2-note vault; help scrolls).
 
 ### Two-way Google Drive  (2026-06-14)
 

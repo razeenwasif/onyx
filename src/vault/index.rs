@@ -338,6 +338,11 @@ impl NoteIndex {
         self.resolve_arc(target).map(|a| a.to_path_buf())
     }
 
+    /// A note's indexed metadata (title, tags, aliases, outgoing links), if known.
+    pub fn meta(&self, path: &Path) -> Option<&NoteMeta> {
+        self.notes.get(path)
+    }
+
     pub fn backlinks_for(&self, path: &Path) -> Vec<PathBuf> {
         self.backlinks
             .get(path)

@@ -112,7 +112,7 @@ fn hint_for_focus(focus: Focus) -> &'static str {
         Focus::Tasks => "· j/k move · Enter jump to task · Esc close",
         Focus::Properties => "· j/k move · e edit · a add · d delete · Esc close",
         Focus::GoogleTasks => "· j/k move · Space toggle · d delete · Enter→quicknote · Esc close",
-        Focus::Help => "· Esc close",
+        Focus::Help => "· j/k scroll · d/u page · g/G top/bottom · Esc close",
         Focus::Settings => "· Esc close",
         Focus::Prompt => "· Enter confirm · Esc cancel",
         Focus::Confirm => "· y confirm · n/Esc cancel",

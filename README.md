@@ -18,9 +18,9 @@ A modern, premium markdown notes TUI — an Obsidian-inspired terminal vault.
 - **Notion import** — `:notion import <folder>` cleans an unzipped Notion "Markdown & CSV" export into the vault (strips id suffixes, links → wikilinks, CSV databases → note folders with frontmatter + `_schema.md`)
 - **Editor tabs** (`Ctrl-PgUp/PgDn`, `Ctrl-W`) and a **split view** (`:vsplit`) to read a second note beside the one you're editing
 - **Editable properties** — `:props` edits a note's frontmatter inline; database **board** cards move between groups (`H`/`L`) by rewriting their property
-- Backlinks, outline (click to jump), tag, and **Pages** (parent/child) panels in the right sidebar
+- Backlinks (plus **unlinked mentions** — notes that name this one without linking it), outline (click to jump), tag, and **Pages** (parent/child) panels in the right sidebar
 - Command palette (`Ctrl-P`) and quick switcher (`Ctrl-O`) with fuzzy matching
-- Full-vault content search (`Ctrl-Shift-F`) and a vault-wide **task rollup** (`:tasks`) of every `- [ ]` checkbox
+- Full-vault content search (`Ctrl-Shift-F`) with **`tag:` / `path:` / `line:N` operators**, and a vault-wide **task rollup** (`:tasks`) of every `- [ ]` checkbox
 - ASCII graph view (`Ctrl-G`) centered on the current note
 - Monthly calendar with daily-notes (`Ctrl-K`), plus optional **Google Calendar** events (`·` marks, `v` day agenda, two-way create/delete)
 - Optional **Google Drive** browser (`:drive`) — open a Drive text file in the editor (save uploads it straight back, two-way), open a PDF/image in your system viewer, or `u` to upload the open note as a new Drive file; plus **Google Tasks** merged into the Todo pane

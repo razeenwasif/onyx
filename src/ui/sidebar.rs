@@ -150,20 +150,49 @@ fn draw_backlinks(frame: &mut Frame, area: Rect, app: &mut App) {
             return;
         }
     };
-    let backs = app.vault.index.backlinks_for(&path);
-    if backs.is_empty() {
-        let p = Paragraph::new("— no backlinks yet —").style(theme.s_subtle());
-        frame.render_widget(p, area);
+    // Backlinks (← linked) followed by unlinked mentions (~ plain-text).
+    let rows = app.backlink_rows(&path);
+    let n_links = rows.iter().filter(|(_, unlinked)| !*unlinked).count();
+    let n_unlinked = rows.len() - n_links;
+    let scanning = app.unlinked_loading();
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Min(0)])
+        .split(area);
+
+    let legend = if scanning {
+        format!("{n_links} backlinks · scanning mentions…")
+    } else if n_unlinked > 0 {
+        format!("{n_links} backlinks · {n_unlinked} unlinked (~)")
+    } else {
+        format!("{n_links} backlinks")
+    };
+    frame.render_widget(Paragraph::new(legend).style(theme.s_subtle()), chunks[0]);
+
+    if rows.is_empty() {
+        let msg = if scanning {
+            "— scanning for mentions… —"
+        } else {
+            "— no backlinks or mentions —"
+        };
+        frame.render_widget(Paragraph::new(msg).style(theme.s_subtle()), chunks[1]);
         return;
     }
-    let items: Vec<ListItem> = backs
+
+    let items: Vec<ListItem> = rows
         .iter()
-        .map(|p| {
+        .map(|(p, unlinked)| {
             let rel = vault::note_relpath(&app.vault.root, p);
             let stem = vault::note_basename(p);
+            let (glyph, name_style) = if *unlinked {
+                ("~ ", theme.s_subtle())
+            } else {
+                ("← ", theme.s_normal())
+            };
             ListItem::new(Line::from(vec![
-                Span::styled("← ", theme.s_accent()),
-                Span::styled(stem, theme.s_normal()),
+                Span::styled(glyph, if *unlinked { theme.s_subtle() } else { theme.s_accent() }),
+                Span::styled(stem, name_style),
                 Span::styled(format!("  {rel}"), theme.s_subtle()),
             ]))
         })
@@ -173,7 +202,7 @@ fn draw_backlinks(frame: &mut Frame, area: Rect, app: &mut App) {
         state.select(Some(app.sidebar_selected));
     }
     let list = List::new(items).highlight_style(theme.s_selection());
-    frame.render_stateful_widget(list, area, &mut state);
+    frame.render_stateful_widget(list, chunks[1], &mut state);
 }
 
 fn draw_outline(frame: &mut Frame, area: Rect, app: &App) {

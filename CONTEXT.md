@@ -5,6 +5,19 @@ for the task queue see **`docs/BACKLOG.md`**. This file is the "where we are rig
 
 _Last updated: 2026-06-14._
 
+> **Latest (2026-06-14): Obsidian-feel bundle shipped** (non-cloud) — (1)
+> **unlinked mentions** in the Backlinks pane (`~` rows below real backlinks;
+> background `unlinked_worker` + `contains_word`, cached in `UnlinkedState`,
+> refreshed each tick via `maybe_refresh_unlinked`/`drain_unlinked`); (2) vault
+> **search operators** `tag:`/`path:`/`line:N` (`parse_search_query`→`SearchQuery`,
+> tag/path pre-filter the file set via the index); (3) **scrollable help**
+> (`help_scroll` + windowed `ui/help.rs`, `j/k`/`d/u`/`g/G`). 79 tests, both
+> configs clippy-clean, pyte-verified. Also earlier today: **Drive note upload**
+> (`u`/`:drive upload` → `gdrive::create_file` multipart). Next planned (user's
+> sequence): **integrate the user's local Gemma model into Onyx** (details TBD).
+>
+> ---
+>
 > **Resume here (2026-06-14): cloud sync now covers two-way Google Tasks,
 > Calendar, AND Drive.** All three live behind the `cloud` cargo feature and
 > reuse `integrations/oauth.rs` (combined scope = Tasks + Calendar + Drive; the

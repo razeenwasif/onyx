@@ -194,6 +194,8 @@ fn event_loop(
         app.drain_calendar();
         app.drain_drive();
         app.maybe_autosync_calendar();
+        app.maybe_refresh_unlinked();
+        app.drain_unlinked();
         // React to external edits (Obsidian, git, sync) noticed by the watcher.
         app.handle_fs_events();
 
@@ -222,6 +224,7 @@ fn event_loop(
             || app.gtasks_syncing()
             || app.calendar_syncing()
             || app.drive_loading()
+            || app.unlinked_loading()
         {
             anim_frame
         } else if status_visible {

@@ -89,6 +89,14 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: "Enter",       action: "Select",                   group: "Palette / Switcher" },
     KeyHelp { keys: "Esc",         action: "Cancel",                   group: "Palette / Switcher" },
 
+    KeyHelp { keys: "n / p",       action: "Cycle tab (Pages·Backlinks·Outline·Tags)", group: "Sidebar" },
+    KeyHelp { keys: "j/k · Enter", action: "Move · open backlink or unlinked mention (~)", group: "Sidebar" },
+
+    KeyHelp { keys: "tag:foo",     action: "Vault search: only notes tagged foo", group: "Vault search" },
+    KeyHelp { keys: "path:bar",    action: "Vault search: only notes whose path has bar", group: "Vault search" },
+    KeyHelp { keys: "line:N",      action: "Vault search: only matches on line N", group: "Vault search" },
+    KeyHelp { keys: "j/k d/u g/G", action: "Help overlay: scroll / page / top·bottom", group: "Vault search" },
+
     KeyHelp { keys: ":",           action: "Open ex command line",     group: "Ex commands (vim)" },
     KeyHelp { keys: ":q  :q!",     action: "Quit (force-quit)",        group: "Ex commands (vim)" },
     KeyHelp { keys: ":w",          action: "Write (save) current note",group: "Ex commands (vim)" },

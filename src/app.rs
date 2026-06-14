@@ -306,11 +306,76 @@ pub struct SearchHit {
     pub preview: String,
 }
 
+/// Cached "unlinked mentions" for the open note — other notes that mention this
+/// note's name/aliases in plain text without linking it. Computed on a worker.
+#[derive(Debug, Default, Clone)]
+pub struct UnlinkedState {
+    /// Note these mentions were computed for (None = nothing computed yet).
+    pub for_path: Option<PathBuf>,
+    pub mentions: Vec<PathBuf>,
+    pub loading: bool,
+}
+
+/// Max unlinked mentions retained per note.
+const UNLINKED_CAP: usize = 50;
+
 /// Messages from the background search worker, tagged with the search epoch so
 /// stale results (from a superseded query) can be discarded.
 pub enum SearchMsg {
     Hit(u64, SearchHit),
     Done(u64),
+}
+
+/// A parsed vault-search query: free text plus Obsidian-style filter operators.
+/// `tag:rust async` → notes tagged `rust` whose lines contain "async".
+/// `path:projects` → notes whose relative path contains "projects".
+/// `line:1 foo` → only matches "foo" on line 1.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct SearchQuery {
+    /// Free-text needle (may be empty when only filters are given).
+    pub needle: String,
+    /// `tag:` filters (lowercased, leading `#` stripped) — ANDed together.
+    pub tags: Vec<String>,
+    /// `path:` filters (lowercased substrings of the relpath) — ANDed together.
+    pub paths: Vec<String>,
+    /// `line:N` — restrict matches to this 1-based line number.
+    pub line: Option<usize>,
+}
+
+impl SearchQuery {
+    /// True when no free text and no filters were supplied (nothing to search).
+    pub fn is_empty(&self) -> bool {
+        self.needle.is_empty() && self.tags.is_empty() && self.paths.is_empty()
+    }
+}
+
+/// Split a raw query into free text + `tag:`/`path:`/`line:` operators.
+pub fn parse_search_query(raw: &str) -> SearchQuery {
+    let mut q = SearchQuery::default();
+    let mut needle = Vec::new();
+    for tok in raw.split_whitespace() {
+        if let Some(v) = tok.strip_prefix("tag:") {
+            let v = v.trim_start_matches('#').to_lowercase();
+            if !v.is_empty() {
+                q.tags.push(v);
+            }
+        } else if let Some(v) = tok.strip_prefix("path:") {
+            let v = v.to_lowercase();
+            if !v.is_empty() {
+                q.paths.push(v);
+            }
+        } else if let Some(v) = tok.strip_prefix("line:") {
+            if let Ok(n) = v.parse::<usize>() {
+                if n >= 1 {
+                    q.line = Some(n);
+                }
+            }
+        } else {
+            needle.push(tok);
+        }
+    }
+    q.needle = needle.join(" ");
+    q
 }
 
 /// Where a Todo-pane row comes from (local checklist vs. Google Tasks).
@@ -460,10 +525,18 @@ pub struct App {
     pub search_epoch: u64,
     pub search_gen: Arc<AtomicU64>,
     pub search_rx: Option<Receiver<SearchMsg>>,
+    // Unlinked mentions for the open note (background-computed, same epoch/gen
+    // cancellation pattern as search). `(epoch, result)` over the channel.
+    pub unlinked: UnlinkedState,
+    pub unlinked_rx: Option<Receiver<(u64, Vec<PathBuf>)>>,
+    pub unlinked_epoch: u64,
+    pub unlinked_gen: Arc<AtomicU64>,
     pub prompt: PromptState,
     pub confirm: ConfirmState,
     pub cmdline: CmdlineState,
     pub help_open: bool,
+    /// First visible row of the help overlay (it scrolls; clamped by the renderer).
+    pub help_scroll: usize,
     pub graph_focus: Option<PathBuf>,
     /// Force-directed simulation backing the graph view (built lazily).
     pub graph_sim: Option<GraphSim>,
@@ -582,6 +655,10 @@ impl App {
             palette: PaletteState::default(),
             switcher: PaletteState::default(),
             search: SearchState::default(),
+            unlinked: UnlinkedState::default(),
+            unlinked_rx: None,
+            unlinked_epoch: 0,
+            unlinked_gen: Arc::new(AtomicU64::new(0)),
             search_epoch: 0,
             search_gen: Arc::new(AtomicU64::new(0)),
             search_rx: None,
@@ -589,6 +666,7 @@ impl App {
             confirm: ConfirmState::default(),
             cmdline: CmdlineState::default(),
             help_open: false,
+            help_scroll: 0,
             graph_focus: None,
             graph_sim: None,
             graph_global: true,
@@ -1803,6 +1881,14 @@ impl App {
         self.last_focus = self.focus;
         self.focus = Focus::Help;
         self.help_open = true;
+        self.help_scroll = 0;
+    }
+
+    /// Scroll the help overlay by `delta` rows (clamped to ≥0; the renderer caps
+    /// the upper bound against the viewport so it can't scroll past the end).
+    pub fn help_scroll_by(&mut self, delta: i64) {
+        self.help_scroll = (self.help_scroll as i64 + delta).max(0) as usize;
+        self.needs_redraw = true;
     }
 
     /// Open a yes/no confirmation dialog for the given action.
@@ -3210,7 +3296,7 @@ impl App {
     /// stream back via `search_rx` and are applied by `drain_search`, so the UI
     /// never blocks (even on large vaults).
     pub fn run_search(&mut self) {
-        let q = self.search.query.trim().to_string();
+        let q = parse_search_query(self.search.query.trim());
         self.search.results.clear();
         self.search.selected = 0;
         if q.is_empty() {
@@ -3224,10 +3310,31 @@ impl App {
 
         let (tx, rx) = mpsc::channel();
         self.search_rx = Some(rx);
-        let paths = self.vault.tree.notes.clone();
+        // Resolve tag:/path: filters against the in-memory index up front, so the
+        // worker only line-scans the candidate files.
+        let paths = self.filtered_search_paths(&q);
         let gen = self.search_gen.clone();
         std::thread::spawn(move || search_worker(q, paths, epoch, gen, tx));
         self.needs_redraw = true;
+    }
+
+    /// Notes to scan for a query, after applying its `tag:`/`path:` filters
+    /// (both ANDed). With no filters this is the whole vault.
+    fn filtered_search_paths(&self, q: &SearchQuery) -> Vec<PathBuf> {
+        let mut paths: Vec<PathBuf> = self.vault.tree.notes.clone();
+        for tag in &q.tags {
+            let set: std::collections::HashSet<PathBuf> =
+                self.vault.index.notes_with_tag(tag).into_iter().collect();
+            paths.retain(|p| set.contains(p));
+        }
+        for needle in &q.paths {
+            paths.retain(|p| {
+                crate::vault::note_relpath(&self.vault.root, p)
+                    .to_lowercase()
+                    .contains(needle)
+            });
+        }
+        paths
     }
 
     /// Drain any results the search worker has produced (called each loop tick).
@@ -3273,6 +3380,110 @@ impl App {
         self.search_epoch = self.search_epoch.wrapping_add(1);
         self.search_gen.store(self.search_epoch, Ordering::Relaxed);
         self.search_rx = None;
+    }
+
+    // --- Unlinked mentions (Backlinks pane) ---------------------------------
+
+    /// Names to look for when finding unlinked mentions of a note: its basename
+    /// plus any aliases, lowercased, dropping anything under 3 chars (too noisy).
+    fn note_mention_names(&self, path: &Path) -> Vec<String> {
+        let mut names: Vec<String> = vec![crate::vault::note_basename(path).to_lowercase()];
+        if let Some(meta) = self.vault.index.meta(path) {
+            for a in &meta.aliases {
+                names.push(a.to_lowercase());
+            }
+        }
+        names.retain(|n| n.chars().count() >= 3);
+        names.sort();
+        names.dedup();
+        names
+    }
+
+    /// Kick off a background scan for unlinked mentions of `path`. Excludes the
+    /// note itself and notes that already link to it (real backlinks).
+    fn start_unlinked_scan(&mut self, path: PathBuf) {
+        let names = self.note_mention_names(&path);
+        let mut exclude: std::collections::HashSet<PathBuf> =
+            self.vault.index.backlinks_for(&path).into_iter().collect();
+        exclude.insert(path.clone());
+        self.unlinked = UnlinkedState {
+            for_path: Some(path),
+            mentions: Vec::new(),
+            loading: !names.is_empty(),
+        };
+        if names.is_empty() {
+            self.unlinked_rx = None;
+            return;
+        }
+        self.unlinked_epoch = self.unlinked_epoch.wrapping_add(1);
+        let epoch = self.unlinked_epoch;
+        self.unlinked_gen.store(epoch, Ordering::Relaxed);
+        let (tx, rx) = mpsc::channel();
+        self.unlinked_rx = Some(rx);
+        let paths = self.vault.tree.notes.clone();
+        let gen = self.unlinked_gen.clone();
+        std::thread::spawn(move || unlinked_worker(names, exclude, paths, epoch, gen, tx));
+        self.needs_redraw = true;
+    }
+
+    /// Re-scan unlinked mentions when the open note changes (called each tick).
+    /// Only runs while the right sidebar (which hosts Backlinks) is visible.
+    pub fn maybe_refresh_unlinked(&mut self) {
+        if !self.show_right {
+            return;
+        }
+        let cur = self.doc.as_ref().and_then(|d| d.path.clone());
+        if cur.as_deref() == self.unlinked.for_path.as_deref() {
+            return; // already tracking this note (scanning or done)
+        }
+        match cur {
+            Some(p) => self.start_unlinked_scan(p),
+            None => {
+                self.unlinked = UnlinkedState::default();
+                self.unlinked_rx = None;
+            }
+        }
+    }
+
+    /// Apply a finished unlinked-mention scan (called each tick).
+    pub fn drain_unlinked(&mut self) {
+        let Some(rx) = &self.unlinked_rx else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok((epoch, mentions)) => {
+                self.unlinked_rx = None;
+                if epoch == self.unlinked_epoch {
+                    self.unlinked.mentions = mentions;
+                    self.unlinked.loading = false;
+                    self.needs_redraw = true;
+                }
+            }
+            Err(mpsc::TryRecvError::Empty) => {}
+            Err(mpsc::TryRecvError::Disconnected) => self.unlinked_rx = None,
+        }
+    }
+
+    pub fn unlinked_loading(&self) -> bool {
+        self.unlinked_rx.is_some()
+    }
+
+    /// Rows for the Backlinks pane: real backlinks (`false`) first, then unlinked
+    /// mentions (`true`). Selection in the pane indexes into this list.
+    pub fn backlink_rows(&self, path: &Path) -> Vec<(PathBuf, bool)> {
+        let mut rows: Vec<(PathBuf, bool)> = self
+            .vault
+            .index
+            .backlinks_for(path)
+            .into_iter()
+            .map(|p| (p, false))
+            .collect();
+        if self.unlinked.for_path.as_deref() == Some(path) {
+            for p in &self.unlinked.mentions {
+                rows.push((p.clone(), true));
+            }
+        }
+        rows
     }
 
     #[allow(dead_code)]
@@ -3505,26 +3716,36 @@ fn is_internal_path(p: &Path) -> bool {
 /// Max search results retained.
 const SEARCH_CAP: usize = 500;
 
-/// Background vault search. Builds a case-insensitive byte regex from the
-/// (literal) query and scans each note's bytes line-by-line — no per-line
-/// `to_lowercase`/`String` allocation. Bails as soon as a newer search starts
-/// (`gen != epoch`) or the cap is hit.
+/// Background vault search over the (already tag/path-filtered) `paths`. When the
+/// query has free text, builds a case-insensitive byte regex and scans each
+/// note's bytes line-by-line — no per-line allocation. With only operators (no
+/// free text), emits one hit per file (its first non-empty line) so e.g.
+/// `tag:rust` lists every Rust note. `line:N` restricts matches to that line.
+/// Bails as soon as a newer search starts (`gen != epoch`) or the cap is hit.
 fn search_worker(
-    query: String,
+    query: SearchQuery,
     paths: Vec<PathBuf>,
     epoch: u64,
     gen: Arc<AtomicU64>,
     tx: mpsc::Sender<SearchMsg>,
 ) {
-    let re = match regex::bytes::RegexBuilder::new(&regex::escape(&query))
-        .case_insensitive(true)
-        .build()
-    {
-        Ok(r) => r,
-        Err(_) => {
-            let _ = tx.send(SearchMsg::Done(epoch));
-            return;
+    let re = if query.needle.is_empty() {
+        None
+    } else {
+        match regex::bytes::RegexBuilder::new(&regex::escape(&query.needle))
+            .case_insensitive(true)
+            .build()
+        {
+            Ok(r) => Some(r),
+            Err(_) => {
+                let _ = tx.send(SearchMsg::Done(epoch));
+                return;
+            }
         }
+    };
+    let want_line = query.line; // 1-based
+    let preview_of = |line: &[u8]| -> String {
+        String::from_utf8_lossy(line).trim().chars().take(160).collect()
     };
     let mut count = 0usize;
     'files: for path in paths {
@@ -3534,29 +3755,110 @@ fn search_worker(
         let Ok(data) = std::fs::read(&path) else {
             continue;
         };
-        for (i, line) in data.split(|&b| b == b'\n').enumerate() {
-            if re.is_match(line) {
-                let preview: String = String::from_utf8_lossy(line)
-                    .trim()
-                    .chars()
-                    .take(160)
-                    .collect();
-                let hit = SearchHit {
-                    path: path.clone(),
-                    line: i,
-                    preview,
-                };
-                if tx.send(SearchMsg::Hit(epoch, hit)).is_err() {
-                    return; // receiver gone
+        match &re {
+            // Free-text search: every matching line (optionally pinned to line N).
+            Some(re) => {
+                for (i, line) in data.split(|&b| b == b'\n').enumerate() {
+                    if let Some(n) = want_line {
+                        if i + 1 != n {
+                            continue;
+                        }
+                    }
+                    if re.is_match(line) {
+                        let hit = SearchHit { path: path.clone(), line: i, preview: preview_of(line) };
+                        if tx.send(SearchMsg::Hit(epoch, hit)).is_err() {
+                            return;
+                        }
+                        count += 1;
+                        if count >= SEARCH_CAP {
+                            break 'files;
+                        }
+                    }
                 }
-                count += 1;
-                if count >= SEARCH_CAP {
-                    break 'files;
+            }
+            // Filters only: one hit per file (the target line, or first non-blank).
+            None => {
+                let mut chosen: Option<(usize, String)> = None;
+                for (i, line) in data.split(|&b| b == b'\n').enumerate() {
+                    let is_target = match want_line {
+                        Some(n) => i + 1 == n,
+                        None => !line.iter().all(|b| b.is_ascii_whitespace()),
+                    };
+                    if is_target {
+                        chosen = Some((i, preview_of(line)));
+                        break;
+                    }
+                }
+                if let Some((i, preview)) = chosen {
+                    let hit = SearchHit { path: path.clone(), line: i, preview };
+                    if tx.send(SearchMsg::Hit(epoch, hit)).is_err() {
+                        return;
+                    }
+                    count += 1;
+                    if count >= SEARCH_CAP {
+                        break 'files;
+                    }
                 }
             }
         }
     }
     let _ = tx.send(SearchMsg::Done(epoch));
+}
+
+/// Background scan for unlinked mentions: notes (outside `exclude`) whose text
+/// contains any of `names` as a whole word. Sends `(epoch, hits)` once done;
+/// bails if superseded (`gen != epoch`).
+fn unlinked_worker(
+    names: Vec<String>,
+    exclude: std::collections::HashSet<PathBuf>,
+    paths: Vec<PathBuf>,
+    epoch: u64,
+    gen: Arc<AtomicU64>,
+    tx: mpsc::Sender<(u64, Vec<PathBuf>)>,
+) {
+    let mut hits = Vec::new();
+    for path in paths {
+        if gen.load(Ordering::Relaxed) != epoch {
+            return; // superseded
+        }
+        if exclude.contains(&path) {
+            continue;
+        }
+        let Ok(data) = std::fs::read(&path) else {
+            continue;
+        };
+        let hay = String::from_utf8_lossy(&data).to_lowercase();
+        if names.iter().any(|n| contains_word(&hay, n)) {
+            hits.push(path);
+            if hits.len() >= UNLINKED_CAP {
+                break;
+            }
+        }
+    }
+    let _ = tx.send((epoch, hits));
+}
+
+/// True if `needle` occurs in `hay` as a whole word (boundaries are anything but
+/// `[A-Za-z0-9_]`). Both are expected lowercased. Used for unlinked mentions so
+/// "java" doesn't match inside "javascript".
+fn contains_word(hay: &str, needle: &str) -> bool {
+    if needle.is_empty() {
+        return false;
+    }
+    let hb = hay.as_bytes();
+    for (i, _) in hay.match_indices(needle) {
+        let before_ok = i == 0 || !is_word_byte(hb[i - 1]);
+        let after = i + needle.len();
+        let after_ok = after >= hb.len() || !is_word_byte(hb[after]);
+        if before_ok && after_ok {
+            return true;
+        }
+    }
+    false
+}
+
+fn is_word_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_'
 }
 
 /// Today as `NaiveDate` (timezone-aware via local).
@@ -3584,4 +3886,40 @@ pub fn modify<F: FnOnce(&mut Buffer)>(doc: &mut Document, f: F) {
     f(&mut doc.buffer);
     doc.buffer.clamp_cursor();
     doc.dirty = true;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{contains_word, parse_search_query};
+
+    #[test]
+    fn parses_search_operators() {
+        let q = parse_search_query("tag:Rust path:projects line:3 async runtime");
+        assert_eq!(q.needle, "async runtime");
+        assert_eq!(q.tags, vec!["rust"]); // lowercased
+        assert_eq!(q.paths, vec!["projects"]);
+        assert_eq!(q.line, Some(3));
+        assert!(!q.is_empty());
+    }
+
+    #[test]
+    fn search_query_strips_hash_and_handles_filters_only() {
+        let q = parse_search_query("#work tag:#home");
+        // `#work` is free text (only `tag:`/`path:`/`line:` are operators).
+        assert_eq!(q.needle, "#work");
+        assert_eq!(q.tags, vec!["home"]); // leading # stripped from tag value
+        let only_ops = parse_search_query("tag:rust");
+        assert!(only_ops.needle.is_empty() && !only_ops.is_empty());
+        assert!(parse_search_query("   ").is_empty());
+    }
+
+    #[test]
+    fn contains_word_respects_boundaries() {
+        assert!(contains_word("learning java today", "java"));
+        assert!(!contains_word("i love javascript", "java")); // substring, not a word
+        assert!(contains_word("see [java]", "java")); // punctuation is a boundary
+        assert!(contains_word("java", "java"));
+        assert!(!contains_word("", "java"));
+        assert!(!contains_word("anything", ""));
+    }
 }
