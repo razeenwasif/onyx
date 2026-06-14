@@ -7,6 +7,21 @@ pub struct KeyHelp {
     pub group: &'static str,
 }
 
+/// The whole glossary as a compact text block, grouped — fed to the AI
+/// assistant so it can answer "what's the shortcut for…" questions.
+pub fn cheatsheet() -> String {
+    let mut out = String::new();
+    let mut last = "";
+    for e in GLOSSARY {
+        if e.group != last {
+            out.push_str(&format!("\n## {}\n", e.group));
+            last = e.group;
+        }
+        out.push_str(&format!("- {} — {}\n", e.keys, e.action));
+    }
+    out
+}
+
 pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: "Ctrl-P",      action: "Command palette",          group: "Global" },
     KeyHelp { keys: "Ctrl-O",      action: "Quick switcher",           group: "Global" },

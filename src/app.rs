@@ -3663,9 +3663,12 @@ impl App {
         use crate::integrations::ollama::ChatMessage;
 
         let mut sys = String::from(
-            "You are a helpful assistant embedded in Onyx, a Markdown notes app. \
-             Answer concisely and format replies in Markdown.",
+            "You are a helpful assistant embedded in Onyx, a Markdown notes (TUI) app. \
+             Answer concisely and format replies in Markdown. You know Onyx's keybindings \
+             (listed below); when asked about a shortcut or how to do something in Onyx, \
+             answer from this list and give the exact keys.\n\n# Onyx keybindings\n",
         );
+        sys.push_str(&crate::keymap::cheatsheet());
         if let Some(doc) = self.doc.as_ref() {
             let title = doc
                 .path

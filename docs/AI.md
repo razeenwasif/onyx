@@ -93,6 +93,10 @@ instruction it does a clarity/grammar cleanup.
 These Gemma builds emit a short **reasoning trace** before the answer; it's shown
 dimmed/italic above the reply.
 
+The assistant also knows **Onyx's own keybindings** (the full glossary is fed to
+it as context), so you can ask things like "what's the shortcut to open the
+graph?" or "how do I rewrite a paragraph?" and get the exact keys/commands.
+
 ## Notes
 
 - **First request is slow** — Ollama loads the model into memory (seconds), then
