@@ -712,7 +712,11 @@ fn gtasks_keys(app: &mut App, key: KeyEvent) {
         KeyCode::Char('k') | KeyCode::Up => app.gtasks_move(-1),
         KeyCode::Char('g') | KeyCode::Home => app.gtasks_move(i64::MIN / 2),
         KeyCode::Char('G') | KeyCode::End => app.gtasks_move(i64::MAX / 2),
-        KeyCode::Enter | KeyCode::Char('o') => app.gtasks_pull_selected(),
+        // Two-way: Space toggles complete, d deletes (both write to Google).
+        KeyCode::Char(' ') => app.gtasks_toggle_selected(),
+        KeyCode::Char('d') => app.gtasks_delete_selected(),
+        // Enter pulls the task into the quicknote scratch.
+        KeyCode::Enter | KeyCode::Char('p') => app.gtasks_pull_selected(),
         _ => {}
     }
 }
@@ -1390,13 +1394,12 @@ fn run_ex_command(app: &mut App, raw: &str) {
             "tasks" => app.open_gtasks(),
             other => app.set_status(format!("usage: :google auth | :google tasks (got '{other}')")),
         },
-        "gtasks" => {
-            if args == "auth" {
-                app.request_google_auth();
-            } else {
-                app.open_gtasks();
-            }
-        }
+        "gtasks" => match args.split_once(char::is_whitespace) {
+            Some(("add", title)) => app.gtasks_add_task(title),
+            _ if args == "auth" => app.request_google_auth(),
+            _ if args == "add" => app.set_status("usage: :gtasks add <title>"),
+            _ => app.open_gtasks(),
+        },
         "props" | "properties" | "prop" => app.open_props_editor(),
         "bookmark" | "pin" => app.toggle_bookmark_current(),
         "tabnext" | "tabn" | "bnext" | "bn" => app.cycle_tab(1),

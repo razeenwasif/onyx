@@ -2499,6 +2499,88 @@ impl App {
         self.set_status(format!("pulled \"{title}\" into quicknote"));
     }
 
+    /// Toggle the selected Google task complete/incomplete, writing back to
+    /// Google (two-way). Blocking network call.
+    pub fn gtasks_toggle_selected(&mut self) {
+        let Some(t) = self.gtasks.get(self.gtasks_selected).cloned() else {
+            return;
+        };
+        let g = self.config.google.clone();
+        let path = crate::config::Config::google_token_path();
+        let target = !t.completed;
+        match crate::integrations::gtasks::set_completed(
+            &g.client_id,
+            &g.client_secret,
+            &path,
+            &t.list_id,
+            &t.id,
+            target,
+        ) {
+            Ok(()) => {
+                if let Some(tm) = self.gtasks.get_mut(self.gtasks_selected) {
+                    tm.completed = target;
+                }
+                self.set_status(if target {
+                    format!("✓ completed \"{}\"", t.title)
+                } else {
+                    format!("reopened \"{}\"", t.title)
+                });
+            }
+            Err(e) => self.set_status(format!("Google Tasks: {e}")),
+        }
+    }
+
+    /// Delete the selected Google task (writes to Google).
+    pub fn gtasks_delete_selected(&mut self) {
+        let Some(t) = self.gtasks.get(self.gtasks_selected).cloned() else {
+            return;
+        };
+        let g = self.config.google.clone();
+        let path = crate::config::Config::google_token_path();
+        match crate::integrations::gtasks::delete_task(
+            &g.client_id,
+            &g.client_secret,
+            &path,
+            &t.list_id,
+            &t.id,
+        ) {
+            Ok(()) => {
+                self.gtasks.remove(self.gtasks_selected);
+                if self.gtasks_selected >= self.gtasks.len() {
+                    self.gtasks_selected = self.gtasks.len().saturating_sub(1);
+                }
+                self.set_status(format!("deleted \"{}\"", t.title));
+            }
+            Err(e) => self.set_status(format!("Google Tasks: {e}")),
+        }
+    }
+
+    /// Create a task in the user's default Google Tasks list.
+    pub fn gtasks_add_task(&mut self, title: &str) {
+        let title = title.trim();
+        if title.is_empty() {
+            self.set_status("usage: :gtasks add <title>");
+            return;
+        }
+        let g = self.config.google.clone();
+        if !g.is_configured() {
+            self.set_status("set [google] client_id/client_secret in config.toml first");
+            return;
+        }
+        let path = crate::config::Config::google_token_path();
+        match crate::integrations::gtasks::create_task(
+            &g.client_id,
+            &g.client_secret,
+            &path,
+            crate::integrations::gtasks::DEFAULT_LIST,
+            title,
+            "",
+        ) {
+            Ok(()) => self.set_status(format!("added \"{title}\" to Google Tasks")),
+            Err(e) => self.set_status(format!("Google Tasks: {e}")),
+        }
+    }
+
     pub fn focus_quicknote(&mut self) {
         self.show_left = true;
         self.show_quicknote = true;

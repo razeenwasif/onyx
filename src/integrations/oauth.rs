@@ -290,6 +290,44 @@ pub fn get_json(url: &str, access_token: &str) -> IntResult<String> {
     resp.text().map_err(|e| e.to_string())
 }
 
+/// PATCH/POST a JSON body to an API endpoint with the bearer token, returning
+/// the response text. `method` is "PATCH" or "POST" (the shared write path that
+/// Tasks/Calendar/Drive all use).
+#[cfg(feature = "cloud")]
+pub fn send_json(method: &str, url: &str, access_token: &str, body: &str) -> IntResult<String> {
+    let client = reqwest::blocking::Client::new();
+    let req = match method {
+        "POST" => client.post(url),
+        "PATCH" => client.patch(url),
+        "PUT" => client.put(url),
+        other => return Err(format!("unsupported method {other}")),
+    };
+    let resp = req
+        .bearer_auth(access_token)
+        .header("Content-Type", "application/json")
+        .body(body.to_string())
+        .send()
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("{method} {url} → {}", resp.status()));
+    }
+    resp.text().map_err(|e| e.to_string())
+}
+
+/// DELETE an API resource with the bearer token.
+#[cfg(feature = "cloud")]
+pub fn delete(url: &str, access_token: &str) -> IntResult<()> {
+    let resp = reqwest::blocking::Client::new()
+        .delete(url)
+        .bearer_auth(access_token)
+        .send()
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("DELETE {url} → {}", resp.status()));
+    }
+    Ok(())
+}
+
 // Non-cloud stubs so call sites compile without the feature.
 #[cfg(not(feature = "cloud"))]
 pub fn run_consent_flow(_: &str, _: &str, _: &str) -> IntResult<OAuthToken> {
@@ -301,6 +339,14 @@ pub fn valid_access_token(_: &str, _: &str, _: &std::path::Path) -> IntResult<St
 }
 #[cfg(not(feature = "cloud"))]
 pub fn get_json(_: &str, _: &str) -> IntResult<String> {
+    Err("cloud features not built — reinstall with `cargo install --path . --features cloud`".into())
+}
+#[cfg(not(feature = "cloud"))]
+pub fn send_json(_: &str, _: &str, _: &str, _: &str) -> IntResult<String> {
+    Err("cloud features not built — reinstall with `cargo install --path . --features cloud`".into())
+}
+#[cfg(not(feature = "cloud"))]
+pub fn delete(_: &str, _: &str) -> IntResult<()> {
     Err("cloud features not built — reinstall with `cargo install --path . --features cloud`".into())
 }
 

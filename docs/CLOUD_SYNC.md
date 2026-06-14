@@ -44,13 +44,16 @@ client_secret = "xxxxxxxxxxxxxxxxxxxx"
   only do this once.
 - `:google tasks` (or `:gtasks`) — fetches your task lists and shows every task
   in an overlay (open first, then completed) with its due date and list.
-  - `j`/`k` move, `Enter` pulls the selected task into the quicknote scratch as a
-    `- [ ]` line, `Esc` closes.
+  - `j`/`k` move, `Esc` close.
+  - **`Space`** toggles a task complete/incomplete — **writes back to Google**.
+  - **`d`** deletes the task on Google.
+  - `Enter` pulls the task into the quicknote scratch as a `- [ ]` line.
+- `:gtasks add <title>` — create a task in your default Google list.
 
 ## Notes
 
-- **Read-only for now.** This first cut pulls tasks in; two-way (tick a task
-  complete from Onyx → PATCH back to Google) is a planned follow-up.
+- **Two-way.** Toggling, deleting, and adding write straight to Google over the
+  API. (Re-run `:google tasks` to re-pull after external changes.)
 - **Token storage.** Only `~/.config/onyx/google.json` holds secrets (mode 600);
   `config.toml` holds just the client id/secret you pasted.
 - **Google Keep.** Intentionally unsupported: Google provides no Keep API for

@@ -221,6 +221,17 @@ single-note delete (negligible leak today), SIMD literal search via
 
 ## Done
 
+### Two-way Google Tasks  (2026-06-14)
+
+The Tasks overlay now writes back to Google: `Space` toggles complete (PATCH),
+`d` deletes (DELETE), `:gtasks add <title>` creates (POST). Built on a shared
+write path in `oauth.rs` (`send_json` for PATCH/POST, `delete`) that Calendar/
+Drive will reuse. `gtasks.rs` adds `set_completed`/`create_task`/`delete_task`
++ pure body builders (`status_body`, `new_task_body`, tested); `GTask` now
+carries `list_id` (needed for the write URLs). The user wants two-way for every
+service, so the write helpers are generic. Live writes need the user's auth
+(can't run in sandbox); pure logic unit-tested (69 tests).
+
 ### Cloud foundation + Google Tasks (read)  (2026-06-14)
 
 First cloud integration, behind the **`cloud`** cargo feature (default build
