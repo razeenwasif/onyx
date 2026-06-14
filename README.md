@@ -23,7 +23,7 @@ A modern, premium markdown notes TUI — an Obsidian-inspired terminal vault.
 - Full-vault content search (`Ctrl-Shift-F`) and a vault-wide **task rollup** (`:tasks`) of every `- [ ]` checkbox
 - ASCII graph view (`Ctrl-G`) centered on the current note
 - Monthly calendar with daily-notes (`Ctrl-K`), plus optional **Google Calendar** events (`·` marks, `v` day agenda, two-way create/delete)
-- Optional **Google Drive** browser (`:drive`) — open a Drive text file in the editor (save uploads it straight back, two-way), or open a PDF/image in your system viewer; plus **Google Tasks** merged into the Todo pane
+- Optional **Google Drive** browser (`:drive`) — open a Drive text file in the editor (save uploads it straight back, two-way), open a PDF/image in your system viewer, or `u` to upload the open note as a new Drive file; plus **Google Tasks** merged into the Todo pane
 - Vim-style modal editing in the editor pane, with a `:` ex command line (`:w`, `:e`, `:e!`, `:w!`, …)
 - Crash-safe **atomic saves** and an external-change **conflict guard** (prompts before overwriting a note edited elsewhere)
 - **Live filesystem sync** — edits from Obsidian/another editor/git refresh the tree, index, and graph; a clean open note reloads automatically

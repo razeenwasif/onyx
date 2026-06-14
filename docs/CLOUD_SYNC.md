@@ -111,6 +111,12 @@ sync_calendar = true
 - **Two-way.** Saving a Drive-backed buffer (`Ctrl-S` / `:w`) uploads the new
   content straight back to the same Drive file — it never lands in your local
   vault. (Drive files open with no local path, so save = upload.)
+- **Upload a vault note.** With a note open in the editor, open `:drive`,
+  navigate into the target folder, and press **`u`** (or run `:drive upload`) to
+  create a *new* file there from the open note. The new file appears in the
+  listing; afterward, saving still writes to your local vault — `u` is a one-shot
+  copy-up, not a link. (To then edit the Drive copy in place, open it from the
+  browser.)
 - **PDFs, images, and other binaries.** Pressing `Enter` on a non-text file
   downloads it to a temp file (`$TMPDIR/onyx-drive/<name>`) and hands it to your
   system's default app, so a PDF opens in your real PDF reader for full-screen
@@ -121,7 +127,7 @@ sync_calendar = true
     raw `/tmp/...` path to a Windows opener just pops a blank Explorer window, so
     the translation matters. Opening happens over the `\\wsl.localhost\…` share —
     your Windows PDF app must be able to read it (Acrobat/Edge do).
-- **Follow-ups:** creating new Drive files, uploading existing vault notes, and
+- **Follow-ups:** uploading binary files (only text notes upload today) and
   Google-native doc export (Docs/Sheets) aren't wired yet.
 
 ## Notes

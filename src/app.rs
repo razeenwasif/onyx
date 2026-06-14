@@ -3080,6 +3080,59 @@ impl App {
         }
     }
 
+    /// Upload the currently-open note as a NEW file in the Drive folder being
+    /// browsed (create, not update). Refreshes the listing on success.
+    pub fn upload_current_to_drive(&mut self) {
+        let parent = match self.drive.as_ref() {
+            Some(d) => d.current_id().to_string(),
+            None => {
+                self.set_status("open :drive and navigate to a target folder first");
+                return;
+            }
+        };
+        let (name, content) = match self.doc.as_ref() {
+            Some(doc) => {
+                let name = doc
+                    .path
+                    .as_ref()
+                    .and_then(|p| p.file_name())
+                    .and_then(|s| s.to_str())
+                    .map(|s| s.to_string())
+                    .or_else(|| doc.drive_name.clone())
+                    .unwrap_or_else(|| "untitled.md".to_string());
+                (name, doc.buffer.to_string())
+            }
+            None => {
+                self.set_status("open a note first, then press u to upload it to Drive");
+                return;
+            }
+        };
+        let mime = if name.to_ascii_lowercase().ends_with(".md") {
+            "text/markdown"
+        } else {
+            "text/plain"
+        };
+        let g = self.config.google.clone();
+        let token = crate::config::Config::google_token_path();
+        self.set_status(format!("uploading {name} to Drive…"));
+        match crate::integrations::gdrive::create_file(
+            &g.client_id,
+            &g.client_secret,
+            &token,
+            &parent,
+            &name,
+            &content,
+            mime,
+        ) {
+            Ok(_id) => {
+                self.set_status(format!("uploaded {name} to Drive ✓"));
+                // Re-list so the new file shows up in the browser.
+                self.fetch_drive_folder(&parent);
+            }
+            Err(e) => self.set_status(format!("Drive upload failed: {e}")),
+        }
+    }
+
     pub fn close_drive(&mut self) {
         self.drive = None;
         self.focus = self.center_focus();

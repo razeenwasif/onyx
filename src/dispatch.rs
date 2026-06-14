@@ -899,6 +899,7 @@ fn drive_keys(app: &mut App, key: KeyEvent) {
         KeyCode::Char('k') | KeyCode::Up => app.drive_move(-1),
         KeyCode::Enter | KeyCode::Char('l') | KeyCode::Right => app.drive_enter(),
         KeyCode::Backspace | KeyCode::Char('h') | KeyCode::Char('-') | KeyCode::Left => app.drive_up(),
+        KeyCode::Char('u') => app.upload_current_to_drive(),
         _ => {}
     }
 }
@@ -1480,7 +1481,13 @@ fn run_ex_command(app: &mut App, raw: &str) {
             app.open_calendar();
             app.open_agenda();
         }
-        "drive" | "gdrive" => app.open_drive_browser(),
+        "drive" | "gdrive" => {
+            if matches!(args.trim(), "upload" | "put") {
+                app.upload_current_to_drive();
+            } else {
+                app.open_drive_browser();
+            }
+        }
         "todo" | "todos" => {
             if args == "sync" {
                 app.start_gtasks_sync();

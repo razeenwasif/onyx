@@ -81,6 +81,28 @@ pub fn parse_files(json: &str) -> Vec<DriveFile> {
         .unwrap_or_default()
 }
 
+/// JSON metadata for a new Drive file (`serde_json` escapes the name safely).
+fn file_metadata(name: &str, parent_id: &str) -> String {
+    serde_json::json!({ "name": name, "parents": [parent_id] }).to_string()
+}
+
+/// Build a Drive `multipart/related` upload body: a JSON metadata part followed
+/// by the media (content) part, separated by `boundary`.
+fn multipart_body(boundary: &str, metadata_json: &str, mime: &str, content: &str) -> String {
+    format!(
+        "--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{metadata_json}\r\n--{boundary}\r\nContent-Type: {mime}\r\n\r\n{content}\r\n--{boundary}--\r\n"
+    )
+}
+
+/// Pull the `id` out of a Drive file-create response.
+fn parse_created_id(json: &str) -> Option<String> {
+    #[derive(Deserialize)]
+    struct R {
+        id: String,
+    }
+    serde_json::from_str::<R>(json).ok().map(|r| r.id)
+}
+
 // -----------------------------------------------------------------------------
 // Network (cloud)
 // -----------------------------------------------------------------------------
@@ -130,6 +152,28 @@ pub fn download_file(
     oauth::download_to_file(&url, &at, dest)
 }
 
+/// Create a NEW file with text content inside `parent_id` (a multipart upload
+/// that sets name + parent + body in one request). Returns the new file id.
+#[cfg(feature = "cloud")]
+pub fn create_file(
+    client_id: &str,
+    client_secret: &str,
+    token_path: &std::path::Path,
+    parent_id: &str,
+    name: &str,
+    content: &str,
+    mime: &str,
+) -> IntResult<String> {
+    let at = oauth::valid_access_token(client_id, client_secret, token_path)?;
+    let url = format!("{UPLOAD}/files?uploadType=multipart&fields=id,name,mimeType");
+    let boundary = "onyx-drive-boundary-9d1f7a2c4e";
+    let meta = file_metadata(name, parent_id);
+    let body = multipart_body(boundary, &meta, mime, content);
+    let ctype = format!("multipart/related; boundary={boundary}");
+    let resp = oauth::send_media("POST", &url, &at, &ctype, &body)?;
+    parse_created_id(&resp).ok_or_else(|| "upload succeeded but no file id returned".to_string())
+}
+
 /// Upload new text content for an existing file (media update = two-way save).
 #[cfg(feature = "cloud")]
 pub fn upload_text(
@@ -154,6 +198,10 @@ pub fn download_text(_: &str, _: &str, _: &std::path::Path, _: &str) -> IntResul
 }
 #[cfg(not(feature = "cloud"))]
 pub fn download_file(_: &str, _: &str, _: &std::path::Path, _: &str, _: &std::path::Path) -> IntResult<()> {
+    Err("cloud features not built — reinstall with `cargo install --path . --features cloud`".into())
+}
+#[cfg(not(feature = "cloud"))]
+pub fn create_file(_: &str, _: &str, _: &std::path::Path, _: &str, _: &str, _: &str, _: &str) -> IntResult<String> {
     Err("cloud features not built — reinstall with `cargo install --path . --features cloud`".into())
 }
 #[cfg(not(feature = "cloud"))]
@@ -193,5 +241,29 @@ mod tests {
         // A PDF: not text, not folder, not a google doc → routed to the external viewer.
         let pdf = DriveFile { id: "5".into(), name: "report.pdf".into(), mime_type: "application/pdf".into() };
         assert!(!pdf.is_text() && !pdf.is_folder() && !pdf.is_google_doc());
+    }
+
+    #[test]
+    fn builds_multipart_upload_body() {
+        // Names with spaces/quotes must be JSON-escaped by serde_json.
+        let meta = file_metadata("my note.md", "FOLDER1");
+        assert!(meta.contains("\"name\":\"my note.md\""));
+        assert!(meta.contains("\"parents\":[\"FOLDER1\"]"));
+
+        let body = multipart_body("BB", &meta, "text/markdown", "# Hi\n");
+        assert!(body.starts_with("--BB\r\n"));
+        assert!(body.contains("Content-Type: application/json"));
+        assert!(body.contains("Content-Type: text/markdown"));
+        assert!(body.contains("# Hi\n"));
+        assert!(body.trim_end().ends_with("--BB--"));
+    }
+
+    #[test]
+    fn parses_created_file_id() {
+        assert_eq!(
+            parse_created_id(r#"{"id":"abc123","name":"n.md"}"#),
+            Some("abc123".to_string())
+        );
+        assert_eq!(parse_created_id("not json"), None);
     }
 }

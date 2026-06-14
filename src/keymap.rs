@@ -102,7 +102,7 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: ":props",      action: "Edit frontmatter properties", group: "Ex commands (vim)" },
     KeyHelp { keys: ":google auth",action: "Authorize Google (cloud build)", group: "Ex commands (vim)" },
     KeyHelp { keys: ":google tasks",action: "Show Google Tasks",        group: "Ex commands (vim)" },
-    KeyHelp { keys: ":drive",      action: "Browse Google Drive (edit text files)", group: "Ex commands (vim)" },
+    KeyHelp { keys: ":drive",      action: "Browse Google Drive (edit text, view PDFs, u=upload note)", group: "Ex commands (vim)" },
     KeyHelp { keys: ":graph",      action: "Open graph view",          group: "Ex commands (vim)" },
     KeyHelp { keys: ":preview",    action: "Toggle preview pane",      group: "Ex commands (vim)" },
     KeyHelp { keys: ":vsplit [n]", action: "Split: view a 2nd note (:swap, :only)", group: "Ex commands (vim)" },

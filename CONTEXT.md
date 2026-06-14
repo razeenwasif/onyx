@@ -17,10 +17,13 @@ _Last updated: 2026-06-14._
 >   `Enter` enters a folder, opens a text file in the editor (titled `⇪ name`, no
 >   local path; saving uploads it back, two-way), or — for a PDF/image/binary —
 >   downloads it to `$TMPDIR/onyx-drive/` and opens it in the system viewer
->   (`external::open_external`, detached). `integrations/gdrive.rs` +
->   `oauth::send_media`/`download_to_file`. 74 tests, both build configs
->   clippy-clean, overlay verified via pyte. **Live OAuth/fetch/upload only the
->   user can run** (no browser/creds in-sandbox). Setup: `docs/CLOUD_SYNC.md`.
+>   (`external::open_external`, detached; WSL path-translated via `wslpath -w` +
+>   `wslview`/`cmd start`). `u` (or `:drive upload`) uploads the open note as a
+>   *new* file in the browsed folder (`gdrive::create_file`, multipart upload).
+>   `integrations/gdrive.rs` + `oauth::send_media`/`download_to_file`. 76 tests,
+>   both build configs clippy-clean, overlay verified via pyte. **Live OAuth/
+>   fetch/upload only the user can run** (no browser/creds in-sandbox). Setup:
+>   `docs/CLOUD_SYNC.md`.
 > - **Next on cloud: OneDrive** (Microsoft Graph — *separate* OAuth client +
 >   token file, reuse the same background-fetch + write-helper pattern). Then
 >   Drive follow-ups (create/upload-vault-note/Google-doc export/binary). **Keep

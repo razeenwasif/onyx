@@ -126,9 +126,9 @@ into a pre-filled note (`:gcal note`) is also unbuilt.
 
 Shipped the native Drive API route: `:drive` opens an in-TUI browser, Enter opens
 a text file in the editor (save uploads back) or downloads a PDF/binary to temp
-and opens it in the system viewer. Follow-ups still open: creating new Drive
-files, uploading existing vault notes, Google-native doc export, and the optional
-`rclone mount` docs page.
+and opens it in the system viewer, and `u` uploads the open note as a new file in
+the current folder. Follow-ups still open: uploading binary files, Google-native
+doc export, and the optional `rclone mount` docs page.
 
 ---
 
@@ -215,10 +215,15 @@ upload it back. Reuses the OAuth foundation (scope broadened to add Drive via
   `$TMPDIR/onyx-drive/<name>` (`gdrive::download_file` → `oauth::download_to_file`,
   binary-safe `alt=media`) and opens it in the system viewer via the now-`pub`
   `external::open_external` (detached — no TUI suspend needed). So PDFs open in
-  the OS reader for full-screen reading.
-- 74 tests (PDF classification added). Default + `--features cloud` clippy-clean;
-  overlay verified e2e via pyte (guards without config). Live list/download/
-  upload need the user's (re-)auth.
+  the OS reader for full-screen reading. Under WSL the temp path is translated
+  with `wslpath -w` and opened via `wslview` / `cmd /c start` / `explorer.exe`.
+- **Upload a vault note** (`u` / `:drive upload`): `gdrive::create_file` does a
+  `multipart/related` upload (JSON metadata + media in one POST) of the open
+  note into the browsed folder, then re-lists. Pure body builders
+  (`file_metadata`/`multipart_body`/`parse_created_id`) are unit-tested.
+- 76 tests (PDF classification + multipart-body/created-id builders). Default +
+  `--features cloud` clippy-clean; overlay verified e2e via pyte (guards without
+  config). Live list/download/upload need the user's (re-)auth.
 
 ### Two-way Google Calendar  (2026-06-14)
 

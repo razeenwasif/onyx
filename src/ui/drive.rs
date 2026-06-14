@@ -58,7 +58,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
 
     frame.render_widget(
         Paragraph::new(Line::from(Span::styled(
-            "j/k move · Enter open/enter · Backspace up · Esc close",
+            "j/k move · Enter open/enter · Backspace up · u upload note · Esc close",
             theme.s_dim(),
         ))),
         footer,
