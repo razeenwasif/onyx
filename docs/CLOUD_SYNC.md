@@ -113,10 +113,14 @@ sync_calendar = true
   vault. (Drive files open with no local path, so save = upload.)
 - **PDFs, images, and other binaries.** Pressing `Enter` on a non-text file
   downloads it to a temp file (`$TMPDIR/onyx-drive/<name>`) and hands it to your
-  system's default app — `wslview`/`explorer.exe` under WSL, else `xdg-open`/
-  `open`. Onyx stays on screen (the viewer launches detached). So a PDF opens in
-  your real PDF reader for full-screen reading. The temp copy is read-only as far
-  as Onyx is concerned — edits there are *not* synced back.
+  system's default app, so a PDF opens in your real PDF reader for full-screen
+  reading. Onyx stays on screen (the viewer launches detached). The temp copy is
+  read-only as far as Onyx is concerned — edits there are *not* synced back.
+  - **Under WSL:** the Linux temp path is translated with `wslpath -w` and opened
+    via `wslview` (if installed) or `cmd /c start` / `explorer.exe`. Handing a
+    raw `/tmp/...` path to a Windows opener just pops a blank Explorer window, so
+    the translation matters. Opening happens over the `\\wsl.localhost\…` share —
+    your Windows PDF app must be able to read it (Acrobat/Edge do).
 - **Follow-ups:** creating new Drive files, uploading existing vault notes, and
   Google-native doc export (Docs/Sheets) aren't wired yet.
 

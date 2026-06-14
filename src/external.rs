@@ -144,31 +144,38 @@ fn is_wsl() -> bool {
         .unwrap_or(false)
 }
 
-/// Launch a non-text file in the system's default app, fully detached so its
-/// output can never touch the Onyx alternate screen. Returns the opener used.
+/// Launch a file in the system's default app, fully detached so its output can
+/// never touch the Onyx alternate screen. Returns the opener used.
 /// Detached (no wait, no terminal handoff), so callers can invoke it inline
 /// without the suspend/resume dance — e.g. opening a downloaded Drive PDF.
 pub fn open_external(path: &Path) -> io::Result<&'static str> {
-    use std::process::Stdio;
-
-    // Candidate openers, in preference order. Under WSL, hand off to Windows.
-    let mut candidates: Vec<&'static str> = Vec::new();
+    // Under WSL, Windows openers can't resolve a Linux path like `/tmp/foo.pdf`
+    // — `explorer.exe` just pops a generic window. Translate to a Windows/UNC
+    // path first, then open it with its default app.
     if is_wsl() {
-        candidates.extend(["wslview", "explorer.exe"]);
-    }
-    candidates.extend(["xdg-open", "open"]);
-
-    for opener in candidates {
-        if !exists(opener) {
-            continue;
+        // wslu's `wslview` translates + opens with the default app; ideal when
+        // present (it just isn't installed everywhere).
+        if exists("wslview") && spawn_detached("wslview", &[&path.to_string_lossy()], None) {
+            return Ok("wslview");
         }
-        let spawned = Command::new(opener)
-            .arg(path)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn();
-        if spawned.is_ok() {
+        if let Some(win) = wsl_to_windows(path) {
+            // `cmd /c start <title> <path>` opens the file with its default app.
+            // A non-empty title is required, else `start` treats the quoted path
+            // as the window title and opens nothing. Run from a Windows-reachable
+            // cwd to avoid the "UNC paths are not supported" warning.
+            if spawn_detached("cmd.exe", &["/C", "start", "onyx", win.as_str()], Some("/mnt/c")) {
+                return Ok("cmd start");
+            }
+            // explorer.exe opens a *file* (vs a folder) with its default app too.
+            if spawn_detached("explorer.exe", &[win.as_str()], None) {
+                return Ok("explorer.exe");
+            }
+        }
+    }
+
+    // Native Linux / fallback: hand the raw path to the desktop opener.
+    for opener in ["xdg-open", "open"] {
+        if exists(opener) && spawn_detached(opener, &[&path.to_string_lossy()], None) {
             return Ok(opener);
         }
     }
@@ -176,6 +183,37 @@ pub fn open_external(path: &Path) -> io::Result<&'static str> {
         io::ErrorKind::NotFound,
         "no system opener found",
     ))
+}
+
+/// Spawn a program fully detached (no stdio, no wait). Returns whether the
+/// launch itself succeeded. `cwd` overrides the working directory when set.
+fn spawn_detached(prog: &str, args: &[&str], cwd: Option<&str>) -> bool {
+    use std::process::Stdio;
+    let mut cmd = Command::new(prog);
+    cmd.args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
+    }
+    cmd.spawn().is_ok()
+}
+
+/// Translate a Linux path to a Windows path via `wslpath -w`
+/// (e.g. `/tmp/x.pdf` → `\\wsl.localhost\Distro\tmp\x.pdf`). None if not on WSL
+/// or the translation fails.
+fn wsl_to_windows(path: &Path) -> Option<String> {
+    let out = Command::new("wslpath").arg("-w").arg(path).output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
 }
 
 /// fzf over the vault's files, with a bat-powered preview.
