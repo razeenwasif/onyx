@@ -5,6 +5,7 @@ pub mod calendar;
 pub mod cmdline;
 pub mod confirm;
 pub mod database;
+pub mod drive;
 pub mod editor_pane;
 pub mod file_tree;
 pub mod graph;
@@ -75,6 +76,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         Focus::Properties => props::draw(frame, area, app),
         Focus::GoogleTasks => gtasks::draw(frame, area, app),
         Focus::Agenda => agenda::draw(frame, area, app),
+        Focus::Drive => drive::draw(frame, area, app),
         _ => {}
     }
     if app.help_open && app.focus != Focus::Help {

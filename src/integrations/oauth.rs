@@ -14,11 +14,12 @@ use super::IntResult;
 const AUTH_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 
-/// OAuth scopes Onyx requests (full Tasks + Calendar for read + two-way).
+/// OAuth scopes Onyx requests (full Tasks + Calendar + Drive for two-way).
 pub const SCOPE_TASKS: &str = "https://www.googleapis.com/auth/tasks";
 pub const SCOPE_CALENDAR: &str = "https://www.googleapis.com/auth/calendar";
+pub const SCOPE_DRIVE: &str = "https://www.googleapis.com/auth/drive";
 /// All scopes Onyx asks for in one consent (space-separated, per OAuth spec).
-pub const SCOPES: &str = "https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar";
+pub const SCOPES: &str = "https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive";
 
 /// A cached OAuth token (persisted to `google.json`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -317,6 +318,35 @@ pub fn send_json(method: &str, url: &str, access_token: &str, body: &str) -> Int
     resp.text().map_err(|e| e.to_string())
 }
 
+/// Send a raw body (any content type) via POST/PATCH/PUT — for Drive media
+/// uploads. Returns the response text.
+#[cfg(feature = "cloud")]
+pub fn send_media(
+    method: &str,
+    url: &str,
+    access_token: &str,
+    content_type: &str,
+    body: &str,
+) -> IntResult<String> {
+    let client = reqwest::blocking::Client::new();
+    let req = match method {
+        "POST" => client.post(url),
+        "PATCH" => client.patch(url),
+        "PUT" => client.put(url),
+        other => return Err(format!("unsupported method {other}")),
+    };
+    let resp = req
+        .bearer_auth(access_token)
+        .header("Content-Type", content_type)
+        .body(body.to_string())
+        .send()
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("{method} {url} → {}", resp.status()));
+    }
+    resp.text().map_err(|e| e.to_string())
+}
+
 /// DELETE an API resource with the bearer token.
 #[cfg(feature = "cloud")]
 pub fn delete(url: &str, access_token: &str) -> IntResult<()> {
@@ -346,6 +376,10 @@ pub fn get_json(_: &str, _: &str) -> IntResult<String> {
 }
 #[cfg(not(feature = "cloud"))]
 pub fn send_json(_: &str, _: &str, _: &str, _: &str) -> IntResult<String> {
+    Err("cloud features not built — reinstall with `cargo install --path . --features cloud`".into())
+}
+#[cfg(not(feature = "cloud"))]
+pub fn send_media(_: &str, _: &str, _: &str, _: &str, _: &str) -> IntResult<String> {
     Err("cloud features not built — reinstall with `cargo install --path . --features cloud`".into())
 }
 #[cfg(not(feature = "cloud"))]

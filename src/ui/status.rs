@@ -103,6 +103,7 @@ fn hint_for_focus(focus: Focus) -> &'static str {
         Focus::Sidebar => "· n/p tab (Pages·Backlinks·Outline·Tags) · j/k move · Enter open",
         Focus::Calendar => "· h/j/k/l move · o open day · v agenda · g sync · Enter fullscreen · t today",
         Focus::Agenda => "· j/k move · a add event · d delete · Esc close",
+        Focus::Drive => "· j/k move · Enter open/enter · Backspace up · Esc close",
         Focus::Palette => "· type to filter · Enter run · Esc cancel",
         Focus::Switcher => "· type to filter · Enter open · Esc cancel",
         Focus::Search => "· type to search · Enter focus results · Esc cancel",

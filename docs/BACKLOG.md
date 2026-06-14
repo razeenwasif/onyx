@@ -138,25 +138,12 @@ single-note delete (negligible leak today), SIMD literal search via
 
 ---
 
-### Google Drive access from within Onyx
+### Google Drive access from within Onyx ✅ DONE (see § Done)
 
-**Context.** Browse/open Drive files (and ideally edit Drive-hosted markdown) without leaving Onyx.
-
-**Approach.**
-
-- Shares the OAuth/token plumbing with the Google Calendar item above — build that first, reuse `~/.config/onyx/google.json`.
-- Simplest useful version: a Drive *picker*. New `PendingExternal`-style flow or an in-TUI list backed by `src/integrations/gdrive.rs` that lists files (Drive `files.list`), and on select downloads to a temp/working dir and opens in the editor. On save, upload back (`files.update`).
-- Better long-term: mount Drive via `rclone mount` if the user has rclone, and just point a vault at the mountpoint — then Onyx needs *zero* Drive code and gets full filesystem semantics. Document this as the recommended path; it may make native Drive code unnecessary.
-- Commands: `:drive` (open picker), `:drive open <name>`, `:drive sync`.
-
-**Decision to make.**
-
-- Native Drive API (more code, self-contained) vs. lean on `rclone mount` (near-zero code, external dependency). Recommend trying the rclone route first — it likely satisfies the need with a docs page instead of a module.
-
-**Risks / notes.**
-
-- Same crate/threading notes as Google Calendar. Feature-gate behind `google`.
-- Editing semantics (download→edit→upload) need conflict/staleness handling; start read-only or single-user-assumption.
+Shipped the native Drive API route: `:drive` opens an in-TUI browser, Enter opens
+a text file in the editor, save uploads back. Follow-ups still open: creating new
+Drive files, uploading existing vault notes, Google-native doc export, binary
+downloads, and the optional `rclone mount` docs page.
 
 ---
 
@@ -220,6 +207,28 @@ single-note delete (negligible leak today), SIMD literal search via
 ---
 
 ## Done
+
+### Two-way Google Drive  (2026-06-14)
+
+`:drive` opens an in-TUI Drive browser; open a text file to edit it, save to
+upload it back. Reuses the OAuth foundation (scope broadened to add Drive via
+`oauth::SCOPES` — re-auth required) and the background-listing pattern.
+
+- `integrations/gdrive.rs` (pure `parse_files` + classification unit-tested;
+  cloud list/download/upload): `list_folder` (`q="'<parent>' in parents and
+  trashed=false"`, folders-first sort), `download_text` (`alt=media`),
+  `upload_text` (`PATCH upload/files/{id}?uploadType=media`) using the new
+  `oauth::send_media` helper. `DriveFile::{is_folder,is_text,is_google_doc}`.
+- `App` Drive state (`DriveBrowser` breadcrumb stack) + background folder listing
+  (`spawn_drive_list`/`drain_drive` on the event-loop tick, faster poll while
+  loading). `open_drive_file` downloads into a buffer tagged with `drive_id`/
+  `drive_name` (title `⇪ <name>`, no local path); `save_current_inner` routes
+  Drive-backed buffers to `save_drive_doc` (upload) instead of the vault.
+- Browser overlay (`Focus::Drive`, `ui/drive.rs`): `j`/`k` move, `Enter`
+  enter/open, `Backspace`/`-` up, `Esc` close. Command: `:drive`.
+- 74 tests (2 new). Default + `--features cloud` clippy-clean; overlay verified
+  e2e via pyte (guards without config). Live list/download/upload need the
+  user's (re-)auth.
 
 ### Two-way Google Calendar  (2026-06-14)
 

@@ -91,6 +91,8 @@ pub enum Focus {
     GoogleTasks,
     /// Day-agenda overlay of Google Calendar events.
     Agenda,
+    /// Google Drive file browser overlay.
+    Drive,
     Help,
     Settings,
     Prompt,
@@ -326,6 +328,34 @@ pub struct TodoRow {
     pub done: bool,
 }
 
+/// Result delivered by a background Drive listing: `(requested folder id, files-or-error)`.
+pub type DriveListResult =
+    (String, std::result::Result<Vec<crate::integrations::gdrive::DriveFile>, String>);
+
+/// Google Drive file-browser overlay state.
+#[derive(Debug, Default)]
+pub struct DriveBrowser {
+    /// Breadcrumb of `(folder id, folder name)`; the last entry is the current
+    /// folder. Starts at `("root", "My Drive")`.
+    pub stack: Vec<(String, String)>,
+    pub files: Vec<crate::integrations::gdrive::DriveFile>,
+    pub selected: usize,
+    pub loading: bool,
+}
+
+impl DriveBrowser {
+    pub fn current_id(&self) -> &str {
+        self.stack.last().map(|(id, _)| id.as_str()).unwrap_or("root")
+    }
+    pub fn breadcrumb(&self) -> String {
+        self.stack
+            .iter()
+            .map(|(_, n)| n.as_str())
+            .collect::<Vec<_>>()
+            .join(" / ")
+    }
+}
+
 /// One row in the vault-wide task rollup.
 #[derive(Debug, Clone)]
 pub struct TaskItem {
@@ -457,6 +487,11 @@ pub struct App {
     /// Selection in the day-agenda overlay.
     pub agenda_selected: usize,
 
+    /// Google Drive browser (Some while open).
+    pub drive: Option<DriveBrowser>,
+    /// Background Drive listing: `(folder id requested, result)`.
+    pub drive_rx: Option<Receiver<DriveListResult>>,
+
     /// Active database view (a folder shown as a table/board), or None.
     pub database: Option<DatabaseView>,
 
@@ -568,6 +603,8 @@ impl App {
             cal_events_rx: None,
             cal_loaded_month: None,
             agenda_selected: 0,
+            drive: None,
+            drive_rx: None,
             database: None,
             split_doc: None,
             quicknote: QuicknoteState::new(quicknote_text),
@@ -1482,6 +1519,10 @@ impl App {
     /// disk since we last read/wrote it, this opens a confirm dialog instead of
     /// clobbering the external version (the conflict guard).
     fn save_current_inner(&mut self, force: bool) -> Result<()> {
+        // A Drive-backed buffer uploads back to Drive instead of writing locally.
+        if let Some(id) = self.doc.as_ref().and_then(|d| d.drive_id.clone()) {
+            return self.save_drive_doc(&id);
+        }
         let (path, known) = match self.doc.as_ref() {
             Some(d) => (d.path.clone(), d.disk_mtime),
             None => return Ok(()),
@@ -2860,6 +2901,162 @@ impl App {
         }
     }
 
+    // --- Google Drive --------------------------------------------------------
+
+    /// Open the Drive browser at My Drive's root.
+    pub fn open_drive_browser(&mut self) {
+        if !self.config.google.is_configured() {
+            self.set_status("set [google] client_id/client_secret in config.toml first");
+            return;
+        }
+        self.drive = Some(DriveBrowser {
+            stack: vec![("root".to_string(), "My Drive".to_string())],
+            files: Vec::new(),
+            selected: 0,
+            loading: true,
+        });
+        self.last_focus = self.focus;
+        self.focus = Focus::Drive;
+        self.fetch_drive_folder("root");
+    }
+
+    fn fetch_drive_folder(&mut self, parent: &str) {
+        if let Some(d) = self.drive.as_mut() {
+            d.loading = true;
+        }
+        self.drive_rx = Some(spawn_drive_list(&self.config.google, parent));
+        self.needs_redraw = true;
+    }
+
+    pub fn drain_drive(&mut self) {
+        let Some(rx) = &self.drive_rx else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok((parent, res)) => {
+                self.drive_rx = None;
+                if self.drive.as_ref().map(|d| d.current_id() == parent).unwrap_or(false) {
+                    match res {
+                        Ok(files) => {
+                            if let Some(d) = self.drive.as_mut() {
+                                d.files = files;
+                                d.selected = 0;
+                                d.loading = false;
+                            }
+                        }
+                        Err(e) => {
+                            if let Some(d) = self.drive.as_mut() {
+                                d.loading = false;
+                            }
+                            self.set_status(format!("Drive: {e}"));
+                        }
+                    }
+                    self.needs_redraw = true;
+                }
+            }
+            Err(mpsc::TryRecvError::Empty) => {}
+            Err(mpsc::TryRecvError::Disconnected) => self.drive_rx = None,
+        }
+    }
+
+    pub fn drive_loading(&self) -> bool {
+        self.drive_rx.is_some()
+    }
+
+    pub fn drive_move(&mut self, delta: i64) {
+        if let Some(d) = self.drive.as_mut() {
+            let n = d.files.len();
+            if n == 0 {
+                return;
+            }
+            let cur = d.selected.min(n - 1) as i64;
+            d.selected = (cur + delta).clamp(0, n as i64 - 1) as usize;
+        }
+    }
+
+    /// Descend into a folder, or open a text file in the editor.
+    pub fn drive_enter(&mut self) {
+        let Some(file) = self
+            .drive
+            .as_ref()
+            .and_then(|d| d.files.get(d.selected).cloned())
+        else {
+            return;
+        };
+        if file.is_folder() {
+            if let Some(d) = self.drive.as_mut() {
+                d.stack.push((file.id.clone(), file.name.clone()));
+            }
+            self.fetch_drive_folder(&file.id);
+        } else if file.is_google_doc() {
+            self.set_status("Google Docs/Sheets aren't editable in Onyx yet");
+        } else if file.is_text() {
+            self.open_drive_file(&file.id, &file.name);
+        } else {
+            self.set_status(format!("\"{}\" isn't a text file", file.name));
+        }
+    }
+
+    pub fn drive_up(&mut self) {
+        let parent = self.drive.as_mut().and_then(|d| {
+            if d.stack.len() > 1 {
+                d.stack.pop();
+                d.stack.last().map(|(id, _)| id.clone())
+            } else {
+                None
+            }
+        });
+        if let Some(p) = parent {
+            self.fetch_drive_folder(&p);
+        }
+    }
+
+    /// Download a Drive text file and open it in the editor (saving uploads back).
+    fn open_drive_file(&mut self, file_id: &str, name: &str) {
+        let g = self.config.google.clone();
+        let path = crate::config::Config::google_token_path();
+        self.set_status(format!("downloading {name}…"));
+        match crate::integrations::gdrive::download_text(&g.client_id, &g.client_secret, &path, file_id) {
+            Ok(content) => {
+                self.stash_active();
+                let mut doc = Document::from_text(None, content);
+                doc.drive_id = Some(file_id.to_string());
+                doc.drive_name = Some(name.to_string());
+                self.doc = Some(doc);
+                self.drive = None;
+                self.focus = Focus::Editor;
+                self.set_status(format!("opened {name} from Drive (save to upload back)"));
+            }
+            Err(e) => self.set_status(format!("Drive: {e}")),
+        }
+    }
+
+    /// Upload the open Drive-backed buffer back to Drive.
+    fn save_drive_doc(&mut self, drive_id: &str) -> Result<()> {
+        let g = self.config.google.clone();
+        let path = crate::config::Config::google_token_path();
+        let content = self.doc.as_ref().map(|d| d.buffer.to_string()).unwrap_or_default();
+        match crate::integrations::gdrive::upload_text(&g.client_id, &g.client_secret, &path, drive_id, &content) {
+            Ok(()) => {
+                if let Some(d) = self.doc.as_mut() {
+                    d.dirty = false;
+                }
+                let name = self.doc.as_ref().and_then(|d| d.drive_name.clone()).unwrap_or_default();
+                self.set_status(format!("uploaded {name} to Drive ✓"));
+                Ok(())
+            }
+            Err(e) => {
+                self.set_status(format!("Drive upload failed: {e}"));
+                Ok(())
+            }
+        }
+    }
+
+    pub fn close_drive(&mut self) {
+        self.drive = None;
+        self.focus = self.center_focus();
+    }
+
     /// Create a task in the user's default Google Tasks list.
     pub fn gtasks_add_task(&mut self, title: &str) {
         let title = title.trim();
@@ -3039,6 +3236,7 @@ impl App {
                 self.save_quicknote();
                 self.focus = self.center_focus();
             }
+            Focus::Drive => self.close_drive(),
             Focus::Database => {
                 // First Esc cancels an in-progress filter; the next closes the view.
                 if let Some(db) = self.database.as_mut() {
@@ -3100,6 +3298,24 @@ fn spawn_calendar_fetch(
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
         let _ = tx.send(crate::integrations::gcal::fetch_month(&cid, &sec, &path, year, month));
+    });
+    rx
+}
+
+/// Spawn a background thread that lists a Drive folder's children, returning the
+/// requested folder id alongside the result (so stale fetches can be ignored).
+fn spawn_drive_list(
+    g: &crate::config::GoogleConfig,
+    parent: &str,
+) -> Receiver<DriveListResult> {
+    let cid = g.client_id.clone();
+    let sec = g.client_secret.clone();
+    let path = Config::google_token_path();
+    let parent = parent.to_string();
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let res = crate::integrations::gdrive::list_folder(&cid, &sec, &path, &parent);
+        let _ = tx.send((parent, res));
     });
     rx
 }

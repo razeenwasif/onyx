@@ -363,7 +363,8 @@ match app.focus:
    Editor    → editor_keys → editor_normal / editor_insert
    Preview   → editor_keys        (Tab cycles back)
    Sidebar   → sidebar_keys       Tab/Shift-Tab/j/k Enter
-   Calendar  → calendar_keys      h/j/k/l Enter t
+   Calendar  → calendar_keys      h/j/k/l Enter t v g
+   Drive     → drive_keys         j/k Enter Backspace (Google Drive browser)
    Palette   → palette_keys       text entry + Up/Down + Enter
    Switcher  → switcher_keys
    Search    → search_keys

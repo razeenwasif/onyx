@@ -28,6 +28,10 @@ pub struct Document {
     /// On-disk modification time when this document was last read or written by
     /// Onyx. Used to detect external edits (conflict guard / live reload).
     pub disk_mtime: Option<SystemTime>,
+    /// When set, this buffer is a Google Drive file (its id + display name);
+    /// saving uploads back to Drive instead of writing to the vault.
+    pub drive_id: Option<String>,
+    pub drive_name: Option<String>,
 }
 
 impl Document {
@@ -44,6 +48,8 @@ impl Document {
             pending_op: None,
             last_search: None,
             disk_mtime: None,
+            drive_id: None,
+            drive_name: None,
         }
     }
 
@@ -59,10 +65,15 @@ impl Document {
             pending_op: None,
             last_search: None,
             disk_mtime: None,
+            drive_id: None,
+            drive_name: None,
         }
     }
 
     pub fn title(&self) -> String {
+        if let Some(name) = &self.drive_name {
+            return format!("⇪ {name}");
+        }
         match &self.path {
             Some(p) => p
                 .file_stem()

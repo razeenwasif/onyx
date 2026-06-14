@@ -3,9 +3,30 @@
 Pick-up notes for resuming work. For deep architecture see **`docs/QUICKGUIDE.md`**;
 for the task queue see **`docs/BACKLOG.md`**. This file is the "where we are right now".
 
-_Last updated: 2026-06-13._
+_Last updated: 2026-06-14._
 
-> **Resume here (2026-06-13): Notion migration COMPLETE + REORGANIZED, and
+> **Resume here (2026-06-14): cloud sync now covers two-way Google Tasks,
+> Calendar, AND Drive.** All three live behind the `cloud` cargo feature and
+> reuse `integrations/oauth.rs` (combined scope = Tasks + Calendar + Drive; the
+> token must be re-authed via `:google auth` after each scope broadening).
+> - **Tasks** — two-way (toggle/add/delete → API) and merged into the left-column
+>   Todo pane (`☁` rows; `s` syncs). `integrations/gtasks.rs`.
+> - **Calendar** — events in the calendar pane (`·` marks) + a day agenda overlay
+>   (`v`); two-way create/delete (`a`/`d`). `integrations/gcal.rs`.
+> - **Drive** — `:drive` opens an in-TUI browser (`Focus::Drive`, `ui/drive.rs`);
+>   `Enter` enters a folder or opens a text file in the editor (titled `⇪ name`,
+>   no local path), and saving uploads it back (two-way). `integrations/gdrive.rs`
+>   + `oauth::send_media`. 74 tests, both build configs clippy-clean, overlay
+>   verified via pyte. **Live OAuth/fetch/upload only the user can run** (no
+>   browser/creds in-sandbox). Setup: `docs/CLOUD_SYNC.md`.
+> - **Next on cloud: OneDrive** (Microsoft Graph — *separate* OAuth client +
+>   token file, reuse the same background-fetch + write-helper pattern). Then
+>   Drive follow-ups (create/upload-vault-note/Google-doc export/binary). **Keep
+>   stays out** (no consumer API).
+>
+> ---
+>
+> **Earlier (2026-06-13): Notion migration COMPLETE + REORGANIZED, and
 > Notion-hybrid Phase 2 SHIPPED.** The 394 migrated notes were relocated out of
 > the temporary `Notion/` subtree into the real vault structure (Finance →
 > `07 - Business/05 - Finance`, Data Science → `02 - Data Science`, Cyber
@@ -43,11 +64,10 @@ _Last updated: 2026-06-13._
 > sandbox** (no browser/creds) — user tests it. Setup: `docs/CLOUD_SYNC.md`.
 > Installed binary built `--features cloud`.
 >
-> **Next on cloud**: two-way Tasks (toggle complete → PATCH), then Google
-> Calendar (agenda in the calendar pane), Drive, OneDrive (Microsoft Graph,
-> separate OAuth) — all reuse `integrations/oauth.rs`. **Google Keep is out**
-> (no consumer API). Other small open items: unlinked-mentions, search
-> operators, scrollable help, configurable external tools.
+> _(That "foundation + Tasks-read" note is historical — two-way Tasks, Calendar,
+> and Drive have since all shipped; see the top block. OneDrive is next.)_ Other
+> small open items: unlinked-mentions, search operators, scrollable help,
+> configurable external tools.
 
 ---
 
@@ -221,7 +241,7 @@ by hand — naive stripping mis-reads absolutely-positioned popups. Reuse that.
 - **Background work pattern:** worker thread + `mpsc` + epoch + `Arc<AtomicU64>`
   cancel, drained each loop tick (see search).
 - **Test runs set `ONYX_CONFIG`** to a temp file; never touch `~/.config/onyx`.
-- Commit trailer: `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
+- Commit trailer: `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.
 
 ---
 

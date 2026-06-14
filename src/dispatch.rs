@@ -39,6 +39,7 @@ pub fn on_key(app: &mut App, key: KeyEvent) {
         Focus::Properties => props_keys(app, key),
         Focus::GoogleTasks => gtasks_keys(app, key),
         Focus::Agenda => agenda_keys(app, key),
+        Focus::Drive => drive_keys(app, key),
         Focus::Settings => help_keys(app, key),
         Focus::Editor => editor_keys(app, key),
         Focus::Preview => preview_keys(app, key),
@@ -889,6 +890,20 @@ fn calendar_keys(app: &mut App, key: KeyEvent) {
 }
 
 // -----------------------------------------------------------------------------
+// Google Drive browser overlay
+// -----------------------------------------------------------------------------
+
+fn drive_keys(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => app.drive_move(1),
+        KeyCode::Char('k') | KeyCode::Up => app.drive_move(-1),
+        KeyCode::Enter | KeyCode::Char('l') | KeyCode::Right => app.drive_enter(),
+        KeyCode::Backspace | KeyCode::Char('h') | KeyCode::Char('-') | KeyCode::Left => app.drive_up(),
+        _ => {}
+    }
+}
+
+// -----------------------------------------------------------------------------
 // Day-agenda overlay (Google Calendar)
 // -----------------------------------------------------------------------------
 
@@ -1465,6 +1480,7 @@ fn run_ex_command(app: &mut App, raw: &str) {
             app.open_calendar();
             app.open_agenda();
         }
+        "drive" | "gdrive" => app.open_drive_browser(),
         "todo" | "todos" => {
             if args == "sync" {
                 app.start_gtasks_sync();

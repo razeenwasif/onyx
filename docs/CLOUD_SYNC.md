@@ -1,10 +1,11 @@
 # Cloud sync (Google) — setup
 
 Onyx's cloud integrations live behind the **`cloud`** cargo feature so the
-default build pulls no network/TLS stack. Currently shipped: **Google Tasks**
-(read into Onyx). Google Calendar, Drive, and OneDrive are planned and will
-reuse the same OAuth foundation. **Google Keep is not supported** — it has no
-official API for personal accounts (see the note at the bottom).
+default build pulls no network/TLS stack. Currently shipped (all two-way):
+**Google Tasks**, **Google Calendar**, and **Google Drive** (browse + edit text
+files in place). OneDrive is planned and will reuse the same OAuth foundation.
+**Google Keep is not supported** — it has no official API for personal accounts
+(see the note at the bottom).
 
 ## 1. Build with the feature
 
@@ -20,7 +21,8 @@ cargo install --path . --force --features cloud
 Onyx talks to Google with *your* OAuth client — Onyx ships none.
 
 1. Go to <https://console.cloud.google.com/> and create (or pick) a project.
-2. **APIs & Services → Enabled APIs → Enable APIs** → enable **Google Tasks API**.
+2. **APIs & Services → Enabled APIs → Enable APIs** → enable the APIs you'll use:
+   **Google Tasks API**, **Google Calendar API**, **Google Drive API**.
 3. **APIs & Services → OAuth consent screen** → configure (External is fine for a
    personal `@gmail.com`; add yourself as a Test user).
 4. **APIs & Services → Credentials → Create Credentials → OAuth client ID** →
@@ -89,11 +91,35 @@ sync_tasks = true
 sync_calendar = true
 ```
 
+## Google Drive
+
+> **Enable it first:** in your Google Cloud project, **enable the Google Drive
+> API**, then **re-run `:google auth`** — Onyx now requests the Drive scope too,
+> so an older (Tasks/Calendar-only) token must be refreshed with the broader
+> consent. The Drive scope is `drive` (full file access) so Onyx can open *and*
+> upload your text notes.
+
+- **`:drive`** opens the Drive browser, starting at **My Drive**.
+- In the browser: `j`/`k` move, **`Enter`** enters a folder or opens the selected
+  text file in the editor, **`Backspace`** (or `-`) goes up a folder, `Esc`
+  closes. The title bar shows the current folder path.
+- Folders sort first; a `▸` marks folders, `󰈙` marks editable text files, `◑`
+  marks Google-native docs (not editable in Onyx yet).
+- **Editable files** are plain-text types — `.md`, `.txt`, source files, JSON/
+  YAML/XML, and anything with a `text/*` MIME type. Opening one downloads it into
+  a normal editor buffer titled `⇪ <name>`.
+- **Two-way.** Saving a Drive-backed buffer (`Ctrl-S` / `:w`) uploads the new
+  content straight back to the same Drive file — it never lands in your local
+  vault. (Drive files open with no local path, so save = upload.)
+- **Follow-ups:** creating new Drive files, uploading existing vault notes,
+  Google-native doc export, and binary downloads aren't wired yet.
+
 ## Notes
 
-- **Two-way.** Toggling/deleting/adding tasks and adding/deleting events write
-  straight to Google. Re-sync (`s` / `g` / `:todo sync` / `:calendar sync`) to
-  reflect changes made elsewhere.
+- **Two-way.** Toggling/deleting/adding tasks, adding/deleting events, and saving
+  Drive-backed buffers all write straight to Google. Re-sync (`s` / `g` /
+  `:todo sync` / `:calendar sync`, or re-open `:drive`) to reflect changes made
+  elsewhere.
 - **Event editing** (changing a time/title) and **timed** event creation are
   follow-ups; today's create makes an all-day event.
 - **Token storage.** Only `~/.config/onyx/google.json` holds secrets (mode 600);

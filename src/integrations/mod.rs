@@ -12,6 +12,7 @@
 #![allow(dead_code, unused_imports, unused_variables)]
 
 pub mod gcal;
+pub mod gdrive;
 pub mod gtasks;
 pub mod oauth;
 
