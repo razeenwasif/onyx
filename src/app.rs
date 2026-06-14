@@ -357,6 +357,26 @@ pub enum AiMsg {
 /// How much of the current note to include as context (chars).
 const AI_NOTE_CONTEXT_CAP: usize = 6000;
 
+/// Progress state for "ask my vault" (RAG) embedding/indexing.
+#[derive(Debug, Default)]
+pub struct RagState {
+    pub building: bool,
+    pub done: usize,
+    pub total: usize,
+}
+
+/// Messages from the background RAG worker (epoch-tagged).
+pub enum RagMsg {
+    /// (epoch, notes embedded so far, notes needing embedding)
+    Progress(u64, usize, usize),
+    /// (epoch, question, retrieved chunks) — ready to generate an answer.
+    Ready(u64, String, Vec<crate::rag::Retrieved>),
+    Err(u64, String),
+}
+
+/// How many retrieved chunks to feed the model.
+const RAG_TOP_K: usize = 6;
+
 /// Messages from the background search worker, tagged with the search epoch so
 /// stale results (from a superseded query) can be discarded.
 pub enum SearchMsg {
@@ -575,6 +595,14 @@ pub struct App {
     pub ai_rx: Option<Receiver<AiMsg>>,
     pub ai_epoch: u64,
     pub ai_cancel: Arc<AtomicBool>,
+    /// Sources line to append once the current RAG answer finishes streaming.
+    pub ai_pending_sources: Option<String>,
+    // "Ask my vault" (RAG): a background worker embeds/indexes the vault then
+    // retrieves; results come over `rag_rx` tagged with `rag_epoch`.
+    pub rag: RagState,
+    pub rag_rx: Option<Receiver<RagMsg>>,
+    pub rag_epoch: u64,
+    pub rag_gen: Arc<AtomicU64>,
     pub prompt: PromptState,
     pub confirm: ConfirmState,
     pub cmdline: CmdlineState,
@@ -707,6 +735,11 @@ impl App {
             ai_rx: None,
             ai_epoch: 0,
             ai_cancel: Arc::new(AtomicBool::new(false)),
+            ai_pending_sources: None,
+            rag: RagState::default(),
+            rag_rx: None,
+            rag_epoch: 0,
+            rag_gen: Arc::new(AtomicU64::new(0)),
             search_epoch: 0,
             search_gen: Arc::new(AtomicU64::new(0)),
             search_rx: None,
@@ -3640,12 +3673,19 @@ impl App {
         }
         messages.push(ChatMessage::user(user_text.clone()));
 
-        // Record the user turn + an empty assistant turn to stream into.
+        // Record the user turn, then stream the reply.
         self.ai.turns.push(AiTurn {
             role: AiRole::User,
             content: user_text,
             thinking: String::new(),
         });
+        self.begin_stream(messages);
+    }
+
+    /// Push an empty assistant turn and spawn the streaming worker for `messages`
+    /// (supersedes any in-flight stream). The caller has already recorded the
+    /// user turn(s) that should appear above the reply.
+    fn begin_stream(&mut self, messages: Vec<crate::integrations::ollama::ChatMessage>) {
         self.ai.turns.push(AiTurn {
             role: AiRole::Assistant,
             content: String::new(),
@@ -3653,7 +3693,6 @@ impl App {
         });
         self.ai.scroll = 0;
 
-        // Supersede any prior stream; start fresh.
         self.ai_cancel.store(true, Ordering::Relaxed);
         let cancel = Arc::new(AtomicBool::new(false));
         self.ai_cancel = cancel.clone();
@@ -3714,12 +3753,20 @@ impl App {
             self.ai.streaming = false;
             changed = true;
             if let Some(msg) = error {
+                self.ai_pending_sources = None;
                 if let Some(turn) = self.ai.turns.last_mut() {
                     if turn.role == AiRole::Assistant && turn.content.trim().is_empty() {
                         turn.content = format!("⚠ {msg}");
                     }
                 }
                 self.set_status(format!("AI: {msg}"));
+            } else if let Some(src) = self.ai_pending_sources.take() {
+                // Append the RAG source list under the finished answer.
+                if let Some(turn) = self.ai.turns.last_mut() {
+                    if turn.role == AiRole::Assistant {
+                        turn.content.push_str(&format!("\n\n— Sources: {src}"));
+                    }
+                }
             }
         }
         if changed {
@@ -3761,6 +3808,158 @@ impl App {
             Ok(_) => self.set_status("no Ollama models found (run `ollama pull`)"),
             Err(e) => self.set_status(format!("AI: {e}")),
         }
+    }
+
+    // --- Ask my vault (RAG) -------------------------------------------------
+
+    /// Answer a question using semantic search over the whole vault. Opens the
+    /// AI overlay, (re)builds the embedding index in the background if stale,
+    /// then retrieves and streams an answer.
+    pub fn ask_vault(&mut self, question: String) {
+        let question = question.trim().to_string();
+        if question.is_empty() {
+            self.set_status("usage: :ask <question>");
+            return;
+        }
+        self.open_ai();
+        if self.ai.streaming || self.rag.building {
+            self.set_status("AI is busy — wait for the current reply");
+            return;
+        }
+        // Snapshot notes + mtimes for the worker (it embeds only changed ones).
+        let root = self.vault.root.clone();
+        let notes: Vec<(String, u64)> = self
+            .vault
+            .tree
+            .notes
+            .iter()
+            .map(|p| {
+                let mtime = std::fs::metadata(p)
+                    .and_then(|m| m.modified())
+                    .ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                (p.to_string_lossy().to_string(), mtime)
+            })
+            .collect();
+        let host = self.config.ai.host.clone();
+        let embed_model = self.config.ai.embed_model.clone();
+
+        self.rag_epoch = self.rag_epoch.wrapping_add(1);
+        let epoch = self.rag_epoch;
+        self.rag_gen.store(epoch, Ordering::Relaxed);
+        let gen = self.rag_gen.clone();
+        let (tx, rx) = mpsc::channel();
+        self.rag_rx = Some(rx);
+        self.rag = RagState { building: true, done: 0, total: 0 };
+
+        // Show the question immediately while indexing runs.
+        self.ai.turns.push(AiTurn {
+            role: AiRole::User,
+            content: format!("📚 {question}"),
+            thinking: String::new(),
+        });
+        self.ai.scroll = 0;
+
+        let job = RagJob { root, notes, host, embed_model, question };
+        std::thread::spawn(move || rag_worker(job, epoch, gen, tx));
+        self.needs_redraw = true;
+    }
+
+    /// Apply RAG worker progress/results (called each loop tick).
+    pub fn drain_rag(&mut self) {
+        let mut progress: Option<(usize, usize)> = None;
+        let mut ready: Option<(String, Vec<crate::rag::Retrieved>)> = None;
+        let mut error: Option<String> = None;
+        let mut finished = false;
+        if let Some(rx) = &self.rag_rx {
+            loop {
+                match rx.try_recv() {
+                    Ok(RagMsg::Progress(e, d, t)) => {
+                        if e == self.rag_epoch {
+                            progress = Some((d, t));
+                        }
+                    }
+                    Ok(RagMsg::Ready(e, q, hits)) => {
+                        if e == self.rag_epoch {
+                            ready = Some((q, hits));
+                        }
+                        finished = true;
+                    }
+                    Ok(RagMsg::Err(e, m)) => {
+                        if e == self.rag_epoch {
+                            error = Some(m);
+                        }
+                        finished = true;
+                    }
+                    Err(mpsc::TryRecvError::Empty) => break,
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        finished = true;
+                        break;
+                    }
+                }
+                if finished {
+                    break;
+                }
+            }
+        }
+        if let Some((d, t)) = progress {
+            self.rag.done = d;
+            self.rag.total = t;
+            self.needs_redraw = true;
+        }
+        if finished {
+            self.rag_rx = None;
+            self.rag.building = false;
+            if let Some(m) = error {
+                self.ai.turns.push(AiTurn {
+                    role: AiRole::Assistant,
+                    content: format!("⚠ {m}"),
+                    thinking: String::new(),
+                });
+                self.set_status(format!("ask: {m}"));
+            } else if let Some((question, hits)) = ready {
+                self.start_rag_answer(question, hits);
+            }
+            self.needs_redraw = true;
+        }
+    }
+
+    pub fn rag_building(&self) -> bool {
+        self.rag_rx.is_some()
+    }
+
+    /// Build the grounded prompt from retrieved chunks and stream the answer.
+    fn start_rag_answer(&mut self, question: String, hits: Vec<crate::rag::Retrieved>) {
+        use crate::integrations::ollama::ChatMessage;
+        if hits.is_empty() {
+            self.ai.turns.push(AiTurn {
+                role: AiRole::Assistant,
+                content: "I couldn't find anything relevant in your vault.".into(),
+                thinking: String::new(),
+            });
+            return;
+        }
+        let mut context = String::new();
+        let mut sources: Vec<String> = Vec::new();
+        for (i, h) in hits.iter().enumerate() {
+            let title = Path::new(&h.path)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("note")
+                .to_string();
+            context.push_str(&format!("[{}] {} (line {}):\n{}\n\n", i + 1, title, h.line + 1, h.text));
+            sources.push(format!("[{}] {}", i + 1, title));
+        }
+        let sys = format!(
+            "You answer questions about the user's personal notes. Use ONLY the excerpts \
+             below; if they don't contain the answer, say you couldn't find it. Cite sources \
+             inline like [1], [2]. Be concise and use Markdown.\n\nExcerpts:\n{context}"
+        );
+        let messages = vec![ChatMessage::system(sys), ChatMessage::user(question)];
+        self.ai_pending_sources = Some(sources.join("  "));
+        self.begin_stream(messages);
     }
 
     #[allow(dead_code)]
@@ -4144,6 +4343,92 @@ fn ai_worker(
             let _ = tx.send(AiMsg::Err(epoch, e));
         }
     }
+}
+
+/// Inputs for a RAG worker run.
+struct RagJob {
+    root: PathBuf,
+    notes: Vec<(String, u64)>,
+    host: String,
+    embed_model: String,
+    question: String,
+}
+
+/// Background RAG worker: (re)embed changed notes into the on-disk index, embed
+/// the query, and return the top-K chunks. Reports progress; bails if superseded.
+fn rag_worker(job: RagJob, epoch: u64, gen: Arc<AtomicU64>, tx: mpsc::Sender<RagMsg>) {
+    use crate::rag;
+    let RagJob { root, notes, host, embed_model, question } = job;
+
+    // Load the cache; reset it if it was built with a different embed model.
+    let mut index = rag::load_index(&root);
+    if index.model != embed_model {
+        index = rag::RagIndex {
+            model: embed_model.clone(),
+            notes: std::collections::HashMap::new(),
+        };
+    }
+    // Drop notes that no longer exist.
+    let present: std::collections::HashSet<&String> = notes.iter().map(|(p, _)| p).collect();
+    index.notes.retain(|p, _| present.contains(p));
+
+    // Notes that are new or whose mtime changed need (re)embedding.
+    let stale: Vec<(String, u64)> = notes
+        .iter()
+        .filter(|(p, m)| index.notes.get(p).map(|ne| ne.mtime != *m).unwrap_or(true))
+        .cloned()
+        .collect();
+    let total = stale.len();
+    let _ = tx.send(RagMsg::Progress(epoch, 0, total));
+
+    for (i, (path, mtime)) in stale.iter().enumerate() {
+        if gen.load(Ordering::Relaxed) != epoch {
+            return; // superseded
+        }
+        let content = std::fs::read_to_string(path).unwrap_or_default();
+        let chunks = rag::chunk_note(&content, 1000);
+        if chunks.is_empty() {
+            index
+                .notes
+                .insert(path.clone(), rag::NoteEmbeds { mtime: *mtime, chunks: Vec::new() });
+        } else {
+            let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
+            match crate::integrations::ollama::embed(&host, &embed_model, &texts) {
+                Ok(vecs) => {
+                    let embedded: Vec<rag::EmbeddedChunk> = chunks
+                        .into_iter()
+                        .zip(vecs)
+                        .map(|(c, v)| rag::EmbeddedChunk { text: c.text, line: c.line, vec: v })
+                        .collect();
+                    index
+                        .notes
+                        .insert(path.clone(), rag::NoteEmbeds { mtime: *mtime, chunks: embedded });
+                }
+                Err(e) => {
+                    let _ = tx.send(RagMsg::Err(epoch, e));
+                    return;
+                }
+            }
+        }
+        let _ = tx.send(RagMsg::Progress(epoch, i + 1, total));
+    }
+
+    let _ = rag::save_index(&root, &index);
+
+    // Embed the query, then rank.
+    let qvec = match crate::integrations::ollama::embed(&host, &embed_model, std::slice::from_ref(&question)) {
+        Ok(mut v) if !v.is_empty() => v.remove(0),
+        Ok(_) => {
+            let _ = tx.send(RagMsg::Err(epoch, "empty query embedding".into()));
+            return;
+        }
+        Err(e) => {
+            let _ = tx.send(RagMsg::Err(epoch, e));
+            return;
+        }
+    };
+    let hits = rag::top_k(&index, &qvec, RAG_TOP_K);
+    let _ = tx.send(RagMsg::Ready(epoch, question, hits));
 }
 
 /// True if `needle` occurs in `hay` as a whole word (boundaries are anything but

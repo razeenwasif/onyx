@@ -111,7 +111,17 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
     let visible: Vec<Line<'static>> = lines[start..end].to_vec();
 
     let theme = &app.theme;
-    let spin = if streaming { "  ⟳ generating…" } else { "" };
+    let spin = if app.rag.building {
+        if app.rag.total > 0 {
+            format!("  ⟳ indexing vault {}/{}…", app.rag.done, app.rag.total)
+        } else {
+            "  ⟳ indexing vault…".to_string()
+        }
+    } else if streaming {
+        "  ⟳ generating…".to_string()
+    } else {
+        String::new()
+    };
     let title = format!("AI · {model}{spin}");
     let block = super::pane_block(&title, true, theme);
     let inner = block.inner(rect);

@@ -5,7 +5,22 @@ for the task queue see **`docs/BACKLOG.md`**. This file is the "where we are rig
 
 _Last updated: 2026-06-14._
 
-> **Latest (2026-06-14): local AI assistant shipped.** Streaming chat over a
+> **Latest (2026-06-14): ask-my-vault (semantic RAG) shipped.** `:ask <q>`
+> answers from the whole vault via embeddings (`nomic-embed-text` default; needs
+> `ollama pull nomic-embed-text`), streamed into the AI overlay with a
+> `— Sources:` line. `src/rag.rs` (pure: `chunk_note`/`cosine`/`top_k` +
+> `.onyx/rag-index.json` cache, all tested); `rag_worker` re-embeds only
+> changed notes (mtime-keyed) then ranks; `drain_rag` shows indexing progress in
+> the overlay title then `start_rag_answer` builds a grounded prompt and
+> `begin_stream`s it; `ai_pending_sources` appends sources. `[ai] embed_model`
+> config. `integrations/ollama.rs` gained `embed`/`embed_body`/`parse_embeddings`.
+> Verified LIVE via pyte ("what is my pet's name?" → "Biscuit [1]"). 87 tests.
+> Next AI follow-up (last planned): **apply a rewrite back into the note**
+> (selection → AI → replace). See [[local-gemma-integration]].
+>
+> ---
+>
+> **Earlier (2026-06-14): local AI assistant shipped.** Streaming chat over a
 > local LLM via **Ollama** (loopback, no keys), behind a new **`ai`** cargo
 > feature (`full = ["cloud","ai"]`; build/install with `--features full`).
 > `integrations/ollama.rs` (pure builders/parsers tested + `chat_stream`/

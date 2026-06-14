@@ -43,8 +43,10 @@ pub struct Config {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AiConfig {
-    /// Ollama model tag to use (e.g. `gemma4:e4b-it-qat`).
+    /// Ollama model tag to use for chat/generation (e.g. `gemma4:e4b-it-qat`).
     pub model: String,
+    /// Ollama embedding model for "ask my vault" RAG.
+    pub embed_model: String,
     /// Ollama host base URL (loopback by default).
     pub host: String,
 }
@@ -53,6 +55,7 @@ impl Default for AiConfig {
     fn default() -> Self {
         Self {
             model: "gemma4:e4b-it-qat".to_string(),
+            embed_model: "nomic-embed-text".to_string(),
             host: "http://localhost:11434".to_string(),
         }
     }

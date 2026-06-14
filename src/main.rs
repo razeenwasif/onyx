@@ -13,6 +13,7 @@ mod keymap;
 mod markdown;
 mod notion_import;
 mod page_nav;
+mod rag;
 mod theme;
 mod todo;
 mod ui;
@@ -197,6 +198,7 @@ fn event_loop(
         app.maybe_refresh_unlinked();
         app.drain_unlinked();
         app.drain_ai();
+        app.drain_rag();
         // React to external edits (Obsidian, git, sync) noticed by the watcher.
         app.handle_fs_events();
 
@@ -227,6 +229,7 @@ fn event_loop(
             || app.drive_loading()
             || app.unlinked_loading()
             || app.ai_streaming()
+            || app.rag_building()
         {
             anim_frame
         } else if status_visible {

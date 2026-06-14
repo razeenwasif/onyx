@@ -178,6 +178,30 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ## Done
 
+### Ask my vault — semantic RAG  (2026-06-14)
+
+`:ask <question>` answers from the whole vault via embeddings, streamed into the
+AI overlay with cited sources.
+
+- `integrations/ollama.rs`: `embed` (batch `/api/embed`) + pure
+  `embed_body`/`parse_embeddings` (tested); needs an embedding model
+  (`nomic-embed-text` default).
+- `src/rag.rs` (pure, unit-tested): `chunk_note` (paragraph-merge to ~1000 chars,
+  frontmatter-skipping), `cosine`, `top_k`, and the `.onyx/rag-index.json` cache
+  (`RagIndex`/`NoteEmbeds`/`EmbeddedChunk`, `load_index`/`save_index`).
+- `rag_worker` (App): loads the cache, re-embeds only changed notes (mtime-keyed,
+  drops removed, resets on embed-model change), saves, embeds the query, ranks
+  top-K. Streams `RagMsg::{Progress,Ready,Err}` over mpsc (epoch/`rag_gen`
+  cancel); `drain_rag` shows indexing progress in the overlay title then hands
+  the retrieved chunks to `start_rag_answer`, which builds a grounded prompt and
+  `begin_stream`s the answer; `ai_pending_sources` appends a `— Sources:` line.
+- `[ai] embed_model` config. Command `:ask`/`:askvault`.
+- 87 tests (5 new: ollama embed + 4 rag). Default + `ai` + `full` clippy-clean.
+  **Verified live e2e** via pyte: "what is the name of my pet animal?" → answered
+  "Biscuit [1]" from the only note that mentions it. Setup: `docs/AI.md`.
+- Follow-ups: inline autocomplete; binary/compact vector cache (JSON is fine but
+  large on big vaults).
+
 ### Local AI assistant via Ollama (streaming chat)  (2026-06-14)
 
 A local LLM assistant behind a new **`ai`** cargo feature (`full = ["cloud","ai"]`),

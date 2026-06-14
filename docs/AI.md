@@ -49,6 +49,32 @@ You can also switch at runtime: **`:ai model <name>`** (persists), and
 - **`:summarize`** summarizes the current note.
 - **`:ai clear`** starts a fresh conversation.
 
+### Ask my vault (RAG)
+
+**`:ask <question>`** answers from across your **whole vault** using semantic
+search, not just the open note. It chunks every note, embeds the chunks, and
+retrieves the most relevant ones to ground the answer — which is streamed into
+the AI overlay with a **`— Sources:`** list of the notes it used.
+
+This needs a **dedicated embedding model** (the chat models are generation-only):
+
+```bash
+ollama pull nomic-embed-text     # ~274 MB, fast; the default
+```
+
+Configure it if you prefer another:
+
+```toml
+[ai]
+embed_model = "nomic-embed-text"
+```
+
+- **First `:ask` indexes the vault** (embeds every note) — this can take a bit on
+  a large vault; progress shows in the overlay title (`indexing 120/1071…`). The
+  index is cached to `<vault>/.onyx/rag-index.json`, so later asks only re-embed
+  notes that changed and are near-instant.
+- If the answer isn't in your notes, it says so rather than inventing one.
+
 These Gemma builds emit a short **reasoning trace** before the answer; it's shown
 dimmed/italic above the reply.
 
@@ -58,6 +84,5 @@ dimmed/italic above the reply.
   tokens stream quickly. A bigger model = better answers, slower start; pick what
   fits in `[ai] model` (e.g. an `e2b`/4B for snappy, a 12B for quality).
 - **Local only.** Requests go to loopback HTTP; nothing is sent to any cloud.
-- **Follow-ups (not built yet):** "ask my vault" (retrieval over all notes),
-  inline autocomplete, applying a rewrite back into the note, and a separate fast
-  model for completions.
+- **Follow-ups (not built yet):** inline autocomplete and a separate fast model
+  for completions.

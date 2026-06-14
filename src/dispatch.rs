@@ -1517,7 +1517,7 @@ fn run_ex_command(app: &mut App, raw: &str) {
                 app.open_drive_browser();
             }
         }
-        "ai" | "chat" | "ask" => {
+        "ai" | "chat" => {
             let a = args.trim();
             if a == "models" {
                 app.ai_list_models();
@@ -1533,6 +1533,13 @@ fn run_ex_command(app: &mut App, raw: &str) {
             }
         }
         "summarize" | "summary" | "tldr" => app.summarize_current(),
+        "ask" | "askvault" => {
+            if args.trim().is_empty() {
+                app.set_status("usage: :ask <question> — searches your whole vault");
+            } else {
+                app.ask_vault(args.to_string());
+            }
+        }
         "todo" | "todos" => {
             if args == "sync" {
                 app.start_gtasks_sync();

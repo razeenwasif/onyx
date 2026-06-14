@@ -89,6 +89,30 @@ pub fn parse_models(json: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+#[derive(Serialize)]
+struct EmbedRequest<'a> {
+    model: &'a str,
+    input: &'a [String],
+}
+
+/// JSON body for a batch `/api/embed` request.
+pub fn embed_body(model: &str, input: &[String]) -> String {
+    serde_json::to_string(&EmbedRequest { model, input }).unwrap_or_default()
+}
+
+#[derive(Deserialize)]
+struct EmbedResponse {
+    #[serde(default)]
+    embeddings: Vec<Vec<f32>>,
+}
+
+/// Parse the vectors from an `/api/embed` response.
+pub fn parse_embeddings(json: &str) -> Vec<Vec<f32>> {
+    serde_json::from_str::<EmbedResponse>(json)
+        .map(|r| r.embeddings)
+        .unwrap_or_default()
+}
+
 // -----------------------------------------------------------------------------
 // Network (ai feature)
 // -----------------------------------------------------------------------------
@@ -137,6 +161,38 @@ pub fn chat_stream(
     Ok(())
 }
 
+/// Batch-embed `input` texts with an embedding model (`/api/embed`).
+#[cfg(feature = "ai")]
+pub fn embed(host: &str, model: &str, input: &[String]) -> IntResult<Vec<Vec<f32>>> {
+    if input.is_empty() {
+        return Ok(Vec::new());
+    }
+    let url = format!("{}/api/embed", host.trim_end_matches('/'));
+    let body = embed_body(model, input);
+    let resp = reqwest::blocking::Client::new()
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .body(body)
+        .send()
+        .map_err(|e| format!("can't reach Ollama at {host} — is it running? ({e})"))?;
+    if !resp.status().is_success() {
+        let code = resp.status();
+        let txt = resp.text().unwrap_or_default();
+        return Err(format!(
+            "Ollama embed {code}: {}",
+            txt.chars().take(160).collect::<String>()
+        ));
+    }
+    let txt = resp.text().map_err(|e| e.to_string())?;
+    let v = parse_embeddings(&txt);
+    if v.is_empty() {
+        return Err(format!(
+            "no embeddings from \"{model}\" — pull an embedding model (`ollama pull nomic-embed-text`)"
+        ));
+    }
+    Ok(v)
+}
+
 /// List installed Ollama models (`/api/tags`).
 #[cfg(feature = "ai")]
 pub fn list_models(host: &str) -> IntResult<Vec<String>> {
@@ -165,6 +221,11 @@ pub fn chat_stream(
 
 #[cfg(not(feature = "ai"))]
 pub fn list_models(_: &str) -> IntResult<Vec<String>> {
+    Err("AI features not built — reinstall with `cargo install --path . --features ai` (or `full`)".into())
+}
+
+#[cfg(not(feature = "ai"))]
+pub fn embed(_: &str, _: &str, _: &[String]) -> IntResult<Vec<Vec<f32>>> {
     Err("AI features not built — reinstall with `cargo install --path . --features ai` (or `full`)".into())
 }
 
@@ -209,5 +270,17 @@ mod tests {
         let models = parse_models(json);
         assert_eq!(models, vec!["gemma4:e4b-it-qat", "gemma4:e2b-it-qat"]); // empty dropped
         assert!(parse_models("nope").is_empty());
+    }
+
+    #[test]
+    fn builds_embed_body_and_parses_vectors() {
+        let body = embed_body("nomic-embed-text", &["a".into(), "b".into()]);
+        assert!(body.contains("\"model\":\"nomic-embed-text\""));
+        assert!(body.contains("\"input\":[\"a\",\"b\"]"));
+
+        let v = parse_embeddings(r#"{"embeddings":[[0.1,0.2],[0.3,0.4]]}"#);
+        assert_eq!(v.len(), 2);
+        assert_eq!(v[1], vec![0.3, 0.4]);
+        assert!(parse_embeddings("nope").is_empty());
     }
 }
