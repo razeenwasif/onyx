@@ -199,15 +199,17 @@ scan), `serde`+`toml` (config), `chrono` (calendar), `fuzzy-matcher` (palette/sw
 ## Build / run / verify
 
 ```bash
-cargo build --release
-cargo clippy --all-targets -- -D warnings   # MUST stay clean (CI-ready)
-cargo test                                   # 27 tests, all green
-cargo install --path . --force               # reinstall onyx on PATH
+cargo build --release --features full
+cargo clippy --features full -- -D warnings  # MUST stay clean (CI-ready); also plain (no-feature) build
+cargo test --features full                   # all green
+cargo install --path . --force --features full   # reinstall onyx on PATH (Google sync + local AI)
 onyx                                          # opens last_vault (~/OnyxVault)
 ```
+`full = ["cloud", "ai"]`. Use `--features full` for the full build; plain
+`cargo install --path . --force` drops Google sync **and** the AI assistant.
 **Reinstall after every change you want to use from the `onyx` command.**
 `cargo build` only refreshes `target/release/onyx`; the PATH binary at
-`~/.cargo/bin/onyx` is updated *only* by `cargo install --path . --force`. (This
+`~/.cargo/bin/onyx` is updated *only* by `cargo install --path . --force …`. (This
 bit us once: a stale installed binary opened on an old build with no Home screen
 even though the source was current.)
 

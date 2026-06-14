@@ -40,24 +40,27 @@ cargo build --release
 
 ## Install (run `onyx` from anywhere)
 
-```bash
-cargo install --path . --force
-```
-
-This puts `onyx` on your PATH (`~/.cargo/bin/onyx`).
-
-For the optional **Google integration** (two-way Google Tasks, Calendar, and Drive; OneDrive planned), build with the `cloud` feature and follow `docs/CLOUD_SYNC.md`. For the **local AI assistant** (Ollama), use the `ai` feature and follow `docs/AI.md`. `full` enables both:
+**Recommended — everything enabled (Google sync + local AI):**
 
 ```bash
-cargo install --path . --force --features cloud   # Google sync
-cargo install --path . --force --features ai      # local AI (Ollama)
-cargo install --path . --force --features full    # both
+cargo install --path . --force --features full
 ```
 
-> **After pulling or making changes, re-run `cargo install --path . --force`.**
-> `cargo build` only updates `target/release/onyx` — it does **not** update the
-> `onyx` command on your PATH, so the installed binary stays on the old version
-> until you reinstall.
+This puts `onyx` on your PATH (`~/.cargo/bin/onyx`). `full = ["cloud", "ai"]`.
+
+Prefer a leaner build? Pick the features you want:
+
+```bash
+cargo install --path . --force                    # core only (no network)
+cargo install --path . --force --features cloud   # + Google Tasks/Calendar/Drive  (docs/CLOUD_SYNC.md)
+cargo install --path . --force --features ai      # + local AI assistant (Ollama)  (docs/AI.md)
+cargo install --path . --force --features full    # + both (recommended)
+```
+
+> **After pulling or making changes, re-run the same install command** (use
+> `--features full` to keep Google sync + AI). `cargo build` only updates
+> `target/release/onyx` — it does **not** update the `onyx` command on your PATH,
+> so the installed binary stays on the old version until you reinstall.
 
 ## Run
 
