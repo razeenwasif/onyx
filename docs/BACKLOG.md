@@ -221,6 +221,18 @@ single-note delete (negligible leak today), SIMD literal search via
 
 ## Done
 
+### Google Tasks in the Todo pane (synced)  (2026-06-14)
+
+The left-column Todo pane now merges local todos with open Google tasks (marked
+`☁`), one cursor over both: `Space` toggles (local → `todos.md`; Google →
+PATCH-complete, drops off the pane), `d` deletes (local/Google), `a`/`e` are
+local-only, `s` / `:todo sync` pulls Google tasks **in the background** (worker
+thread + `App::drain_gtasks` on the event-loop tick, faster poll while syncing).
+Opt-in auto-pull at launch via `[google] sync_tasks = true`. `App::todo_rows`
+(`TodoRow`/`TodoSource`) is the merged model; `gtasks_set_completed_index` /
+`gtasks_delete_index` are the shared by-index writers (overlay + pane). Local
+toggle/persist verified e2e; Google writes need the user's auth.
+
 ### Two-way Google Tasks  (2026-06-14)
 
 The Tasks overlay now writes back to Google: `Space` toggles complete (PATCH),

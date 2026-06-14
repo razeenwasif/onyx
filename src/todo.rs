@@ -94,18 +94,4 @@ impl TodoList {
     pub fn selected_text(&self) -> Option<&str> {
         self.items.get(self.selected).map(|i| i.text.as_str())
     }
-
-    pub fn up(&mut self) {
-        self.selected = self.selected.saturating_sub(1);
-    }
-
-    pub fn down(&mut self) {
-        if self.selected + 1 < self.items.len() {
-            self.selected += 1;
-        }
-    }
-
-    pub fn remaining(&self) -> usize {
-        self.items.iter().filter(|i| !i.done).count()
-    }
 }

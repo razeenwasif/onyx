@@ -44,6 +44,8 @@ pub struct GoogleConfig {
     pub client_id: String,
     /// OAuth client secret (not truly secret for installed apps).
     pub client_secret: String,
+    /// Pull Google Tasks into the Todo pane automatically at launch (background).
+    pub sync_tasks: bool,
 }
 
 impl GoogleConfig {

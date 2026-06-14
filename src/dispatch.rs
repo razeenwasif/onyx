@@ -1425,7 +1425,13 @@ fn run_ex_command(app: &mut App, raw: &str) {
         "database" | "db" | "table" => open_database_cmd(app, args, false),
         "board" | "kanban" => open_database_cmd(app, args, true),
         "calendar" | "cal" => app.open_calendar(),
-        "todo" | "todos" => app.focus_todo(),
+        "todo" | "todos" => {
+            if args == "sync" {
+                app.start_gtasks_sync();
+            } else {
+                app.focus_todo();
+            }
+        }
         "quicknote" | "scratch" | "qn" => app.focus_quicknote(),
         "mkdir" | "newfolder" => {
             if args.is_empty() {
@@ -1807,23 +1813,25 @@ fn quicknote_keys(app: &mut App, key: KeyEvent) {
 
 fn todo_keys(app: &mut App, key: KeyEvent) {
     match key.code {
-        KeyCode::Char('j') | KeyCode::Down => app.todos.down(),
-        KeyCode::Char('k') | KeyCode::Up => app.todos.up(),
-        KeyCode::Char(' ') | KeyCode::Enter => {
-            app.todos.toggle();
-            app.save_todos();
-        }
+        KeyCode::Char('j') | KeyCode::Down => app.todo_move(1),
+        KeyCode::Char('k') | KeyCode::Up => app.todo_move(-1),
+        KeyCode::Char(' ') | KeyCode::Enter => app.todo_toggle_selected(),
         KeyCode::Char('a') => start_prompt(app, "New todo", PromptAction::AddTodo, ""),
         KeyCode::Char('e') => {
-            let cur = app.todos.selected_text().unwrap_or("").to_string();
-            if !cur.is_empty() {
-                start_prompt(app, "Edit todo", PromptAction::EditTodo, &cur);
+            // Editing is local-only (Google task titles aren't edited here).
+            if app.todo_selected_is_google() {
+                app.set_status("editing Google tasks here isn't supported — use :gtasks");
+            } else if let Some(crate::app::TodoSource::Local(i)) = app.todo_selected_source() {
+                app.todos.selected = i;
+                let cur = app.todos.selected_text().unwrap_or("").to_string();
+                if !cur.is_empty() {
+                    start_prompt(app, "Edit todo", PromptAction::EditTodo, &cur);
+                }
             }
         }
-        KeyCode::Char('d') | KeyCode::Delete => {
-            app.todos.delete_selected();
-            app.save_todos();
-        }
+        KeyCode::Char('d') | KeyCode::Delete => app.todo_delete_selected(),
+        // Sync Google tasks into the pane (background).
+        KeyCode::Char('s') => app.start_gtasks_sync(),
         KeyCode::Tab => app.toggle_pane_focus(true),
         KeyCode::BackTab => app.toggle_pane_focus(false),
         _ => {}

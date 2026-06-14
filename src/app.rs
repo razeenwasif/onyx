@@ -308,6 +308,21 @@ pub enum SearchMsg {
     Done(u64),
 }
 
+/// Where a Todo-pane row comes from (local checklist vs. Google Tasks).
+#[derive(Debug, Clone, Copy)]
+pub enum TodoSource {
+    Local(usize),
+    Google(usize),
+}
+
+/// A merged Todo-pane row (local todos + open Google tasks).
+#[derive(Debug, Clone)]
+pub struct TodoRow {
+    pub source: TodoSource,
+    pub text: String,
+    pub done: bool,
+}
+
 /// One row in the vault-wide task rollup.
 #[derive(Debug, Clone)]
 pub struct TaskItem {
@@ -424,9 +439,13 @@ pub struct App {
     pub calendar: CalendarState,
     pub tasks: TasksState,
     pub props_edit: PropsEditState,
-    /// Google Tasks pulled from the API (for the GoogleTasks overlay).
+    /// Google Tasks pulled from the API (shared by the overlay + Todo pane).
     pub gtasks: Vec<crate::integrations::gtasks::GTask>,
     pub gtasks_selected: usize,
+    /// Background Google-Tasks sync result channel (None when idle).
+    pub gtasks_rx: Option<Receiver<std::result::Result<Vec<crate::integrations::gtasks::GTask>, String>>>,
+    /// Selection cursor for the merged Todo pane (local + Google).
+    pub todo_cursor: usize,
 
     /// Active database view (a folder shown as a table/board), or None.
     pub database: Option<DatabaseView>,
@@ -480,6 +499,12 @@ impl App {
             std::fs::read_to_string(vault.quicknote_path()).unwrap_or_default();
         let todos = TodoList::load(&vault.todos_path());
         let bookmarks = load_bookmarks(&vault);
+        // Opt-in: pull Google Tasks into the Todo pane at launch (background).
+        let gtasks_rx = if config.google.sync_tasks && config.google.is_configured() {
+            Some(spawn_gtasks_fetch(&config.google))
+        } else {
+            None
+        };
         let watcher = VaultWatcher::new(&vault.root);
 
         Self {
@@ -527,6 +552,8 @@ impl App {
             props_edit: PropsEditState::default(),
             gtasks: Vec::new(),
             gtasks_selected: 0,
+            gtasks_rx,
+            todo_cursor: 0,
             database: None,
             split_doc: None,
             quicknote: QuicknoteState::new(quicknote_text),
@@ -680,6 +707,7 @@ impl App {
         self.fullscreen = None;
         self.tree_selected = 0;
         self.sidebar_selected = 0;
+        self.todo_cursor = 0;
         self.expanded_dirs.clear();
         self.expanded_dirs.insert(self.vault.root.clone());
 
@@ -2499,25 +2527,18 @@ impl App {
         self.set_status(format!("pulled \"{title}\" into quicknote"));
     }
 
-    /// Toggle the selected Google task complete/incomplete, writing back to
-    /// Google (two-way). Blocking network call.
-    pub fn gtasks_toggle_selected(&mut self) {
-        let Some(t) = self.gtasks.get(self.gtasks_selected).cloned() else {
+    /// Set a Google task (by index into `gtasks`) complete/incomplete via PATCH.
+    fn gtasks_set_completed_index(&mut self, idx: usize, target: bool) {
+        let Some(t) = self.gtasks.get(idx).cloned() else {
             return;
         };
         let g = self.config.google.clone();
         let path = crate::config::Config::google_token_path();
-        let target = !t.completed;
         match crate::integrations::gtasks::set_completed(
-            &g.client_id,
-            &g.client_secret,
-            &path,
-            &t.list_id,
-            &t.id,
-            target,
+            &g.client_id, &g.client_secret, &path, &t.list_id, &t.id, target,
         ) {
             Ok(()) => {
-                if let Some(tm) = self.gtasks.get_mut(self.gtasks_selected) {
+                if let Some(tm) = self.gtasks.get_mut(idx) {
                     tm.completed = target;
                 }
                 self.set_status(if target {
@@ -2530,29 +2551,174 @@ impl App {
         }
     }
 
-    /// Delete the selected Google task (writes to Google).
-    pub fn gtasks_delete_selected(&mut self) {
-        let Some(t) = self.gtasks.get(self.gtasks_selected).cloned() else {
+    /// Delete a Google task (by index into `gtasks`) via DELETE.
+    fn gtasks_delete_index(&mut self, idx: usize) {
+        let Some(t) = self.gtasks.get(idx).cloned() else {
             return;
         };
         let g = self.config.google.clone();
         let path = crate::config::Config::google_token_path();
         match crate::integrations::gtasks::delete_task(
-            &g.client_id,
-            &g.client_secret,
-            &path,
-            &t.list_id,
-            &t.id,
+            &g.client_id, &g.client_secret, &path, &t.list_id, &t.id,
         ) {
             Ok(()) => {
-                self.gtasks.remove(self.gtasks_selected);
-                if self.gtasks_selected >= self.gtasks.len() {
-                    self.gtasks_selected = self.gtasks.len().saturating_sub(1);
-                }
+                self.gtasks.remove(idx);
                 self.set_status(format!("deleted \"{}\"", t.title));
             }
             Err(e) => self.set_status(format!("Google Tasks: {e}")),
         }
+    }
+
+    /// Toggle the selected Google task in the overlay (two-way).
+    pub fn gtasks_toggle_selected(&mut self) {
+        let target = self
+            .gtasks
+            .get(self.gtasks_selected)
+            .map(|t| !t.completed)
+            .unwrap_or(true);
+        self.gtasks_set_completed_index(self.gtasks_selected, target);
+    }
+
+    /// Delete the selected Google task in the overlay (two-way).
+    pub fn gtasks_delete_selected(&mut self) {
+        self.gtasks_delete_index(self.gtasks_selected);
+        if self.gtasks_selected >= self.gtasks.len() {
+            self.gtasks_selected = self.gtasks.len().saturating_sub(1);
+        }
+    }
+
+    // --- Merged Todo pane (local todos + Google tasks) -----------------------
+
+    /// The Todo pane's rows: every local todo, then *open* Google tasks.
+    pub fn todo_rows(&self) -> Vec<TodoRow> {
+        let mut rows: Vec<TodoRow> = self
+            .todos
+            .items
+            .iter()
+            .enumerate()
+            .map(|(i, it)| TodoRow {
+                source: TodoSource::Local(i),
+                text: it.text.clone(),
+                done: it.done,
+            })
+            .collect();
+        for (i, t) in self.gtasks.iter().enumerate() {
+            if !t.completed {
+                rows.push(TodoRow {
+                    source: TodoSource::Google(i),
+                    text: t.title.clone(),
+                    done: false,
+                });
+            }
+        }
+        rows
+    }
+
+    pub fn todo_move(&mut self, delta: i64) {
+        let n = self.todo_rows().len();
+        if n == 0 {
+            self.todo_cursor = 0;
+            return;
+        }
+        let cur = self.todo_cursor.min(n - 1) as i64;
+        self.todo_cursor = (cur + delta).clamp(0, n as i64 - 1) as usize;
+    }
+
+    /// The source of the currently-selected Todo-pane row.
+    pub fn todo_selected_source(&self) -> Option<TodoSource> {
+        self.todo_rows().get(self.todo_cursor).map(|r| r.source)
+    }
+
+    /// Toggle the selected Todo-pane row (local → todos.md; Google → PATCH).
+    pub fn todo_toggle_selected(&mut self) {
+        match self.todo_selected_source() {
+            Some(TodoSource::Local(i)) => {
+                self.todos.selected = i;
+                self.todos.toggle();
+                self.save_todos();
+            }
+            // Panel shows open Google tasks → toggling completes them.
+            Some(TodoSource::Google(i)) => self.gtasks_set_completed_index(i, true),
+            None => {}
+        }
+        let n = self.todo_rows().len();
+        if self.todo_cursor >= n {
+            self.todo_cursor = n.saturating_sub(1);
+        }
+    }
+
+    /// Delete the selected Todo-pane row (local → todos.md; Google → DELETE).
+    pub fn todo_delete_selected(&mut self) {
+        match self.todo_selected_source() {
+            Some(TodoSource::Local(i)) => {
+                self.todos.selected = i;
+                self.todos.delete_selected();
+                self.save_todos();
+            }
+            Some(TodoSource::Google(i)) => self.gtasks_delete_index(i),
+            None => {}
+        }
+        let n = self.todo_rows().len();
+        if self.todo_cursor >= n {
+            self.todo_cursor = n.saturating_sub(1);
+        }
+    }
+
+    /// True for a Google-backed Todo-pane row (so the UI can mark it + so edit
+    /// is steered to local-only).
+    pub fn todo_selected_is_google(&self) -> bool {
+        matches!(self.todo_selected_source(), Some(TodoSource::Google(_)))
+    }
+
+    // --- Background Google-Tasks sync ----------------------------------------
+
+    /// Kick off a background Google-Tasks fetch (non-blocking). Results land via
+    /// `drain_gtasks` on the next event-loop tick.
+    pub fn start_gtasks_sync(&mut self) {
+        if !self.config.google.is_configured() {
+            self.set_status("set [google] client_id/client_secret in config.toml first");
+            return;
+        }
+        if self.gtasks_rx.is_some() {
+            return; // already in flight
+        }
+        self.gtasks_rx = Some(spawn_gtasks_fetch(&self.config.google));
+        self.set_status("syncing Google Tasks…");
+        self.needs_redraw = true;
+    }
+
+    /// Drain a finished background Google-Tasks sync into `gtasks`.
+    pub fn drain_gtasks(&mut self) {
+        let Some(rx) = &self.gtasks_rx else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(Ok(tasks)) => {
+                let open = tasks.iter().filter(|t| !t.completed).count();
+                self.gtasks = tasks;
+                self.gtasks_rx = None;
+                if self.gtasks_selected >= self.gtasks.len() {
+                    self.gtasks_selected = self.gtasks.len().saturating_sub(1);
+                }
+                let n = self.todo_rows().len();
+                if self.todo_cursor >= n {
+                    self.todo_cursor = n.saturating_sub(1);
+                }
+                self.set_status(format!("Google Tasks synced · {open} open"));
+                self.needs_redraw = true;
+            }
+            Ok(Err(e)) => {
+                self.gtasks_rx = None;
+                self.set_status(format!("Google Tasks sync failed: {e}"));
+                self.needs_redraw = true;
+            }
+            Err(mpsc::TryRecvError::Empty) => {}
+            Err(mpsc::TryRecvError::Disconnected) => self.gtasks_rx = None,
+        }
+    }
+
+    pub fn gtasks_syncing(&self) -> bool {
+        self.gtasks_rx.is_some()
     }
 
     /// Create a task in the user's default Google Tasks list.
@@ -2766,6 +2932,21 @@ impl App {
             _ => {}
         }
     }
+}
+
+/// Spawn a background thread that fetches all Google Tasks, returning the
+/// channel its result arrives on.
+fn spawn_gtasks_fetch(
+    g: &crate::config::GoogleConfig,
+) -> Receiver<std::result::Result<Vec<crate::integrations::gtasks::GTask>, String>> {
+    let cid = g.client_id.clone();
+    let sec = g.client_secret.clone();
+    let path = Config::google_token_path();
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(crate::integrations::gtasks::fetch_all(&cid, &sec, &path));
+    });
+    rx
 }
 
 /// Load pinned notes from `.onyx/bookmarks.json` (a JSON array of vault-relative

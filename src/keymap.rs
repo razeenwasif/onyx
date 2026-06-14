@@ -81,6 +81,7 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: "a",           action: "Add todo",                 group: "Todo" },
     KeyHelp { keys: "e",           action: "Edit todo",                group: "Todo" },
     KeyHelp { keys: "d",           action: "Delete todo",              group: "Todo" },
+    KeyHelp { keys: "s",           action: "Sync Google Tasks into pane", group: "Todo" },
 
     KeyHelp { keys: "Type to filter",action: "Fuzzy search items",     group: "Palette / Switcher" },
     KeyHelp { keys: "Enter",       action: "Select",                   group: "Palette / Switcher" },

@@ -50,10 +50,29 @@ client_secret = "xxxxxxxxxxxxxxxxxxxx"
   - `Enter` pulls the task into the quicknote scratch as a `- [ ]` line.
 - `:gtasks add <title>` — create a task in your default Google list.
 
+### In the Todo pane
+
+Your open Google tasks also show up in the left-column **Todo pane**, merged with
+your local checklist and marked `☁`. One cursor spans both:
+
+- `Space` toggles — a local todo flips in `.onyx/todos.md`; a `☁` task is
+  **completed on Google** (and drops off the pane).
+- `d` deletes (local → file; `☁` → deleted on Google).
+- `a` adds a *local* todo; `e` edits a local one (use `:gtasks` for Google).
+- **`s`** (or `:todo sync`) pulls fresh Google tasks **in the background** (no lag).
+
+To pull them automatically every launch, opt in:
+
+```toml
+[google]
+sync_tasks = true
+```
+
 ## Notes
 
 - **Two-way.** Toggling, deleting, and adding write straight to Google over the
-  API. (Re-run `:google tasks` to re-pull after external changes.)
+  API. (Re-sync with `s` / `:todo sync` / re-opening `:google tasks` to reflect
+  changes made elsewhere.)
 - **Token storage.** Only `~/.config/onyx/google.json` holds secrets (mode 600);
   `config.toml` holds just the client id/secret you pasted.
 - **Google Keep.** Intentionally unsupported: Google provides no Keep API for

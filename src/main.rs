@@ -188,8 +188,9 @@ fn event_loop(
         // Advance the force-directed graph one frame when it's on screen
         // (sets needs_redraw when it actually moves).
         app.tick_graph();
-        // Apply any results from the background search worker.
+        // Apply any results from the background search / Google-Tasks workers.
         app.drain_search();
+        app.drain_gtasks();
         // React to external edits (Obsidian, git, sync) noticed by the watcher.
         app.handle_fs_events();
 
@@ -213,7 +214,7 @@ fn event_loop(
 
         // Choose how long to block: animating → fast; a toast is up → medium;
         // otherwise sleep until input arrives.
-        let timeout = if app.graph_should_step() || app.search_in_flight() {
+        let timeout = if app.graph_should_step() || app.search_in_flight() || app.gtasks_syncing() {
             anim_frame
         } else if status_visible {
             toast_poll
