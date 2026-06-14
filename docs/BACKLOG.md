@@ -113,28 +113,12 @@ single-note delete (negligible leak today), SIMD literal search via
 
 ---
 
-### Google Calendar sync into the calendar pane
+### Google Calendar sync into the calendar pane ✅ DONE (see § Done)
 
-**Context.** The calendar pane (`Ctrl-K` / `:calendar`) only knows about daily notes today — a cell is highlighted if a daily note exists for that date. The ask is to also surface Google Calendar events so the pane doubles as an agenda, and/or to two-way sync events with notes.
-
-**Approach (read-only first, the safe MVP).**
-
-- Auth: Google Calendar API via OAuth 2.0 "installed app" / device flow. We're a TUI with no browser, so device flow (show a code + URL the user opens elsewhere) is the right UX. Store the refresh token in `~/.config/onyx/google.json` (mode 600), never in `config.toml`.
-- Add an optional `[google]` table to `Config`: `enabled`, `calendar_ids`, `token_path`. Feature-gate the whole thing behind a `google` cargo feature so the default build pulls no network/auth crates.
-- New module `src/integrations/gcal.rs`: fetch events for the visible month, cache to `~/.config/onyx/cache/gcal-<month>.json` with a TTL so we're not hitting the network every render. Refresh on a background thread; the event loop drains results on tick (don't block the UI — see the tick placeholder in `event_loop`).
-- Render: mark days with events using a distinct glyph/color in `src/ui/calendar.rs`; pressing Enter on a day with events could list them (new sidebar sub-view or a popup).
-- Commands: `:gcal sync`, `:gcal today`, `:gcal auth`.
-
-**Stretch.**
-
-- Turn an event into a note (`:gcal note`) — create a note pre-filled from the event.
-- Two-way: create/update events from specially-formatted notes. Much more complex (conflict handling); keep out of MVP.
-
-**Risks / notes.**
-
-- Crates: `oauth2`, `reqwest` (or `ureq` to stay lighter/blocking), `serde_json`. Prefer `ureq` + blocking on a worker thread over pulling in tokio.
-- Network failures must degrade gracefully — the calendar pane still works offline from cache + daily notes.
-- This is the heaviest item here; do the markdown-link and help-scroll items first.
+Two-way Calendar shipped: events marked in the pane, a day-agenda overlay (`v`),
+create/delete. Follow-ups still open: **event editing** (change a time/title) and
+**timed** event creation (today's `a` makes an all-day event); turning an event
+into a pre-filled note (`:gcal note`) is also unbuilt.
 
 ---
 
