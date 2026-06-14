@@ -14,8 +14,11 @@ use super::IntResult;
 const AUTH_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 
-/// OAuth scopes Onyx requests (full Tasks for read + two-way; add more later).
+/// OAuth scopes Onyx requests (full Tasks + Calendar for read + two-way).
 pub const SCOPE_TASKS: &str = "https://www.googleapis.com/auth/tasks";
+pub const SCOPE_CALENDAR: &str = "https://www.googleapis.com/auth/calendar";
+/// All scopes Onyx asks for in one consent (space-separated, per OAuth spec).
+pub const SCOPES: &str = "https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar";
 
 /// A cached OAuth token (persisted to `google.json`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

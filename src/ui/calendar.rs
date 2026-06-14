@@ -68,7 +68,12 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
         };
         let label = format!("{:>2}", d);
         row.push(Span::styled(label, style));
-        row.push(Span::raw(" "));
+        // A `·` after the number marks a day with Google Calendar events.
+        if app.has_calendar_event(date) {
+            row.push(Span::styled("·", theme.s_accent().add_modifier(Modifier::BOLD)));
+        } else {
+            row.push(Span::raw(" "));
+        }
         if (lead + d as usize).is_multiple_of(7) {
             lines.push(Line::from(std::mem::take(&mut row)));
         }
@@ -78,7 +83,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
     }
     lines.push(Line::raw(""));
     lines.push(Line::styled(
-        "h/l week · j/k month · t today · Enter open",
+        "h/l day · j/k week · v agenda · g sync · t today",
         theme.s_subtle(),
     ));
 

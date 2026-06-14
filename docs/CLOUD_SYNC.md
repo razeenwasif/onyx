@@ -68,11 +68,34 @@ To pull them automatically every launch, opt in:
 sync_tasks = true
 ```
 
+## Google Calendar
+
+> **Enable it first:** in your Google Cloud project, **enable the Google
+> Calendar API**, then **re-run `:google auth`** — Onyx now requests the Calendar
+> scope too, so the old (Tasks-only) token must be refreshed with the broader
+> consent.
+
+- Days with events get a `·` mark in the calendar pane (bottom-right).
+- In the calendar pane: **`v`** opens the **day agenda** for the selected day,
+  **`g`** re-syncs the visible month.
+- In the agenda overlay: `j`/`k` move, **`a`** adds an all-day event on that day
+  (writes to your primary calendar), **`d`** deletes the selected event, `Esc`
+  closes.
+- `:agenda` opens the agenda directly; `:calendar sync` re-pulls the month.
+- Auto-pull the visible month every launch / on month-change:
+
+```toml
+[google]
+sync_calendar = true
+```
+
 ## Notes
 
-- **Two-way.** Toggling, deleting, and adding write straight to Google over the
-  API. (Re-sync with `s` / `:todo sync` / re-opening `:google tasks` to reflect
-  changes made elsewhere.)
+- **Two-way.** Toggling/deleting/adding tasks and adding/deleting events write
+  straight to Google. Re-sync (`s` / `g` / `:todo sync` / `:calendar sync`) to
+  reflect changes made elsewhere.
+- **Event editing** (changing a time/title) and **timed** event creation are
+  follow-ups; today's create makes an all-day event.
 - **Token storage.** Only `~/.config/onyx/google.json` holds secrets (mode 600);
   `config.toml` holds just the client id/secret you pasted.
 - **Google Keep.** Intentionally unsupported: Google provides no Keep API for

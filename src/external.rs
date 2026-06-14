@@ -77,7 +77,7 @@ fn run_google_auth(app: &mut App) {
     }
     let path = crate::config::Config::google_token_path();
     use crate::integrations::oauth;
-    match oauth::run_consent_flow(&g.client_id, &g.client_secret, oauth::SCOPE_TASKS) {
+    match oauth::run_consent_flow(&g.client_id, &g.client_secret, oauth::SCOPES) {
         Ok(tok) => match oauth::save_token(&path, &tok) {
             Ok(()) => app.set_status("Google authorized ✓"),
             Err(e) => app.set_status(format!("auth: couldn't save token: {e}")),

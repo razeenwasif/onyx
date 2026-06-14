@@ -89,6 +89,8 @@ pub enum Focus {
     Properties,
     /// Google Tasks overlay (pulled from the Tasks API).
     GoogleTasks,
+    /// Day-agenda overlay of Google Calendar events.
+    Agenda,
     Help,
     Settings,
     Prompt,
@@ -254,6 +256,7 @@ pub enum PromptAction {
     OpenVault,
     AddTodo,
     EditTodo,
+    AddEvent,
 }
 
 /// A request to suspend the TUI, run an external terminal program, and resume.
@@ -447,6 +450,13 @@ pub struct App {
     /// Selection cursor for the merged Todo pane (local + Google).
     pub todo_cursor: usize,
 
+    /// Google Calendar events for the loaded month + which month they're for.
+    pub cal_events: Vec<crate::integrations::gcal::CalEvent>,
+    pub cal_events_rx: Option<Receiver<std::result::Result<Vec<crate::integrations::gcal::CalEvent>, String>>>,
+    pub cal_loaded_month: Option<(i32, u32)>,
+    /// Selection in the day-agenda overlay.
+    pub agenda_selected: usize,
+
     /// Active database view (a folder shown as a table/board), or None.
     pub database: Option<DatabaseView>,
 
@@ -554,6 +564,10 @@ impl App {
             gtasks_selected: 0,
             gtasks_rx,
             todo_cursor: 0,
+            cal_events: Vec::new(),
+            cal_events_rx: None,
+            cal_loaded_month: None,
+            agenda_selected: 0,
             database: None,
             split_doc: None,
             quicknote: QuicknoteState::new(quicknote_text),
@@ -2721,6 +2735,131 @@ impl App {
         self.gtasks_rx.is_some()
     }
 
+    // --- Google Calendar -----------------------------------------------------
+
+    /// Background-fetch the displayed month's events.
+    pub fn start_calendar_sync(&mut self) {
+        if !self.config.google.is_configured() {
+            self.set_status("set [google] client_id/client_secret in config.toml first");
+            return;
+        }
+        if self.cal_events_rx.is_some() {
+            return;
+        }
+        let (y, m) = (self.calendar.cursor.year(), self.calendar.cursor.month());
+        self.cal_events_rx = Some(spawn_calendar_fetch(&self.config.google, y, m));
+        self.cal_loaded_month = Some((y, m));
+        self.set_status("syncing Google Calendar…");
+        self.needs_redraw = true;
+    }
+
+    /// Auto-sync the displayed month when opted in and not already loaded
+    /// (called each tick — covers startup and month navigation).
+    pub fn maybe_autosync_calendar(&mut self) {
+        if self.config.google.sync_calendar && self.config.google.is_configured() {
+            let cur = (self.calendar.cursor.year(), self.calendar.cursor.month());
+            if self.cal_loaded_month != Some(cur) && self.cal_events_rx.is_none() {
+                self.start_calendar_sync();
+            }
+        }
+    }
+
+    pub fn drain_calendar(&mut self) {
+        let Some(rx) = &self.cal_events_rx else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(Ok(events)) => {
+                let n = events.len();
+                self.cal_events = events;
+                self.cal_events_rx = None;
+                self.set_status(format!("Calendar synced · {n} events"));
+                self.needs_redraw = true;
+            }
+            Ok(Err(e)) => {
+                self.cal_events_rx = None;
+                self.set_status(format!("Calendar sync failed: {e}"));
+                self.needs_redraw = true;
+            }
+            Err(mpsc::TryRecvError::Empty) => {}
+            Err(mpsc::TryRecvError::Disconnected) => self.cal_events_rx = None,
+        }
+    }
+
+    pub fn calendar_syncing(&self) -> bool {
+        self.cal_events_rx.is_some()
+    }
+
+    pub fn has_calendar_event(&self, date: NaiveDate) -> bool {
+        self.cal_events.iter().any(|e| e.date == date)
+    }
+
+    pub fn events_on(&self, date: NaiveDate) -> Vec<&crate::integrations::gcal::CalEvent> {
+        self.cal_events.iter().filter(|e| e.date == date).collect()
+    }
+
+    /// Open the day-agenda overlay for the calendar's selected day.
+    pub fn open_agenda(&mut self) {
+        self.agenda_selected = 0;
+        self.last_focus = self.focus;
+        self.focus = Focus::Agenda;
+    }
+
+    pub fn agenda_move(&mut self, delta: i64) {
+        let n = self.events_on(self.calendar.cursor).len();
+        if n == 0 {
+            return;
+        }
+        let cur = self.agenda_selected.min(n - 1) as i64;
+        self.agenda_selected = (cur + delta).clamp(0, n as i64 - 1) as usize;
+    }
+
+    /// Create an all-day Google event on the selected day, then re-sync.
+    pub fn agenda_add_event(&mut self, title: &str) {
+        let title = title.trim();
+        if title.is_empty() {
+            return;
+        }
+        let g = self.config.google.clone();
+        if !g.is_configured() {
+            self.set_status("set [google] client_id/client_secret in config.toml first");
+            return;
+        }
+        let path = crate::config::Config::google_token_path();
+        let date = self.calendar.cursor;
+        match crate::integrations::gcal::create_all_day(&g.client_id, &g.client_secret, &path, date, title) {
+            Ok(()) => {
+                self.set_status(format!("added \"{title}\" on {date}"));
+                self.start_calendar_sync();
+            }
+            Err(e) => self.set_status(format!("Calendar: {e}")),
+        }
+    }
+
+    pub fn agenda_delete_selected(&mut self) {
+        let day = self.calendar.cursor;
+        let (cal_id, ev_id, summary) = {
+            let evs = self.events_on(day);
+            let Some(e) = evs.get(self.agenda_selected) else {
+                return;
+            };
+            (e.calendar_id.clone(), e.id.clone(), e.summary.clone())
+        };
+        let g = self.config.google.clone();
+        let path = crate::config::Config::google_token_path();
+        match crate::integrations::gcal::delete_event(&g.client_id, &g.client_secret, &path, &cal_id, &ev_id) {
+            Ok(()) => {
+                self.cal_events.retain(|x| x.id != ev_id);
+                let n = self.events_on(day).len();
+                if self.agenda_selected >= n {
+                    self.agenda_selected = n.saturating_sub(1);
+                }
+                self.set_status(format!("deleted \"{summary}\""));
+            }
+            Err(e) => self.set_status(format!("Calendar: {e}")),
+        }
+    }
+
     /// Create a task in the user's default Google Tasks list.
     pub fn gtasks_add_task(&mut self, title: &str) {
         let title = title.trim();
@@ -2882,7 +3021,7 @@ impl App {
                     self.close_overlay();
                 }
             }
-            Focus::Palette | Focus::Switcher | Focus::Search | Focus::Help | Focus::Settings | Focus::Prompt | Focus::Tasks | Focus::GoogleTasks => {
+            Focus::Palette | Focus::Switcher | Focus::Search | Focus::Help | Focus::Settings | Focus::Prompt | Focus::Tasks | Focus::GoogleTasks | Focus::Agenda => {
                 self.close_overlay();
             }
             Focus::Confirm => {
@@ -2945,6 +3084,22 @@ fn spawn_gtasks_fetch(
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
         let _ = tx.send(crate::integrations::gtasks::fetch_all(&cid, &sec, &path));
+    });
+    rx
+}
+
+/// Spawn a background thread that fetches a month's Google Calendar events.
+fn spawn_calendar_fetch(
+    g: &crate::config::GoogleConfig,
+    year: i32,
+    month: u32,
+) -> Receiver<std::result::Result<Vec<crate::integrations::gcal::CalEvent>, String>> {
+    let cid = g.client_id.clone();
+    let sec = g.client_secret.clone();
+    let path = Config::google_token_path();
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(crate::integrations::gcal::fetch_month(&cid, &sec, &path, year, month));
     });
     rx
 }

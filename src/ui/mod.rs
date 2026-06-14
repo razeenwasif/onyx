@@ -1,5 +1,6 @@
 //! Top-level UI compositor.
 
+pub mod agenda;
 pub mod calendar;
 pub mod cmdline;
 pub mod confirm;
@@ -73,6 +74,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         Focus::Tasks => tasks::draw(frame, area, app),
         Focus::Properties => props::draw(frame, area, app),
         Focus::GoogleTasks => gtasks::draw(frame, area, app),
+        Focus::Agenda => agenda::draw(frame, area, app),
         _ => {}
     }
     if app.help_open && app.focus != Focus::Help {

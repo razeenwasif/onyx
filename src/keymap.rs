@@ -67,6 +67,8 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: "o / Space",   action: "Open daily note for day",  group: "Calendar" },
     KeyHelp { keys: "Enter",       action: "Fullscreen calendar",      group: "Calendar" },
     KeyHelp { keys: "t",           action: "Jump to today",            group: "Calendar" },
+    KeyHelp { keys: "v",           action: "Day agenda (Google events)", group: "Calendar" },
+    KeyHelp { keys: "g",           action: "Sync Google Calendar",     group: "Calendar" },
 
     KeyHelp { keys: "Enter",       action: "Fullscreen graph",         group: "Graph" },
     KeyHelp { keys: "a",           action: "Toggle local / all-notes scope", group: "Graph" },

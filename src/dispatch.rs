@@ -38,6 +38,7 @@ pub fn on_key(app: &mut App, key: KeyEvent) {
         Focus::Tasks => tasks_keys(app, key),
         Focus::Properties => props_keys(app, key),
         Focus::GoogleTasks => gtasks_keys(app, key),
+        Focus::Agenda => agenda_keys(app, key),
         Focus::Settings => help_keys(app, key),
         Focus::Editor => editor_keys(app, key),
         Focus::Preview => preview_keys(app, key),
@@ -863,6 +864,15 @@ fn calendar_keys(app: &mut App, key: KeyEvent) {
             app.focus = Focus::Editor;
             return;
         }
+        // `v` opens the day's Google agenda; `g` re-syncs the month.
+        KeyCode::Char('v') => {
+            app.open_agenda();
+            return;
+        }
+        KeyCode::Char('g') => {
+            app.start_calendar_sync();
+            return;
+        }
         KeyCode::Tab => {
             app.toggle_pane_focus(true);
             return;
@@ -874,6 +884,22 @@ fn calendar_keys(app: &mut App, key: KeyEvent) {
         _ => cur,
     };
     app.calendar.cursor = new;
+    // A month change auto-fetches its events (when opted in).
+    app.maybe_autosync_calendar();
+}
+
+// -----------------------------------------------------------------------------
+// Day-agenda overlay (Google Calendar)
+// -----------------------------------------------------------------------------
+
+fn agenda_keys(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => app.agenda_move(1),
+        KeyCode::Char('k') | KeyCode::Up => app.agenda_move(-1),
+        KeyCode::Char('a') => start_prompt(app, "New event (all-day, selected day)", PromptAction::AddEvent, ""),
+        KeyCode::Char('d') | KeyCode::Delete => app.agenda_delete_selected(),
+        _ => {}
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -1176,6 +1202,10 @@ fn apply_prompt(app: &mut App, action: PromptAction, value: String) {
             app.save_todos();
             app.focus = Focus::Todo;
         }
+        PromptAction::AddEvent => {
+            app.agenda_add_event(v);
+            app.focus = Focus::Agenda;
+        }
         PromptAction::None => {}
     }
 }
@@ -1424,7 +1454,17 @@ fn run_ex_command(app: &mut App, raw: &str) {
         }
         "database" | "db" | "table" => open_database_cmd(app, args, false),
         "board" | "kanban" => open_database_cmd(app, args, true),
-        "calendar" | "cal" => app.open_calendar(),
+        "calendar" | "cal" => {
+            if args == "sync" {
+                app.start_calendar_sync();
+            } else {
+                app.open_calendar();
+            }
+        }
+        "agenda" => {
+            app.open_calendar();
+            app.open_agenda();
+        }
         "todo" | "todos" => {
             if args == "sync" {
                 app.start_gtasks_sync();

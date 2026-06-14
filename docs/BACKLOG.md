@@ -221,6 +221,26 @@ single-note delete (negligible leak today), SIMD literal search via
 
 ## Done
 
+### Two-way Google Calendar  (2026-06-14)
+
+Surfaces Calendar events in the calendar pane + a day agenda, with create/delete.
+Reuses the OAuth foundation (scope broadened to Tasks **+** Calendar via
+`oauth::SCOPES` — re-auth required) and the background-sync + write-helper
+patterns.
+
+- `integrations/gcal.rs` (pure parse/body builders unit-tested; cloud
+  fetch/create/delete): `parse_calendars`/`parse_events` (all-day + timed via
+  chrono, skips cancelled), `month_bounds`, `all_day_event_body`, `fetch_month`
+  (across all calendars), `create_all_day`, `delete_event`.
+- `App` calendar state + background sync (`start_calendar_sync`/`drain_calendar`/
+  `maybe_autosync_calendar` on the event-loop tick, faster poll while syncing);
+  `has_calendar_event` marks event days with `·` in `ui/calendar.rs`.
+- Day agenda overlay (`Focus::Agenda`, `ui/agenda.rs`): `v` opens it from the
+  calendar, `a` adds an all-day event (`PromptAction::AddEvent`), `d` deletes.
+  `:agenda`, `:calendar sync`. Opt-in auto-pull via `[google] sync_calendar`.
+- 72 tests (3 new). Default + `--features cloud` clippy-clean; agenda UI verified
+  e2e (guards without config). Live fetch/writes need the user's (re-)auth.
+
 ### Google Tasks in the Todo pane (synced)  (2026-06-14)
 
 The left-column Todo pane now merges local todos with open Google tasks (marked

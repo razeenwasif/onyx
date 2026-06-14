@@ -46,6 +46,8 @@ pub struct GoogleConfig {
     pub client_secret: String,
     /// Pull Google Tasks into the Todo pane automatically at launch (background).
     pub sync_tasks: bool,
+    /// Pull Google Calendar events for the visible month automatically (background).
+    pub sync_calendar: bool,
 }
 
 impl GoogleConfig {

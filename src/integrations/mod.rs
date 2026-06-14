@@ -11,6 +11,7 @@
 //! every item.
 #![allow(dead_code, unused_imports, unused_variables)]
 
+pub mod gcal;
 pub mod gtasks;
 pub mod oauth;
 
