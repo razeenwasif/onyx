@@ -626,6 +626,8 @@ pub struct App {
     pub help_open: bool,
     /// First visible row of the help overlay (it scrolls; clamped by the renderer).
     pub help_scroll: usize,
+    /// Line-wise yank register (Visual `y`/`d` → `p`/`P`).
+    pub register: String,
     pub graph_focus: Option<PathBuf>,
     /// Force-directed simulation backing the graph view (built lazily).
     pub graph_sim: Option<GraphSim>,
@@ -769,6 +771,7 @@ impl App {
             cmdline: CmdlineState::default(),
             help_open: false,
             help_scroll: 0,
+            register: String::new(),
             graph_focus: None,
             graph_sim: None,
             graph_global: true,
@@ -3991,11 +3994,31 @@ impl App {
     /// Rewrite the current paragraph (or the whole note when `whole`) via the
     /// LLM, replacing it in place as a single undo-able edit. Empty instruction
     /// → a default cleanup.
-    pub fn rewrite_range(&mut self, whole: bool, instruction: String) {
-        if self.rewrite.active || self.ai.streaming {
-            self.set_status("AI is busy — wait for the current task");
-            return;
+    /// Entry point for the `:rewrite` command: rewrite the Visual selection if
+    /// one is active, else the paragraph (`:rewrite all` → whole note).
+    pub fn rewrite_command(&mut self, args: &str) {
+        let in_visual = self
+            .doc
+            .as_ref()
+            .map(|d| d.mode == Mode::Visual)
+            .unwrap_or(false);
+        if in_visual {
+            if let Some((s, e)) = self.visual_line_range() {
+                self.exit_visual();
+                self.rewrite_lines(s, e, args.trim().to_string(), "selection");
+                return;
+            }
         }
+        let a = args.trim();
+        match a.strip_prefix("all") {
+            Some(rest) if rest.is_empty() || rest.starts_with(char::is_whitespace) => {
+                self.rewrite_range(true, rest.trim().to_string())
+            }
+            _ => self.rewrite_range(false, a.to_string()),
+        }
+    }
+
+    pub fn rewrite_range(&mut self, whole: bool, instruction: String) {
         let Some(doc) = self.doc.as_ref() else {
             self.set_status("open a note to rewrite");
             return;
@@ -4020,7 +4043,21 @@ impl App {
                 (s, e)
             }
         };
-        let text: String = (start..=end)
+        self.rewrite_lines(start, end, instruction, if whole { "note" } else { "paragraph" });
+    }
+
+    /// Core: rewrite the inclusive line range `start..=end` per `instruction`,
+    /// streaming the result and replacing it in place when done.
+    fn rewrite_lines(&mut self, start: usize, end: usize, instruction: String, scope: &str) {
+        if self.rewrite.active || self.ai.streaming {
+            self.set_status("AI is busy — wait for the current task");
+            return;
+        }
+        let Some(doc) = self.doc.as_ref() else {
+            self.set_status("open a note to rewrite");
+            return;
+        };
+        let text: String = (start..=end.min(doc.buffer.line_count().saturating_sub(1)))
             .map(|i| doc.buffer.line(i))
             .collect::<Vec<_>>()
             .join("\n");
@@ -4052,7 +4089,82 @@ impl App {
         let host = self.config.ai.host.clone();
         let model = self.config.ai.model.clone();
         std::thread::spawn(move || ai_worker(host, model, messages, epoch, cancel, tx));
-        self.set_status(if whole { "rewriting note…" } else { "rewriting paragraph…" });
+        self.set_status(format!("rewriting {scope}…"));
+        self.needs_redraw = true;
+    }
+
+    // --- Visual (line-wise) selection ---------------------------------------
+
+    /// The selected inclusive line range, if in Visual mode.
+    pub fn visual_line_range(&self) -> Option<(usize, usize)> {
+        let doc = self.doc.as_ref()?;
+        let anchor = doc.anchor?;
+        let cur = doc.buffer.cursor.line;
+        Some((anchor.line.min(cur), anchor.line.max(cur)))
+    }
+
+    pub fn enter_visual(&mut self) {
+        if let Some(doc) = self.doc.as_mut() {
+            doc.anchor = Some(doc.buffer.cursor);
+            doc.mode = Mode::Visual;
+        }
+        self.needs_redraw = true;
+    }
+
+    pub fn exit_visual(&mut self) {
+        if let Some(doc) = self.doc.as_mut() {
+            doc.mode = Mode::Normal;
+            doc.anchor = None;
+        }
+        self.needs_redraw = true;
+    }
+
+    /// Yank the selected lines into the register, then leave Visual mode.
+    pub fn visual_yank(&mut self) {
+        if let Some((s, e)) = self.visual_line_range() {
+            if let Some(doc) = self.doc.as_ref() {
+                self.register = (s..=e).map(|i| doc.buffer.line(i)).collect::<Vec<_>>().join("\n");
+            }
+            self.set_status(format!("yanked {} line(s)", e - s + 1));
+        }
+        self.exit_visual();
+    }
+
+    /// Delete the selected lines (yanking them first), then leave Visual mode.
+    pub fn visual_delete(&mut self) {
+        if let Some((s, e)) = self.visual_line_range() {
+            if let Some(doc) = self.doc.as_mut() {
+                self.register = (s..=e).map(|i| doc.buffer.line(i)).collect::<Vec<_>>().join("\n");
+                doc.history.record(&doc.buffer);
+                doc.buffer.remove_line_range(s, e);
+                doc.dirty = true;
+            }
+        }
+        self.exit_visual();
+    }
+
+    /// Rewrite the selected lines with the AI (default cleanup), leaving Visual.
+    pub fn rewrite_selection(&mut self, instruction: String) {
+        let Some((s, e)) = self.visual_line_range() else {
+            return;
+        };
+        self.exit_visual();
+        self.rewrite_lines(s, e, instruction, "selection");
+    }
+
+    /// Paste the register as whole lines (after the cursor line, or before for `P`).
+    pub fn paste_register(&mut self, after: bool) {
+        if self.register.is_empty() {
+            self.set_status("nothing to paste");
+            return;
+        }
+        let reg = self.register.clone();
+        if let Some(doc) = self.doc.as_mut() {
+            doc.history.record(&doc.buffer);
+            let at = if after { doc.buffer.cursor.line + 1 } else { doc.buffer.cursor.line };
+            doc.buffer.insert_lines(at, &reg);
+            doc.dirty = true;
+        }
         self.needs_redraw = true;
     }
 

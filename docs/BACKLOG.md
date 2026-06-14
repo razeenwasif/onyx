@@ -178,6 +178,23 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ## Done
 
+### Editor: line-wise Visual selection (+ AI knows shortcuts)  (2026-06-14)
+
+A real Visual mode plus a cheatsheet for the assistant.
+
+- **Visual mode** (`v`/`V` enter, line-wise): motions extend; `y` yank, `d`/`x`
+  delete, `p`/`P` paste the register, `r` AI-rewrite the selection, `v`/`Esc`
+  leave. `Buffer::{remove_line_range, insert_lines, replace_line_range}`;
+  `App::{enter_visual, exit_visual, visual_line_range, visual_yank, visual_delete,
+  rewrite_selection, paste_register}` + an `App.register`. Selected lines are
+  highlighted in `ui/editor_pane.rs` (`patch_style(s_selection)`). `editor_visual`
+  key handler; `:rewrite` now rewrites the selection when one is active
+  (`rewrite_command` → shared `rewrite_lines`).
+- **AI cheatsheet:** the chat system prompt includes `keymap::cheatsheet()`, so
+  the assistant can answer "what's the shortcut for X". Verified live (→ Ctrl-P).
+- 88 tests; default + `ai` + `full` clippy-clean. Visual select/delete/yank/paste
+  verified live via pyte.
+
 ### AI rewrite in place  (2026-06-14)
 
 `:rewrite [instruction]` rewrites the paragraph at the cursor (`:rewrite all` =

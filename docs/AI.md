@@ -86,9 +86,9 @@ instruction it does a clarity/grammar cleanup.
   `:rewrite all turn this into bullet points`.
 - The result is applied when generation finishes (a `rewriting…` status shows
   meanwhile); `u` undoes it if you don't like it.
-
-> Onyx's editor doesn't have a visual selection yet, so rewrite targets the
-> paragraph (or whole note) rather than an arbitrary selection.
+- **Rewrite a selection:** press **`v`** to start a line-wise Visual selection,
+  extend with `j`/`k`, then **`r`** (or **`:rewrite <instruction>`**) to rewrite
+  exactly those lines.
 
 These Gemma builds emit a short **reasoning trace** before the answer; it's shown
 dimmed/italic above the reply.
@@ -104,4 +104,4 @@ graph?" or "how do I rewrite a paragraph?" and get the exact keys/commands.
   fits in `[ai] model` (e.g. an `e2b`/4B for snappy, a 12B for quality).
 - **Local only.** Requests go to loopback HTTP; nothing is sent to any cloud.
 - **Follow-ups (not built yet):** inline autocomplete (ghost text) and a separate
-  fast model for completions; a true visual selection to rewrite arbitrary spans.
+  fast model for completions.

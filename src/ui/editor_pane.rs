@@ -60,6 +60,13 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
         0
     };
 
+    // Line-wise Visual selection range (inclusive), if active.
+    let visual_range: Option<(usize, usize)> = if doc.mode == Mode::Visual {
+        doc.anchor.map(|a| (a.line.min(cursor.line), a.line.max(cursor.line)))
+    } else {
+        None
+    };
+
     let mut lines: Vec<Line<'static>> = Vec::with_capacity(height);
     for row in 0..height {
         let lineno = scroll + row;
@@ -83,6 +90,13 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
             spans.push(s);
         }
         let mut line = Line::from(spans);
+
+        // Highlight selected lines in Visual mode.
+        if let Some((s, e)) = visual_range {
+            if (s..=e).contains(&lineno) {
+                line = line.patch_style(theme.s_selection());
+            }
+        }
 
         // Cursor block — invert one cell when focused and we're on this line.
         if focused && doc.mode != Mode::Insert && lineno == cursor.line {

@@ -426,7 +426,54 @@ fn editor_keys(app: &mut App, key: KeyEvent) {
     match mode {
         Mode::Insert => editor_insert(app, key),
         Mode::Normal | Mode::OpPending => editor_normal(app, key),
-        Mode::Visual => editor_normal(app, key),
+        Mode::Visual => editor_visual(app, key),
+    }
+}
+
+/// Line-wise Visual mode: motions extend the selection; `d`/`y` delete/yank it,
+/// `r` AI-rewrites it, `v`/`Esc` leave.
+fn editor_visual(app: &mut App, key: KeyEvent) {
+    // App-level actions (need &mut App).
+    match key.code {
+        KeyCode::Char('d') | KeyCode::Char('x') => {
+            app.visual_delete();
+            return;
+        }
+        KeyCode::Char('y') => {
+            app.visual_yank();
+            return;
+        }
+        KeyCode::Char('r') => {
+            app.rewrite_selection(String::new());
+            return;
+        }
+        KeyCode::Char('v') | KeyCode::Char('V') => {
+            app.exit_visual();
+            return;
+        }
+        _ => {}
+    }
+    // Motions extend the selection (anchor stays put).
+    let doc = app.doc.as_mut().unwrap();
+    let pending = doc.pending_op.take();
+    match key.code {
+        KeyCode::Char('h') | KeyCode::Left => doc.buffer.move_left(),
+        KeyCode::Char('l') | KeyCode::Right => doc.buffer.move_right(),
+        KeyCode::Char('j') | KeyCode::Down => doc.buffer.move_down(),
+        KeyCode::Char('k') | KeyCode::Up => doc.buffer.move_up(),
+        KeyCode::Char('w') => doc.buffer.move_word_forward(),
+        KeyCode::Char('b') => doc.buffer.move_word_back(),
+        KeyCode::Char('0') | KeyCode::Home => doc.buffer.move_line_start(),
+        KeyCode::Char('$') | KeyCode::End => doc.buffer.move_line_end(),
+        KeyCode::Char('G') => doc.buffer.move_doc_end(),
+        KeyCode::Char('g') => {
+            if pending == Some('g') {
+                doc.buffer.move_doc_start();
+            } else {
+                doc.pending_op = Some('g');
+            }
+        }
+        _ => {}
     }
 }
 
@@ -562,6 +609,20 @@ fn editor_normal(app: &mut App, key: KeyEvent) {
     // handle it before borrowing the doc below).
     if key.code == KeyCode::Char('t') && key.modifiers.is_empty() {
         app.toggle_task_on_current_line();
+        return;
+    }
+    // Paste the yank register (line-wise) — needs &mut App.
+    if key.code == KeyCode::Char('p') && key.modifiers.is_empty() {
+        app.paste_register(true);
+        return;
+    }
+    if key.code == KeyCode::Char('P') && key.modifiers.is_empty() {
+        app.paste_register(false);
+        return;
+    }
+    // Enter (line-wise) Visual selection.
+    if matches!(key.code, KeyCode::Char('v') | KeyCode::Char('V')) && key.modifiers.is_empty() {
+        app.enter_visual();
         return;
     }
 
@@ -1540,16 +1601,8 @@ fn run_ex_command(app: &mut App, raw: &str) {
                 app.ask_vault(args.to_string());
             }
         }
-        "rewrite" | "rw" => {
-            // `:rewrite [instr]` → current paragraph; `:rewrite all [instr]` → whole note.
-            let a = args.trim();
-            match a.strip_prefix("all") {
-                Some(rest) if rest.is_empty() || rest.starts_with(char::is_whitespace) => {
-                    app.rewrite_range(true, rest.trim().to_string());
-                }
-                _ => app.rewrite_range(false, a.to_string()),
-            }
-        }
+        // Visual selection if active, else paragraph (`:rewrite all` → whole note).
+        "rewrite" | "rw" => app.rewrite_command(args),
         "todo" | "todos" => {
             if args == "sync" {
                 app.start_gtasks_sync();

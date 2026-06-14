@@ -25,7 +25,7 @@ A modern, premium markdown notes TUI — an Obsidian-inspired terminal vault.
 - Monthly calendar with daily-notes (`Ctrl-K`), plus optional **Google Calendar** events (`·` marks, `v` day agenda, two-way create/delete)
 - Optional **Google Drive** browser (`:drive`) — open a Drive text file in the editor (save uploads it straight back, two-way), open a PDF/image in your system viewer, or `u` to upload the open note as a new Drive file; plus **Google Tasks** merged into the Todo pane
 - Optional **local AI assistant** (`Ctrl-A` / `:ai`) — a streaming chat over your notes powered by a **local LLM via Ollama** (e.g. Gemma); the open note is sent as context, plus `:summarize`, **`:ask` (semantic RAG over your whole vault, with cited sources)**, and **`:rewrite` (AI-rewrite a paragraph or note in place, undoable)**. No cloud, no keys. See `docs/AI.md`
-- Vim-style modal editing in the editor pane, with a `:` ex command line (`:w`, `:e`, `:e!`, `:w!`, …)
+- Vim-style modal editing — normal/insert/**visual** (line-wise select → yank `y` / delete `d` / paste `p` / AI-rewrite `r`), with a `:` ex command line (`:w`, `:e`, `:e!`, `:w!`, …)
 - Crash-safe **atomic saves** and an external-change **conflict guard** (prompts before overwriting a note edited elsewhere)
 - **Live filesystem sync** — edits from Obsidian/another editor/git refresh the tree, index, and graph; a clean open note reloads automatically
 - **Fast startup** — a persistent index cache re-parses only the notes that changed since last launch (~26× faster on a 680-note vault)

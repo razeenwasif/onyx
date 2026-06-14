@@ -5,7 +5,20 @@ for the task queue see **`docs/BACKLOG.md`**. This file is the "where we are rig
 
 _Last updated: 2026-06-14._
 
-> **Latest (2026-06-14): AI rewrite-in-place shipped.** `:rewrite [instr]`
+> **Latest (2026-06-14): editor Visual selection + AI cheatsheet.** Line-wise
+> Visual mode (`v`/`V`): motions extend, `y`/`d` yank/delete, `p`/`P` paste
+> (`App.register`), `r` AI-rewrites the selection, `Esc` leaves; selected lines
+> highlighted in `ui/editor_pane.rs`. `Buffer::{remove_line_range,insert_lines}`,
+> `App::{enter_visual,exit_visual,visual_line_range,visual_yank,visual_delete,
+> rewrite_selection,paste_register}`, `editor_visual` handler; `:rewrite`
+> (→`rewrite_command`) targets the selection when active. The AI **chat prompt
+> now includes `keymap::cheatsheet()`** so it answers shortcut questions (verified
+> → Ctrl-P). Verified live (visual delete/yank/paste). Still open of the user's
+> last batch: **inline AI autocomplete** and **compact the RAG vector cache**.
+>
+> ---
+>
+> **Earlier (2026-06-14): AI rewrite-in-place shipped.** `:rewrite [instr]`
 > rewrites the paragraph at the cursor (`:rewrite all` = whole note) and replaces
 > it as one undo-able edit (`u`). `Buffer::replace_line_range` splices the result;
 > `App::rewrite_range` builds an "output only" prompt + runs `ai_worker`,
