@@ -5,7 +5,19 @@ for the task queue see **`docs/BACKLOG.md`**. This file is the "where we are rig
 
 _Last updated: 2026-06-14._
 
-> **Latest (2026-06-14): RAG cache compacted (int8+base64).** `.onyx/rag-index.json`
+> **Latest (2026-06-14): inline AI autocomplete (ghost text).** Insert-mode
+> suggestions from the fast `[ai] completion_model` (e2b), shown dimmed after the
+> cursor, `Tab` accepts. `App::{note_edit, maybe_request_ghost (600ms debounce,
+> line-end only, epoch/ghost_cancel), drain_ghost (revision-gated), accept_ghost,
+> ghost_armed/ghost_pending (fast-poll), set_autocomplete}`; `ghost_worker` +
+> `clean_ghost`; rendered in `ui/editor_pane.rs`; `:ai complete on|off`. Verified
+> live ("…France is" → ghost "Paris", Tab accepts). **This finishes the user's
+> entire planned scope — Onyx is feature-complete.** Only optional bits remain:
+> OneDrive (deferred), conversation persistence, char-wise visual selection.
+>
+> ---
+>
+> **Earlier (2026-06-14): RAG cache compacted (int8+base64).** `.onyx/rag-index.json`
 > embeddings are int8-quantized + base64-packed (`rag::{quantize,pack,unpack}` +
 > in-house base64), ~4× smaller; `top_k` quantizes the query + ranks via
 > `cosine_i8` (scale-invariant → same ranking). `EmbeddedChunk.vec:Vec<f32>` →

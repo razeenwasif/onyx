@@ -357,6 +357,11 @@ pub enum AiMsg {
 /// How much of the current note to include as context (chars).
 const AI_NOTE_CONTEXT_CAP: usize = 6000;
 
+/// Idle time after a keystroke before an autocomplete suggestion is requested.
+const GHOST_DEBOUNCE: Duration = Duration::from_millis(600);
+/// How much text before the cursor to send as autocomplete context.
+const GHOST_CONTEXT_CAP: usize = 1500;
+
 /// Progress state for "ask my vault" (RAG) embedding/indexing.
 #[derive(Debug, Default)]
 pub struct RagState {
@@ -620,6 +625,16 @@ pub struct App {
     pub rewrite_rx: Option<Receiver<AiMsg>>,
     pub rewrite_epoch: u64,
     pub rewrite_cancel: Arc<AtomicBool>,
+    // Inline autocomplete (ghost text): a debounced completion request fires
+    // after a typing pause; the suggestion is shown dimmed after the cursor.
+    pub ghost: Option<String>,
+    pub ghost_rx: Option<Receiver<(u64, std::result::Result<String, String>)>>,
+    pub ghost_epoch: u64,
+    pub ghost_cancel: Arc<AtomicBool>,
+    /// Buffer revision the current ghost (or in-flight request) is for.
+    pub ghost_for_rev: Option<u64>,
+    /// When the user last edited in insert mode (debounce timer).
+    pub last_edit: Option<Instant>,
     pub prompt: PromptState,
     pub confirm: ConfirmState,
     pub cmdline: CmdlineState,
@@ -763,6 +778,12 @@ impl App {
             rewrite_rx: None,
             rewrite_epoch: 0,
             rewrite_cancel: Arc::new(AtomicBool::new(false)),
+            ghost: None,
+            ghost_rx: None,
+            ghost_epoch: 0,
+            ghost_cancel: Arc::new(AtomicBool::new(false)),
+            ghost_for_rev: None,
+            last_edit: None,
             search_epoch: 0,
             search_gen: Arc::new(AtomicU64::new(0)),
             search_rx: None,
@@ -4168,6 +4189,152 @@ impl App {
         self.needs_redraw = true;
     }
 
+    // --- Inline autocomplete (ghost text) -----------------------------------
+
+    /// Record an insert-mode edit/move: reset the debounce timer and drop any
+    /// stale suggestion + in-flight request.
+    pub fn note_edit(&mut self) {
+        self.last_edit = Some(Instant::now());
+        if self.ghost.take().is_some() {
+            self.needs_redraw = true;
+        }
+        if self.ghost_rx.is_some() {
+            self.ghost_cancel.store(true, Ordering::Relaxed);
+            self.ghost_rx = None;
+        }
+        self.ghost_for_rev = None;
+    }
+
+    /// True while waiting out the debounce before requesting a suggestion (the
+    /// event loop polls faster so it can fire even with no further input).
+    pub fn ghost_armed(&self) -> bool {
+        self.config.ai.autocomplete
+            && self.last_edit.is_some()
+            && self.focus == Focus::Editor
+            && self.doc.as_ref().map(|d| d.mode == Mode::Insert).unwrap_or(false)
+    }
+
+    pub fn ghost_pending(&self) -> bool {
+        self.ghost_rx.is_some()
+    }
+
+    /// Fire a debounced completion request when idle in insert mode at line end.
+    pub fn maybe_request_ghost(&mut self) {
+        if !self.config.ai.autocomplete
+            || self.focus != Focus::Editor
+            || self.ghost.is_some()
+            || self.ghost_rx.is_some()
+            || self.link_complete.is_some()
+            || self.slash_complete.is_some()
+            || self.tag_complete.is_some()
+        {
+            return;
+        }
+        let Some(last) = self.last_edit else { return };
+        if last.elapsed() < GHOST_DEBOUNCE {
+            return;
+        }
+        let Some(doc) = self.doc.as_ref() else { return };
+        if doc.mode != Mode::Insert {
+            return;
+        }
+        let line = doc.buffer.cursor.line;
+        let cur_line = doc.buffer.line(line);
+        // Only suggest at the end of a line with some content.
+        if doc.buffer.cursor.col < cur_line.chars().count() {
+            return;
+        }
+        let rev = doc.buffer.revision;
+        if self.ghost_for_rev == Some(rev) {
+            return;
+        }
+        let mut ctx = String::new();
+        for i in 0..line {
+            ctx.push_str(doc.buffer.line(i));
+            ctx.push('\n');
+        }
+        ctx.push_str(cur_line);
+        if ctx.trim().is_empty() {
+            return;
+        }
+        if ctx.len() > GHOST_CONTEXT_CAP {
+            let mut start = ctx.len() - GHOST_CONTEXT_CAP;
+            while !ctx.is_char_boundary(start) {
+                start += 1;
+            }
+            ctx = ctx[start..].to_string();
+        }
+
+        self.ghost_for_rev = Some(rev);
+        self.last_edit = None; // don't refire until the next edit
+        self.ghost_cancel.store(true, Ordering::Relaxed);
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.ghost_cancel = cancel.clone();
+        self.ghost_epoch = self.ghost_epoch.wrapping_add(1);
+        let epoch = self.ghost_epoch;
+        let (tx, rx) = mpsc::channel();
+        self.ghost_rx = Some(rx);
+        let host = self.config.ai.host.clone();
+        let model = self.config.ai.completion_model.clone();
+        std::thread::spawn(move || ghost_worker(host, model, ctx, epoch, cancel, tx));
+    }
+
+    /// Apply a finished completion (if the buffer is still in the same state).
+    pub fn drain_ghost(&mut self) {
+        let msg = match &self.ghost_rx {
+            Some(rx) => rx.try_recv(),
+            None => return,
+        };
+        match msg {
+            Ok((epoch, res)) => {
+                self.ghost_rx = None;
+                if epoch != self.ghost_epoch {
+                    return;
+                }
+                if let Ok(text) = res {
+                    let g = clean_ghost(&text);
+                    let rev_ok = self
+                        .doc
+                        .as_ref()
+                        .map(|d| {
+                            d.mode == Mode::Insert && Some(d.buffer.revision) == self.ghost_for_rev
+                        })
+                        .unwrap_or(false);
+                    if !g.is_empty() && rev_ok && self.focus == Focus::Editor {
+                        self.ghost = Some(g);
+                        self.needs_redraw = true;
+                    }
+                }
+            }
+            Err(mpsc::TryRecvError::Empty) => {}
+            Err(mpsc::TryRecvError::Disconnected) => self.ghost_rx = None,
+        }
+    }
+
+    /// Accept the shown suggestion, inserting it at the cursor.
+    pub fn accept_ghost(&mut self) {
+        let Some(g) = self.ghost.take() else { return };
+        if let Some(doc) = self.doc.as_mut() {
+            doc.history.record(&doc.buffer);
+            doc.buffer.insert_str(&g);
+            doc.dirty = true;
+        }
+        self.ghost_for_rev = None;
+        self.last_edit = None;
+        self.needs_redraw = true;
+    }
+
+    /// Toggle inline autocomplete on/off (persisted).
+    pub fn set_autocomplete(&mut self, on: bool) {
+        self.config.ai.autocomplete = on;
+        let _ = self.config.save();
+        if !on {
+            self.ghost = None;
+            self.ghost_rx = None;
+        }
+        self.set_status(if on { "autocomplete on" } else { "autocomplete off" });
+    }
+
     /// Accumulate the rewrite stream; on completion replace the range in place.
     pub fn drain_rewrite(&mut self) {
         let mut finished = false;
@@ -4612,6 +4779,40 @@ fn ai_worker(
             let _ = tx.send(AiMsg::Err(epoch, e));
         }
     }
+}
+
+/// Background autocomplete worker: ask the fast model for a short continuation
+/// of `context`, accumulate it, and deliver it once (epoch-tagged).
+fn ghost_worker(
+    host: String,
+    model: String,
+    context: String,
+    epoch: u64,
+    cancel: Arc<AtomicBool>,
+    tx: mpsc::Sender<(u64, std::result::Result<String, String>)>,
+) {
+    use crate::integrations::ollama::ChatMessage;
+    let sys = "You are an inline autocomplete engine for a Markdown notes editor. Continue the \
+               user's text from exactly where it stops. Output ONLY the continuation to insert \
+               at the cursor — no quotes, no explanation, no code fences, at most one short \
+               sentence. If nothing sensible follows, output nothing.";
+    let user = format!("Continue this text:\n\n{context}");
+    let messages = vec![ChatMessage::system(sys), ChatMessage::user(user)];
+    let mut acc = String::new();
+    let res = crate::integrations::ollama::chat_stream(&host, &model, &messages, &cancel, |chunk| {
+        acc.push_str(&chunk.content);
+    });
+    let _ = match res {
+        Ok(()) => tx.send((epoch, Ok(acc))),
+        Err(e) => tx.send((epoch, Err(e))),
+    };
+}
+
+/// Reduce a model completion to a single short ghost suggestion.
+fn clean_ghost(s: &str) -> String {
+    let line = s.lines().map(|l| l.trim()).find(|l| !l.is_empty()).unwrap_or("");
+    let line = line.trim_matches('"').trim_matches('`').trim();
+    line.chars().take(120).collect()
 }
 
 /// Tidy an LLM rewrite: trim, and strip a single surrounding ```fence``` if the

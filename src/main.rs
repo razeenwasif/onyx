@@ -200,6 +200,8 @@ fn event_loop(
         app.drain_ai();
         app.drain_rag();
         app.drain_rewrite();
+        app.maybe_request_ghost();
+        app.drain_ghost();
         // React to external edits (Obsidian, git, sync) noticed by the watcher.
         app.handle_fs_events();
 
@@ -232,6 +234,8 @@ fn event_loop(
             || app.ai_streaming()
             || app.rag_building()
             || app.rewrite_active()
+            || app.ghost_armed()
+            || app.ghost_pending()
         {
             anim_frame
         } else if status_visible {

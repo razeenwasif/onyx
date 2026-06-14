@@ -79,6 +79,7 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: "Ctrl-Enter",  action: "Follow wikilink at cursor",group: "Editor" },
     KeyHelp { keys: "[[",          action: "Wikilink autocomplete",    group: "Editor (Insert)" },
     KeyHelp { keys: "/",           action: "Slash menu — insert a block", group: "Editor (Insert)" },
+    KeyHelp { keys: "Tab",         action: "Accept AI autocomplete suggestion (ghost text)", group: "Editor (Insert)" },
     KeyHelp { keys: "#",           action: "Tag autocomplete",         group: "Editor (Insert)" },
 
     KeyHelp { keys: "j / k",       action: "Move fold cursor",         group: "Preview" },
@@ -135,6 +136,7 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: ":drive",      action: "Browse Google Drive (edit text, view PDFs, u=upload note)", group: "Ex commands (vim)" },
     KeyHelp { keys: ":ai [prompt]",action: "AI assistant (Ollama); :ai model <n>, :ai models, :ai clear", group: "Ex commands (vim)" },
     KeyHelp { keys: ":summarize",  action: "Summarize the current note with AI", group: "Ex commands (vim)" },
+    KeyHelp { keys: ":ai complete on/off", action: "Toggle inline AI autocomplete", group: "Ex commands (vim)" },
     KeyHelp { keys: ":ask <q>",    action: "Ask a question across your whole vault (RAG)", group: "Ex commands (vim)" },
     KeyHelp { keys: ":rewrite [i]",action: "AI-rewrite the paragraph (`:rewrite all` = note); u to undo", group: "Ex commands (vim)" },
     KeyHelp { keys: ":graph",      action: "Open graph view",          group: "Ex commands (vim)" },

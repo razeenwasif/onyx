@@ -66,6 +66,8 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
     } else {
         None
     };
+    // Inline autocomplete suggestion (shown dimmed after the cursor, insert mode).
+    let ghost: Option<&str> = if doc.mode == Mode::Insert { app.ghost.as_deref() } else { None };
 
     let mut lines: Vec<Line<'static>> = Vec::with_capacity(height);
     for row in 0..height {
@@ -88,6 +90,15 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
         }
         for s in styled {
             spans.push(s);
+        }
+        // Append the autocomplete suggestion (dimmed) at the cursor's line end.
+        if let Some(g) = ghost {
+            if lineno == cursor.line {
+                spans.push(Span::styled(
+                    g.to_string(),
+                    theme.s_subtle().add_modifier(Modifier::DIM),
+                ));
+            }
         }
         let mut line = Line::from(spans);
 

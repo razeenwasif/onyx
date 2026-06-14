@@ -91,6 +91,24 @@ instruction it does a clarity/grammar cleanup.
   extend with `j`/`k`, then **`r`** (or **`:rewrite <instruction>`**) to rewrite
   exactly those lines.
 
+### Inline autocomplete (ghost text)
+
+While typing in **insert mode**, after a short pause Onyx asks the model for a
+continuation and shows it **dimmed after the cursor**. Press **`Tab`** to accept
+it; just keep typing to ignore it.
+
+- Uses a **fast model** (`[ai] completion_model`, default `gemma4:e2b-it-qat`).
+- Toggle it: **`:ai complete on`** / **`:ai complete off`** (or `[ai] autocomplete`).
+- Only triggers at the end of a non-empty line, and never while another popup
+  (`[[`, `/`, `#`) is open. The first suggestion after Onyx starts may lag while
+  the model loads; after that it's quick.
+
+```toml
+[ai]
+completion_model = "gemma4:e2b-it-qat"
+autocomplete = true
+```
+
 These Gemma builds emit a short **reasoning trace** before the answer; it's shown
 dimmed/italic above the reply.
 
@@ -104,5 +122,5 @@ graph?" or "how do I rewrite a paragraph?" and get the exact keys/commands.
   tokens stream quickly. A bigger model = better answers, slower start; pick what
   fits in `[ai] model` (e.g. an `e2b`/4B for snappy, a 12B for quality).
 - **Local only.** Requests go to loopback HTTP; nothing is sent to any cloud.
-- **Follow-ups (not built yet):** inline autocomplete (ghost text) and a separate
-  fast model for completions.
+- **Follow-ups (not built yet):** conversation persistence across sessions;
+  char-wise (not just line-wise) Visual selection.

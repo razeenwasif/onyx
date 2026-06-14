@@ -178,6 +178,22 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ## Done
 
+### Inline AI autocomplete (ghost text)  (2026-06-14)
+
+Insert-mode ghost suggestions from a fast local model, `Tab` to accept.
+
+- `App`: `note_edit` (debounce reset on each insert key + drops stale ghost),
+  `maybe_request_ghost` (fires after a 600 ms pause at line-end, epoch/`ghost_cancel`
+  superseded, gated off when a popup is open), `drain_ghost` (applies only if the
+  buffer revision still matches), `accept_ghost` (insert at cursor), `ghost_armed`/
+  `ghost_pending` (drive the fast poll), `set_autocomplete`. `ghost_worker` +
+  `clean_ghost` (first short line). Rendered dimmed after the cursor in
+  `ui/editor_pane.rs`.
+- `[ai] completion_model` (default e2b) + `autocomplete` (default on); toggle via
+  `:ai complete on|off`. `Tab` accept wired in `dispatch::editor_keys`.
+- 89 tests; default + `ai` + `full` clippy-clean. Verified live e2e via pyte:
+  "The capital of France is" → ghost "Paris", Tab accepts into the buffer.
+
 ### RAG cache compaction — int8 + base64  (2026-06-14)
 
 The `.onyx/rag-index.json` embeddings are now stored int8-quantized and

@@ -47,6 +47,10 @@ pub struct AiConfig {
     pub model: String,
     /// Ollama embedding model for "ask my vault" RAG.
     pub embed_model: String,
+    /// Fast model for inline autocomplete (ghost text).
+    pub completion_model: String,
+    /// Whether inline autocomplete is on (suggest after a typing pause).
+    pub autocomplete: bool,
     /// Ollama host base URL (loopback by default).
     pub host: String,
 }
@@ -56,6 +60,8 @@ impl Default for AiConfig {
         Self {
             model: "gemma4:e4b-it-qat".to_string(),
             embed_model: "nomic-embed-text".to_string(),
+            completion_model: "gemma4:e2b-it-qat".to_string(),
+            autocomplete: true,
             host: "http://localhost:11434".to_string(),
         }
     }

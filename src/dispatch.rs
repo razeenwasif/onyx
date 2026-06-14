@@ -424,7 +424,22 @@ fn editor_keys(app: &mut App, key: KeyEvent) {
 
     let mode = app.doc.as_ref().unwrap().mode;
     match mode {
-        Mode::Insert => editor_insert(app, key),
+        Mode::Insert => {
+            // Tab accepts an inline autocomplete suggestion (when no popup owns it).
+            if matches!(key.code, KeyCode::Tab)
+                && app.ghost.is_some()
+                && app.link_complete.is_none()
+                && app.slash_complete.is_none()
+                && app.tag_complete.is_none()
+            {
+                app.accept_ghost();
+                return;
+            }
+            editor_insert(app, key);
+            // Any insert-mode key resets the autocomplete debounce + drops a
+            // stale suggestion (no-op when the feature is off).
+            app.note_edit();
+        }
         Mode::Normal | Mode::OpPending => editor_normal(app, key),
         Mode::Visual => editor_visual(app, key),
     }
@@ -1582,6 +1597,10 @@ fn run_ex_command(app: &mut App, raw: &str) {
             let a = args.trim();
             if a == "models" {
                 app.ai_list_models();
+            } else if a == "complete on" || a == "autocomplete on" {
+                app.set_autocomplete(true);
+            } else if a == "complete off" || a == "autocomplete off" {
+                app.set_autocomplete(false);
             } else if let Some(m) = a.strip_prefix("model") {
                 app.ai_set_model(m.trim());
             } else if a == "clear" {
