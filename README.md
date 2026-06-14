@@ -24,6 +24,7 @@ A modern, premium markdown notes TUI — an Obsidian-inspired terminal vault.
 - ASCII graph view (`Ctrl-G`) centered on the current note
 - Monthly calendar with daily-notes (`Ctrl-K`), plus optional **Google Calendar** events (`·` marks, `v` day agenda, two-way create/delete)
 - Optional **Google Drive** browser (`:drive`) — open a Drive text file in the editor (save uploads it straight back, two-way), open a PDF/image in your system viewer, or `u` to upload the open note as a new Drive file; plus **Google Tasks** merged into the Todo pane
+- Optional **local AI assistant** (`Ctrl-A` / `:ai`) — a streaming chat over your notes powered by a **local LLM via Ollama** (e.g. Gemma); the open note is sent as context, plus `:summarize`. No cloud, no keys. See `docs/AI.md`
 - Vim-style modal editing in the editor pane, with a `:` ex command line (`:w`, `:e`, `:e!`, `:w!`, …)
 - Crash-safe **atomic saves** and an external-change **conflict guard** (prompts before overwriting a note edited elsewhere)
 - **Live filesystem sync** — edits from Obsidian/another editor/git refresh the tree, index, and graph; a clean open note reloads automatically
@@ -45,10 +46,12 @@ cargo install --path . --force
 
 This puts `onyx` on your PATH (`~/.cargo/bin/onyx`).
 
-For the optional **Google integration** (two-way Google Tasks, Calendar, and Drive; OneDrive planned), build with the `cloud` feature and follow `docs/CLOUD_SYNC.md`:
+For the optional **Google integration** (two-way Google Tasks, Calendar, and Drive; OneDrive planned), build with the `cloud` feature and follow `docs/CLOUD_SYNC.md`. For the **local AI assistant** (Ollama), use the `ai` feature and follow `docs/AI.md`. `full` enables both:
 
 ```bash
-cargo install --path . --force --features cloud
+cargo install --path . --force --features cloud   # Google sync
+cargo install --path . --force --features ai      # local AI (Ollama)
+cargo install --path . --force --features full    # both
 ```
 
 > **After pulling or making changes, re-run `cargo install --path . --force`.**

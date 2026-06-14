@@ -35,6 +35,27 @@ pub struct Config {
     /// Google integration (Calendar/Tasks/Drive). Off until you fill in OAuth
     /// credentials from a Google Cloud "Desktop app" client.
     pub google: GoogleConfig,
+
+    /// Local LLM assistant (Ollama). Used by the `ai`-feature build.
+    pub ai: AiConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AiConfig {
+    /// Ollama model tag to use (e.g. `gemma4:e4b-it-qat`).
+    pub model: String,
+    /// Ollama host base URL (loopback by default).
+    pub host: String,
+}
+
+impl Default for AiConfig {
+    fn default() -> Self {
+        Self {
+            model: "gemma4:e4b-it-qat".to_string(),
+            host: "http://localhost:11434".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -107,6 +128,7 @@ impl Default for Config {
             editor: EditorConfig::default(),
             layout: LayoutConfig::default(),
             google: GoogleConfig::default(),
+            ai: AiConfig::default(),
         }
     }
 }

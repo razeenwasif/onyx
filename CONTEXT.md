@@ -5,7 +5,22 @@ for the task queue see **`docs/BACKLOG.md`**. This file is the "where we are rig
 
 _Last updated: 2026-06-14._
 
-> **Latest (2026-06-14): Obsidian-feel bundle shipped** (non-cloud) — (1)
+> **Latest (2026-06-14): local AI assistant shipped.** Streaming chat over a
+> local LLM via **Ollama** (loopback, no keys), behind a new **`ai`** cargo
+> feature (`full = ["cloud","ai"]`; build/install with `--features full`).
+> `integrations/ollama.rs` (pure builders/parsers tested + `chat_stream`/
+> `list_models` under `ai`); `Focus::Ai` overlay (`ui/ai.rs`, `AiState`) streams
+> tokens (worker→`AiMsg` mpsc, epoch-tagged, `drain_ai` on tick), shows the Gemma
+> `thinking` trace dimmed, sends the open note as context. `Ctrl-A`/`:ai` open;
+> `:ai <prompt>`, `:summarize`, `:ai model <name>`, `:ai models`, `:ai clear`.
+> `[ai]` config (`model` default `gemma4:e4b-it-qat`, `host`). **Ollama is
+> reachable from the sandbox**, so this was verified LIVE via pyte (streamed
+> "Paris"). 82 tests. Setup: `docs/AI.md`. Next AI follow-ups: ask-my-vault
+> (RAG), inline autocomplete, apply-rewrite-to-note. See [[local-gemma-integration]].
+>
+> ---
+>
+> **Earlier (2026-06-14): Obsidian-feel bundle shipped** (non-cloud) — (1)
 > **unlinked mentions** in the Backlinks pane (`~` rows below real backlinks;
 > background `unlinked_worker` + `contains_word`, cached in `UnlinkedState`,
 > refreshed each tick via `maybe_refresh_unlinked`/`drain_unlinked`); (2) vault

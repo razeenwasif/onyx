@@ -15,6 +15,7 @@ pub mod gcal;
 pub mod gdrive;
 pub mod gtasks;
 pub mod oauth;
+pub mod ollama;
 
 /// Result type for integration code.
 pub type IntResult<T> = std::result::Result<T, String>;

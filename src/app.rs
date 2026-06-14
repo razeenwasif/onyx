@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -93,6 +93,8 @@ pub enum Focus {
     Agenda,
     /// Google Drive file browser overlay.
     Drive,
+    /// Local LLM assistant (Ollama) chat overlay.
+    Ai,
     Help,
     Settings,
     Prompt,
@@ -319,6 +321,42 @@ pub struct UnlinkedState {
 /// Max unlinked mentions retained per note.
 const UNLINKED_CAP: usize = 50;
 
+/// One turn in the AI assistant conversation.
+#[derive(Debug, Clone)]
+pub struct AiTurn {
+    pub role: AiRole,
+    pub content: String,
+    /// Streamed reasoning trace (assistant turns only); shown dimmed.
+    pub thinking: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AiRole {
+    User,
+    Assistant,
+}
+
+/// State for the local-LLM (Ollama) chat overlay.
+#[derive(Debug, Default)]
+pub struct AiState {
+    pub turns: Vec<AiTurn>,
+    pub input: String,
+    /// Lines scrolled up from the bottom (0 = follow the latest output).
+    pub scroll: usize,
+    pub streaming: bool,
+}
+
+/// Messages from the background AI worker, tagged with an epoch so a superseded
+/// request's stragglers are ignored.
+pub enum AiMsg {
+    Delta(u64, crate::integrations::ollama::ChatChunk),
+    Done(u64),
+    Err(u64, String),
+}
+
+/// How much of the current note to include as context (chars).
+const AI_NOTE_CONTEXT_CAP: usize = 6000;
+
 /// Messages from the background search worker, tagged with the search epoch so
 /// stale results (from a superseded query) can be discarded.
 pub enum SearchMsg {
@@ -531,6 +569,12 @@ pub struct App {
     pub unlinked_rx: Option<Receiver<(u64, Vec<PathBuf>)>>,
     pub unlinked_epoch: u64,
     pub unlinked_gen: Arc<AtomicU64>,
+    // Local AI assistant (Ollama): streamed deltas over `ai_rx` tagged with
+    // `ai_epoch`; `ai_cancel` stops the in-flight worker mid-stream.
+    pub ai: AiState,
+    pub ai_rx: Option<Receiver<AiMsg>>,
+    pub ai_epoch: u64,
+    pub ai_cancel: Arc<AtomicBool>,
     pub prompt: PromptState,
     pub confirm: ConfirmState,
     pub cmdline: CmdlineState,
@@ -659,6 +703,10 @@ impl App {
             unlinked_rx: None,
             unlinked_epoch: 0,
             unlinked_gen: Arc::new(AtomicU64::new(0)),
+            ai: AiState::default(),
+            ai_rx: None,
+            ai_epoch: 0,
+            ai_cancel: Arc::new(AtomicBool::new(false)),
             search_epoch: 0,
             search_gen: Arc::new(AtomicU64::new(0)),
             search_rx: None,
@@ -3486,6 +3534,235 @@ impl App {
         rows
     }
 
+    // --- Local AI assistant (Ollama) ----------------------------------------
+
+    /// Open the AI chat overlay (keeping any prior conversation).
+    pub fn open_ai(&mut self) {
+        if self.focus != Focus::Ai {
+            self.last_focus = self.focus;
+        }
+        self.focus = Focus::Ai;
+        self.ai.scroll = 0;
+        self.needs_redraw = true;
+    }
+
+    /// Open the overlay and immediately send `prompt` (used by `:ai <text>` and
+    /// note actions like `:summarize`).
+    pub fn ai_prompt(&mut self, prompt: String) {
+        self.open_ai();
+        let prompt = prompt.trim().to_string();
+        if !prompt.is_empty() && !self.ai.streaming {
+            self.send_ai_message(prompt);
+        }
+    }
+
+    pub fn close_ai(&mut self) {
+        // Stop the in-flight stream but keep the conversation for next time.
+        self.ai_cancel.store(true, Ordering::Relaxed);
+        self.ai_rx = None;
+        self.ai.streaming = false;
+        self.focus = self.center_focus();
+        self.needs_redraw = true;
+    }
+
+    pub fn ai_input_char(&mut self, c: char) {
+        self.ai.input.push(c);
+        self.needs_redraw = true;
+    }
+
+    pub fn ai_input_backspace(&mut self) {
+        self.ai.input.pop();
+        self.needs_redraw = true;
+    }
+
+    pub fn ai_scroll(&mut self, delta: i64) {
+        self.ai.scroll = (self.ai.scroll as i64 + delta).max(0) as usize;
+        self.needs_redraw = true;
+    }
+
+    /// Clear the conversation (keeps the overlay open).
+    pub fn ai_clear(&mut self) {
+        self.ai_cancel.store(true, Ordering::Relaxed);
+        self.ai_rx = None;
+        self.ai.streaming = false;
+        self.ai.turns.clear();
+        self.ai.scroll = 0;
+        self.set_status("AI conversation cleared");
+    }
+
+    /// Submit whatever is in the input box.
+    pub fn ai_submit(&mut self) {
+        if self.ai.streaming {
+            return;
+        }
+        let text = self.ai.input.trim().to_string();
+        if text.is_empty() {
+            return;
+        }
+        self.ai.input.clear();
+        self.send_ai_message(text);
+    }
+
+    /// Build the message list (system + note context + history + new user turn),
+    /// record the turns, and spawn the streaming worker.
+    fn send_ai_message(&mut self, user_text: String) {
+        use crate::integrations::ollama::ChatMessage;
+
+        let mut sys = String::from(
+            "You are a helpful assistant embedded in Onyx, a Markdown notes app. \
+             Answer concisely and format replies in Markdown.",
+        );
+        if let Some(doc) = self.doc.as_ref() {
+            let title = doc
+                .path
+                .as_ref()
+                .and_then(|p| p.file_stem())
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_string())
+                .or_else(|| doc.drive_name.clone())
+                .unwrap_or_else(|| "untitled".to_string());
+            let mut body = doc.buffer.to_string();
+            if body.len() > AI_NOTE_CONTEXT_CAP {
+                body.truncate(AI_NOTE_CONTEXT_CAP);
+                body.push_str("\n…(truncated)");
+            }
+            sys.push_str(&format!(
+                "\n\nThe user's current note (\"{title}\") follows; use it as context when relevant:\n\n{body}"
+            ));
+        }
+
+        let mut messages = vec![ChatMessage::system(sys)];
+        for turn in &self.ai.turns {
+            match turn.role {
+                AiRole::User => messages.push(ChatMessage::user(turn.content.clone())),
+                AiRole::Assistant => messages.push(ChatMessage::assistant(turn.content.clone())),
+            }
+        }
+        messages.push(ChatMessage::user(user_text.clone()));
+
+        // Record the user turn + an empty assistant turn to stream into.
+        self.ai.turns.push(AiTurn {
+            role: AiRole::User,
+            content: user_text,
+            thinking: String::new(),
+        });
+        self.ai.turns.push(AiTurn {
+            role: AiRole::Assistant,
+            content: String::new(),
+            thinking: String::new(),
+        });
+        self.ai.scroll = 0;
+
+        // Supersede any prior stream; start fresh.
+        self.ai_cancel.store(true, Ordering::Relaxed);
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.ai_cancel = cancel.clone();
+        self.ai_epoch = self.ai_epoch.wrapping_add(1);
+        let epoch = self.ai_epoch;
+        let (tx, rx) = mpsc::channel();
+        self.ai_rx = Some(rx);
+        self.ai.streaming = true;
+        let host = self.config.ai.host.clone();
+        let model = self.config.ai.model.clone();
+        std::thread::spawn(move || ai_worker(host, model, messages, epoch, cancel, tx));
+        self.needs_redraw = true;
+    }
+
+    /// Apply streamed AI deltas (called each loop tick).
+    pub fn drain_ai(&mut self) {
+        let mut changed = false;
+        let mut finished = false;
+        let mut error: Option<String> = None;
+        if let Some(rx) = &self.ai_rx {
+            loop {
+                match rx.try_recv() {
+                    Ok(AiMsg::Delta(e, chunk)) => {
+                        if e == self.ai_epoch {
+                            if let Some(turn) = self.ai.turns.last_mut() {
+                                if turn.role == AiRole::Assistant {
+                                    turn.content.push_str(&chunk.content);
+                                    turn.thinking.push_str(&chunk.thinking);
+                                }
+                            }
+                            changed = true;
+                        }
+                    }
+                    Ok(AiMsg::Done(e)) => {
+                        if e == self.ai_epoch {
+                            finished = true;
+                        }
+                    }
+                    Ok(AiMsg::Err(e, msg)) => {
+                        if e == self.ai_epoch {
+                            finished = true;
+                            error = Some(msg);
+                        }
+                    }
+                    Err(mpsc::TryRecvError::Empty) => break,
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        finished = true;
+                        break;
+                    }
+                }
+                if finished {
+                    break;
+                }
+            }
+        }
+        if finished {
+            self.ai_rx = None;
+            self.ai.streaming = false;
+            changed = true;
+            if let Some(msg) = error {
+                if let Some(turn) = self.ai.turns.last_mut() {
+                    if turn.role == AiRole::Assistant && turn.content.trim().is_empty() {
+                        turn.content = format!("⚠ {msg}");
+                    }
+                }
+                self.set_status(format!("AI: {msg}"));
+            }
+        }
+        if changed {
+            self.needs_redraw = true;
+        }
+    }
+
+    pub fn ai_streaming(&self) -> bool {
+        self.ai_rx.is_some()
+    }
+
+    /// Summarize the open note via the assistant.
+    pub fn summarize_current(&mut self) {
+        if self.doc.is_none() {
+            self.set_status("open a note to summarize");
+            return;
+        }
+        self.ai_prompt("Summarize this note in a few concise bullet points.".to_string());
+    }
+
+    /// Switch the active Ollama model (persisted to config).
+    pub fn ai_set_model(&mut self, name: &str) {
+        let name = name.trim();
+        if name.is_empty() {
+            self.set_status(format!("AI model: {}", self.config.ai.model));
+            return;
+        }
+        self.config.ai.model = name.to_string();
+        let _ = self.config.save();
+        self.set_status(format!("AI model set to {name}"));
+    }
+
+    /// List installed Ollama models into the status line (a quick blocking call).
+    pub fn ai_list_models(&mut self) {
+        match crate::integrations::ollama::list_models(&self.config.ai.host) {
+            Ok(models) if !models.is_empty() => {
+                self.set_status(format!("models: {}", models.join("  ")))
+            }
+            Ok(_) => self.set_status("no Ollama models found (run `ollama pull`)"),
+            Err(e) => self.set_status(format!("AI: {e}")),
+        }
+    }
+
     #[allow(dead_code)]
     pub fn ensure_doc(&mut self) -> &mut Document {
         if self.doc.is_none() {
@@ -3529,6 +3806,7 @@ impl App {
                 self.focus = self.center_focus();
             }
             Focus::Drive => self.close_drive(),
+            Focus::Ai => self.close_ai(),
             Focus::Database => {
                 // First Esc cancels an in-progress filter; the next closes the view.
                 if let Some(db) = self.database.as_mut() {
@@ -3836,6 +4114,36 @@ fn unlinked_worker(
         }
     }
     let _ = tx.send((epoch, hits));
+}
+
+/// Background AI worker: streams a chat completion from Ollama, forwarding each
+/// delta as an `AiMsg` tagged with `epoch`. `cancel` stops it mid-stream.
+fn ai_worker(
+    host: String,
+    model: String,
+    messages: Vec<crate::integrations::ollama::ChatMessage>,
+    epoch: u64,
+    cancel: Arc<AtomicBool>,
+    tx: mpsc::Sender<AiMsg>,
+) {
+    let tx2 = tx.clone();
+    let res = crate::integrations::ollama::chat_stream(
+        &host,
+        &model,
+        &messages,
+        &cancel,
+        |chunk| {
+            let _ = tx2.send(AiMsg::Delta(epoch, chunk));
+        },
+    );
+    match res {
+        Ok(()) => {
+            let _ = tx.send(AiMsg::Done(epoch));
+        }
+        Err(e) => {
+            let _ = tx.send(AiMsg::Err(epoch, e));
+        }
+    }
 }
 
 /// True if `needle` occurs in `hay` as a whole word (boundaries are anything but

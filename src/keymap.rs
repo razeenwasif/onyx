@@ -10,6 +10,7 @@ pub struct KeyHelp {
 pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: "Ctrl-P",      action: "Command palette",          group: "Global" },
     KeyHelp { keys: "Ctrl-O",      action: "Quick switcher",           group: "Global" },
+    KeyHelp { keys: "Ctrl-A",      action: "AI assistant (local Gemma via Ollama)", group: "Global" },
     KeyHelp { keys: "Ctrl-Shift-F",action: "Vault search",             group: "Global" },
     KeyHelp { keys: "Ctrl-N",      action: "New note",                 group: "Global" },
     KeyHelp { keys: "Ctrl-S",      action: "Save current note",        group: "Global" },
@@ -111,6 +112,8 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: ":google auth",action: "Authorize Google (cloud build)", group: "Ex commands (vim)" },
     KeyHelp { keys: ":google tasks",action: "Show Google Tasks",        group: "Ex commands (vim)" },
     KeyHelp { keys: ":drive",      action: "Browse Google Drive (edit text, view PDFs, u=upload note)", group: "Ex commands (vim)" },
+    KeyHelp { keys: ":ai [prompt]",action: "AI assistant (Ollama); :ai model <n>, :ai models, :ai clear", group: "Ex commands (vim)" },
+    KeyHelp { keys: ":summarize",  action: "Summarize the current note with AI", group: "Ex commands (vim)" },
     KeyHelp { keys: ":graph",      action: "Open graph view",          group: "Ex commands (vim)" },
     KeyHelp { keys: ":preview",    action: "Toggle preview pane",      group: "Ex commands (vim)" },
     KeyHelp { keys: ":vsplit [n]", action: "Split: view a 2nd note (:swap, :only)", group: "Ex commands (vim)" },

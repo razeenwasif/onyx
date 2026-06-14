@@ -40,6 +40,7 @@ pub fn on_key(app: &mut App, key: KeyEvent) {
         Focus::GoogleTasks => gtasks_keys(app, key),
         Focus::Agenda => agenda_keys(app, key),
         Focus::Drive => drive_keys(app, key),
+        Focus::Ai => ai_keys(app, key),
         Focus::Settings => help_keys(app, key),
         Focus::Editor => editor_keys(app, key),
         Focus::Preview => preview_keys(app, key),
@@ -83,6 +84,7 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
                 | Focus::Confirm
                 | Focus::CommandLine
                 | Focus::Quicknote // quicknote is a live text field
+                | Focus::Ai // AI chat input is a live text field
         );
         let in_insert = matches!(app.focus, Focus::Editor | Focus::Preview)
             && app
@@ -113,7 +115,7 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
     // Don't let global ctrl- shortcuts steal from text-entry/modal overlays.
     let in_text_overlay = matches!(
         app.focus,
-        Focus::Palette | Focus::Switcher | Focus::Search | Focus::Prompt | Focus::Confirm
+        Focus::Palette | Focus::Switcher | Focus::Search | Focus::Prompt | Focus::Confirm | Focus::Ai
     );
 
     match key.code {
@@ -127,6 +129,10 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
         }
         KeyCode::Char('o') if !in_text_overlay => {
             app.open_switcher();
+            true
+        }
+        KeyCode::Char('a') if !in_text_overlay => {
+            app.open_ai();
             true
         }
         KeyCode::Char('f') if shift && !in_text_overlay => {
@@ -906,6 +912,22 @@ fn drive_keys(app: &mut App, key: KeyEvent) {
 }
 
 // -----------------------------------------------------------------------------
+// Local AI assistant (Ollama) chat overlay — a live text field
+// -----------------------------------------------------------------------------
+
+fn ai_keys(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Esc => app.close_ai(),
+        KeyCode::Enter => app.ai_submit(),
+        KeyCode::Backspace => app.ai_input_backspace(),
+        KeyCode::PageUp => app.ai_scroll(5),   // toward older output
+        KeyCode::PageDown => app.ai_scroll(-5),
+        KeyCode::Char(c) => app.ai_input_char(c),
+        _ => {}
+    }
+}
+
+// -----------------------------------------------------------------------------
 // Day-agenda overlay (Google Calendar)
 // -----------------------------------------------------------------------------
 
@@ -1495,6 +1517,22 @@ fn run_ex_command(app: &mut App, raw: &str) {
                 app.open_drive_browser();
             }
         }
+        "ai" | "chat" | "ask" => {
+            let a = args.trim();
+            if a == "models" {
+                app.ai_list_models();
+            } else if let Some(m) = a.strip_prefix("model") {
+                app.ai_set_model(m.trim());
+            } else if a == "clear" {
+                app.ai_clear();
+                app.open_ai();
+            } else if a.is_empty() {
+                app.open_ai();
+            } else {
+                app.ai_prompt(a.to_string());
+            }
+        }
+        "summarize" | "summary" | "tldr" => app.summarize_current(),
         "todo" | "todos" => {
             if args == "sync" {
                 app.start_gtasks_sync();

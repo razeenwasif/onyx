@@ -178,6 +178,27 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ## Done
 
+### Local AI assistant via Ollama (streaming chat)  (2026-06-14)
+
+A local LLM assistant behind a new **`ai`** cargo feature (`full = ["cloud","ai"]`),
+talking to Ollama on loopback — no cloud, no keys, notes never leave the machine.
+
+- `integrations/ollama.rs`: pure builders/parsers (`chat_body`, `parse_chat_chunk`
+  splitting `content` vs the Gemma `thinking` trace, `parse_models`) unit-tested;
+  `#[cfg(feature="ai")]` `chat_stream` (NDJSON line stream via blocking reqwest +
+  `BufRead`, `AtomicBool` cancel) and `list_models`; non-ai stubs.
+- `[ai]` config (`model` default `gemma4:e4b-it-qat`, `host`).
+- `Focus::Ai` chat overlay (`ui/ai.rs`, `AiState`/`AiTurn`): streams tokens live
+  (worker `ai_worker` → `AiMsg` over mpsc, epoch-tagged, drained on tick;
+  `ai_streaming()` joins the fast-poll), thinking shown dimmed, open note sent as
+  context. `Ctrl-A`/`:ai` open; `:ai <prompt>`, `:summarize`, `:ai model <n>`,
+  `:ai models`, `:ai clear`.
+- 82 tests (3 new Ollama parsers). Default + `ai` + `full` clippy-clean.
+  **Verified live e2e** via pyte against real Ollama (overlay streams "Paris"
+  for a capital-of-France prompt). Setup: `docs/AI.md`.
+- Follow-ups: ask-my-vault (RAG/embeddings), inline autocomplete, apply a
+  rewrite back into the note, separate fast completion model.
+
 ### Obsidian-feel bundle: unlinked mentions · search operators · scrollable help  (2026-06-14)
 
 Three feel items in one pass.
