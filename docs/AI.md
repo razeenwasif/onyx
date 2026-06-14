@@ -75,6 +75,21 @@ embed_model = "nomic-embed-text"
   notes that changed and are near-instant.
 - If the answer isn't in your notes, it says so rather than inventing one.
 
+### Rewrite in place
+
+**`:rewrite [instruction]`** rewrites the **paragraph at the cursor** with the AI
+and replaces it in the buffer — one undo-able edit (`u` to revert). With no
+instruction it does a clarity/grammar cleanup.
+
+- **`:rewrite all [instruction]`** rewrites the **whole note** instead.
+- Examples: `:rewrite make this more concise`, `:rewrite fix grammar`,
+  `:rewrite all turn this into bullet points`.
+- The result is applied when generation finishes (a `rewriting…` status shows
+  meanwhile); `u` undoes it if you don't like it.
+
+> Onyx's editor doesn't have a visual selection yet, so rewrite targets the
+> paragraph (or whole note) rather than an arbitrary selection.
+
 These Gemma builds emit a short **reasoning trace** before the answer; it's shown
 dimmed/italic above the reply.
 
@@ -84,5 +99,5 @@ dimmed/italic above the reply.
   tokens stream quickly. A bigger model = better answers, slower start; pick what
   fits in `[ai] model` (e.g. an `e2b`/4B for snappy, a 12B for quality).
 - **Local only.** Requests go to loopback HTTP; nothing is sent to any cloud.
-- **Follow-ups (not built yet):** inline autocomplete and a separate fast model
-  for completions.
+- **Follow-ups (not built yet):** inline autocomplete (ghost text) and a separate
+  fast model for completions; a true visual selection to rewrite arbitrary spans.

@@ -377,6 +377,17 @@ pub enum RagMsg {
 /// How many retrieved chunks to feed the model.
 const RAG_TOP_K: usize = 6;
 
+/// In-progress AI rewrite of a buffer range (replaces in place when done).
+#[derive(Debug, Default)]
+pub struct RewriteState {
+    pub active: bool,
+    /// Inclusive line range being rewritten.
+    pub start: usize,
+    pub end: usize,
+    /// Accumulated streamed output (applied to the buffer on completion).
+    pub acc: String,
+}
+
 /// Messages from the background search worker, tagged with the search epoch so
 /// stale results (from a superseded query) can be discarded.
 pub enum SearchMsg {
@@ -603,6 +614,12 @@ pub struct App {
     pub rag_rx: Option<Receiver<RagMsg>>,
     pub rag_epoch: u64,
     pub rag_gen: Arc<AtomicU64>,
+    // AI rewrite of a buffer range (reuses the chat worker; output accumulates
+    // and is applied to the buffer in one undo-able edit when streaming ends).
+    pub rewrite: RewriteState,
+    pub rewrite_rx: Option<Receiver<AiMsg>>,
+    pub rewrite_epoch: u64,
+    pub rewrite_cancel: Arc<AtomicBool>,
     pub prompt: PromptState,
     pub confirm: ConfirmState,
     pub cmdline: CmdlineState,
@@ -740,6 +757,10 @@ impl App {
             rag_rx: None,
             rag_epoch: 0,
             rag_gen: Arc::new(AtomicU64::new(0)),
+            rewrite: RewriteState::default(),
+            rewrite_rx: None,
+            rewrite_epoch: 0,
+            rewrite_cancel: Arc::new(AtomicBool::new(false)),
             search_epoch: 0,
             search_gen: Arc::new(AtomicU64::new(0)),
             search_rx: None,
@@ -3962,6 +3983,139 @@ impl App {
         self.begin_stream(messages);
     }
 
+    // --- AI rewrite (apply back into the note) ------------------------------
+
+    /// Rewrite the current paragraph (or the whole note when `whole`) via the
+    /// LLM, replacing it in place as a single undo-able edit. Empty instruction
+    /// → a default cleanup.
+    pub fn rewrite_range(&mut self, whole: bool, instruction: String) {
+        if self.rewrite.active || self.ai.streaming {
+            self.set_status("AI is busy — wait for the current task");
+            return;
+        }
+        let Some(doc) = self.doc.as_ref() else {
+            self.set_status("open a note to rewrite");
+            return;
+        };
+        let lc = doc.buffer.line_count();
+        let cur = doc.buffer.cursor.line.min(lc.saturating_sub(1));
+        let (start, end) = if whole {
+            (0, lc.saturating_sub(1))
+        } else {
+            let blank = |i: usize| doc.buffer.line(i).trim().is_empty();
+            if blank(cur) {
+                (cur, cur)
+            } else {
+                let mut s = cur;
+                while s > 0 && !blank(s - 1) {
+                    s -= 1;
+                }
+                let mut e = cur;
+                while e + 1 < lc && !blank(e + 1) {
+                    e += 1;
+                }
+                (s, e)
+            }
+        };
+        let text: String = (start..=end)
+            .map(|i| doc.buffer.line(i))
+            .collect::<Vec<_>>()
+            .join("\n");
+        if text.trim().is_empty() {
+            self.set_status("nothing to rewrite here");
+            return;
+        }
+
+        let instruction = if instruction.trim().is_empty() {
+            "Improve clarity and fix grammar; keep the meaning and Markdown structure.".to_string()
+        } else {
+            instruction.trim().to_string()
+        };
+        use crate::integrations::ollama::ChatMessage;
+        let sys = "You are a careful text editor. Rewrite the user's text following their \
+                   instruction. Output ONLY the rewritten text — no preamble, no commentary, \
+                   no surrounding code fences. Preserve Markdown formatting.";
+        let user = format!("Instruction: {instruction}\n\nText:\n{text}");
+        let messages = vec![ChatMessage::system(sys), ChatMessage::user(user)];
+
+        self.rewrite_cancel.store(true, Ordering::Relaxed);
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.rewrite_cancel = cancel.clone();
+        self.rewrite_epoch = self.rewrite_epoch.wrapping_add(1);
+        let epoch = self.rewrite_epoch;
+        let (tx, rx) = mpsc::channel();
+        self.rewrite_rx = Some(rx);
+        self.rewrite = RewriteState { active: true, start, end, acc: String::new() };
+        let host = self.config.ai.host.clone();
+        let model = self.config.ai.model.clone();
+        std::thread::spawn(move || ai_worker(host, model, messages, epoch, cancel, tx));
+        self.set_status(if whole { "rewriting note…" } else { "rewriting paragraph…" });
+        self.needs_redraw = true;
+    }
+
+    /// Accumulate the rewrite stream; on completion replace the range in place.
+    pub fn drain_rewrite(&mut self) {
+        let mut finished = false;
+        let mut error: Option<String> = None;
+        if let Some(rx) = &self.rewrite_rx {
+            loop {
+                match rx.try_recv() {
+                    Ok(AiMsg::Delta(e, chunk)) => {
+                        if e == self.rewrite_epoch {
+                            self.rewrite.acc.push_str(&chunk.content);
+                        }
+                    }
+                    Ok(AiMsg::Done(e)) => {
+                        if e == self.rewrite_epoch {
+                            finished = true;
+                        }
+                    }
+                    Ok(AiMsg::Err(e, m)) => {
+                        if e == self.rewrite_epoch {
+                            finished = true;
+                            error = Some(m);
+                        }
+                    }
+                    Err(mpsc::TryRecvError::Empty) => break,
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        finished = true;
+                        break;
+                    }
+                }
+                if finished {
+                    break;
+                }
+            }
+        }
+        if finished {
+            self.rewrite_rx = None;
+            self.rewrite.active = false;
+            if let Some(m) = error {
+                self.set_status(format!("rewrite: {m}"));
+                self.needs_redraw = true;
+                return;
+            }
+            let out = clean_rewrite_output(&self.rewrite.acc);
+            if out.trim().is_empty() {
+                self.set_status("rewrite produced nothing");
+                self.needs_redraw = true;
+                return;
+            }
+            let (start, end) = (self.rewrite.start, self.rewrite.end);
+            if let Some(doc) = self.doc.as_mut() {
+                doc.history.record(&doc.buffer);
+                doc.buffer.replace_line_range(start, end, &out);
+                doc.dirty = true;
+            }
+            self.set_status("rewritten — u to undo");
+            self.needs_redraw = true;
+        }
+    }
+
+    pub fn rewrite_active(&self) -> bool {
+        self.rewrite_rx.is_some()
+    }
+
     #[allow(dead_code)]
     pub fn ensure_doc(&mut self) -> &mut Document {
         if self.doc.is_none() {
@@ -4345,6 +4499,19 @@ fn ai_worker(
     }
 }
 
+/// Tidy an LLM rewrite: trim, and strip a single surrounding ```fence``` if the
+/// model wrapped the whole output in one despite being told not to.
+fn clean_rewrite_output(s: &str) -> String {
+    let t = s.trim();
+    if t.starts_with("```") && t.ends_with("```") && t.len() > 6 {
+        // Drop the opening ```/```lang line and the closing ``` line.
+        let inner = &t[3..t.len() - 3];
+        let body = inner.split_once('\n').map(|(_, rest)| rest).unwrap_or(inner);
+        return body.trim().to_string();
+    }
+    t.to_string()
+}
+
 /// Inputs for a RAG worker run.
 struct RagJob {
     root: PathBuf,
@@ -4483,7 +4650,17 @@ pub fn modify<F: FnOnce(&mut Buffer)>(doc: &mut Document, f: F) {
 
 #[cfg(test)]
 mod tests {
-    use super::{contains_word, parse_search_query};
+    use super::{clean_rewrite_output, contains_word, parse_search_query};
+
+    #[test]
+    fn strips_surrounding_code_fence_from_rewrite() {
+        assert_eq!(clean_rewrite_output("```md\nHello world\n```"), "Hello world");
+        assert_eq!(clean_rewrite_output("```\nplain\n```"), "plain");
+        // No fence → just trimmed.
+        assert_eq!(clean_rewrite_output("  already clean  "), "already clean");
+        // Inline backticks must not be mistaken for a fence.
+        assert_eq!(clean_rewrite_output("use `code` here"), "use `code` here");
+    }
 
     #[test]
     fn parses_search_operators() {

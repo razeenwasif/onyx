@@ -178,6 +178,23 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ## Done
 
+### AI rewrite in place  (2026-06-14)
+
+`:rewrite [instruction]` rewrites the paragraph at the cursor (`:rewrite all` =
+whole note) and replaces it as one undo-able edit.
+
+- `Buffer::replace_line_range` splices new (possibly multi-line) text over a line
+  range. `App::rewrite_range` finds the target (paragraph around the cursor, or
+  the whole note), builds an "output only the rewritten text" prompt, and runs
+  the chat worker; output accumulates in `RewriteState`, and `drain_rewrite`
+  applies it on completion (`history.record` → `replace_line_range`, marks dirty;
+  `clean_rewrite_output` strips a stray surrounding code fence). Reuses
+  `ai_worker`; epoch/`rewrite_cancel` for supersession.
+- Command `:rewrite`/`:rw`. 88 tests (1 new: fence stripping). Default + `ai` +
+  `full` clippy-clean. Verified live e2e via pyte (typos → corrected in place).
+- (Editor has no visual selection yet, so rewrite targets the paragraph/note,
+  not an arbitrary span — a future editor feature.)
+
 ### Ask my vault — semantic RAG  (2026-06-14)
 
 `:ask <question>` answers from the whole vault via embeddings, streamed into the

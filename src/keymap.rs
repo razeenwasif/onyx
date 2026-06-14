@@ -115,6 +115,7 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: ":ai [prompt]",action: "AI assistant (Ollama); :ai model <n>, :ai models, :ai clear", group: "Ex commands (vim)" },
     KeyHelp { keys: ":summarize",  action: "Summarize the current note with AI", group: "Ex commands (vim)" },
     KeyHelp { keys: ":ask <q>",    action: "Ask a question across your whole vault (RAG)", group: "Ex commands (vim)" },
+    KeyHelp { keys: ":rewrite [i]",action: "AI-rewrite the paragraph (`:rewrite all` = note); u to undo", group: "Ex commands (vim)" },
     KeyHelp { keys: ":graph",      action: "Open graph view",          group: "Ex commands (vim)" },
     KeyHelp { keys: ":preview",    action: "Toggle preview pane",      group: "Ex commands (vim)" },
     KeyHelp { keys: ":vsplit [n]", action: "Split: view a 2nd note (:swap, :only)", group: "Ex commands (vim)" },

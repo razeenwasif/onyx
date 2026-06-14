@@ -5,7 +5,20 @@ for the task queue see **`docs/BACKLOG.md`**. This file is the "where we are rig
 
 _Last updated: 2026-06-14._
 
-> **Latest (2026-06-14): ask-my-vault (semantic RAG) shipped.** `:ask <q>`
+> **Latest (2026-06-14): AI rewrite-in-place shipped.** `:rewrite [instr]`
+> rewrites the paragraph at the cursor (`:rewrite all` = whole note) and replaces
+> it as one undo-able edit (`u`). `Buffer::replace_line_range` splices the result;
+> `App::rewrite_range` builds an "output only" prompt + runs `ai_worker`,
+> `drain_rewrite` accumulates then applies (`history.record`→`replace_line_range`,
+> dirty; `clean_rewrite_output` strips stray ``` fences). No visual selection in
+> the editor yet, so it targets paragraph/note. Verified live via pyte (typos →
+> fixed). 88 tests. **This completes the user's 1→2→Gemma plan (Drive-upload,
+> Obsidian bundle, then AI: chat + summarize + RAG + rewrite).** Remaining
+> are small/optional: OneDrive (deferred), inline autocomplete, visual selection.
+>
+> ---
+>
+> **Earlier (2026-06-14): ask-my-vault (semantic RAG) shipped.** `:ask <q>`
 > answers from the whole vault via embeddings (`nomic-embed-text` default; needs
 > `ollama pull nomic-embed-text`), streamed into the AI overlay with a
 > `— Sources:` line. `src/rag.rs` (pure: `chunk_note`/`cosine`/`top_k` +

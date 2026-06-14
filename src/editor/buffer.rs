@@ -71,6 +71,25 @@ impl Buffer {
         }
     }
 
+    /// Replace the inclusive line range `start..=end` with `text` (which may span
+    /// any number of lines). Used by the AI rewrite. Cursor moves to the start.
+    pub fn replace_line_range(&mut self, start: usize, end: usize, text: &str) {
+        if start >= self.lines.len() {
+            return;
+        }
+        let end = end.min(self.lines.len().saturating_sub(1));
+        let new_lines: Vec<String> = text.split('\n').map(|s| s.trim_end_matches('\r').to_string()).collect();
+        let new_lines = if new_lines.is_empty() { vec![String::new()] } else { new_lines };
+        self.lines.splice(start..=end, new_lines);
+        if self.lines.is_empty() {
+            self.lines.push(String::new());
+        }
+        self.cursor = Cursor { line: start.min(self.lines.len() - 1), col: 0 };
+        self.goal_col = 0;
+        self.touch();
+        self.clamp_cursor();
+    }
+
     pub fn line_count(&self) -> usize {
         self.lines.len()
     }

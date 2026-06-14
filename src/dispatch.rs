@@ -1540,6 +1540,16 @@ fn run_ex_command(app: &mut App, raw: &str) {
                 app.ask_vault(args.to_string());
             }
         }
+        "rewrite" | "rw" => {
+            // `:rewrite [instr]` → current paragraph; `:rewrite all [instr]` → whole note.
+            let a = args.trim();
+            match a.strip_prefix("all") {
+                Some(rest) if rest.is_empty() || rest.starts_with(char::is_whitespace) => {
+                    app.rewrite_range(true, rest.trim().to_string());
+                }
+                _ => app.rewrite_range(false, a.to_string()),
+            }
+        }
         "todo" | "todos" => {
             if args == "sync" {
                 app.start_gtasks_sync();
