@@ -44,6 +44,12 @@ cargo install --path . --force
 
 This puts `onyx` on your PATH (`~/.cargo/bin/onyx`).
 
+For the optional **Google integration** (Google Tasks today; Calendar/Drive/OneDrive planned), build with the `cloud` feature and follow `docs/CLOUD_SYNC.md`:
+
+```bash
+cargo install --path . --force --features cloud
+```
+
 > **After pulling or making changes, re-run `cargo install --path . --force`.**
 > `cargo build` only updates `target/release/onyx` — it does **not** update the
 > `onyx` command on your PATH, so the installed binary stays on the old version

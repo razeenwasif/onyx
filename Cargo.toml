@@ -26,6 +26,15 @@ unicode-width = "0.2"
 unicode-segmentation = "1.12"
 fuzzy-matcher = "0.3"
 
+# Cloud sync (Google Calendar/Tasks/Drive, OneDrive) lives behind the `cloud`
+# feature so the default build pulls no network/TLS stack. Enable with
+# `cargo build --features cloud`.
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls", "json"], optional = true }
+
+[features]
+default = []
+cloud = ["dep:reqwest"]
+
 [profile.release]
 opt-level = 3
 lto = "thin"

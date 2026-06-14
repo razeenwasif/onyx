@@ -32,12 +32,22 @@ _Last updated: 2026-06-13._
 > (`App.{tab_paths,tabs}`, Ctrl-PgUp/PgDn/W), **inline property editing**
 > (`:props`), and **split view** (`:vsplit`). 61 tests, clippy-clean.
 >
-> **The only thing left on the roadmap is external sync** — Google Calendar +
-> Drive and OneDrive. That's the real network + OAuth build (ureq on a worker
-> thread + OAuth device flow + token refresh; feature-gate it); design the OAuth
-> stack there since Notion (done, static-token export) doesn't share it. Other
-> small open items: unlinked-mentions, search operators, scrollable help,
-> configurable external tools.
+> **Cloud integration started (2026-06-14): foundation + Google Tasks (read).**
+> Behind the `cloud` cargo feature (default build = no network deps). `reqwest`
+> (blocking+rustls-tls, optional) is in the cargo cache so it builds **offline**;
+> crates.io is blocked (403) so no *new* crates can be fetched. `src/integrations/`
+> (always compiled; reqwest calls `#[cfg(feature="cloud")]`, non-cloud stubs
+> error). Google OAuth loopback flow + token cache `~/.config/onyx/google.json`;
+> `:google auth` (suspends TUI via `PendingExternal::GoogleAuth`), `:google tasks`.
+> Pure logic unit-tested (68 tests); **live OAuth/fetch can't run in this
+> sandbox** (no browser/creds) — user tests it. Setup: `docs/CLOUD_SYNC.md`.
+> Installed binary built `--features cloud`.
+>
+> **Next on cloud**: two-way Tasks (toggle complete → PATCH), then Google
+> Calendar (agenda in the calendar pane), Drive, OneDrive (Microsoft Graph,
+> separate OAuth) — all reuse `integrations/oauth.rs`. **Google Keep is out**
+> (no consumer API). Other small open items: unlinked-mentions, search
+> operators, scrollable help, configurable external tools.
 
 ---
 

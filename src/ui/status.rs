@@ -109,6 +109,7 @@ fn hint_for_focus(focus: Focus) -> &'static str {
         Focus::Database => "· j/k rows · h/l cols · s sort · t board · / filter · Enter open · Esc close",
         Focus::Tasks => "· j/k move · Enter jump to task · Esc close",
         Focus::Properties => "· j/k move · e edit · a add · d delete · Esc close",
+        Focus::GoogleTasks => "· j/k move · Enter pull into quicknote · Esc close",
         Focus::Help => "· Esc close",
         Focus::Settings => "· Esc close",
         Focus::Prompt => "· Enter confirm · Esc cancel",

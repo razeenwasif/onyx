@@ -221,6 +221,29 @@ single-note delete (negligible leak today), SIMD literal search via
 
 ## Done
 
+### Cloud foundation + Google Tasks (read)  (2026-06-14)
+
+First cloud integration, behind the **`cloud`** cargo feature (default build
+pulls no network/TLS stack). Setup guide: `docs/CLOUD_SYNC.md`.
+
+- **Architecture**: `src/integrations/` is always compiled (pure OAuth/URL/JSON
+  logic via serde + std), with the actual `reqwest` calls `#[cfg(feature="cloud")]`
+  and non-cloud stubs that error helpfully — so `app`/`dispatch` need no `cfg`.
+  `reqwest` (blocking + rustls-tls) is an optional dep enabled by the feature.
+- **OAuth** (`integrations/oauth.rs`): Google installed-app loopback flow —
+  `consent_url`, a localhost `TcpListener` catches the redirect
+  (`parse_redirect_query`), `exchange_code`/`refresh`, `valid_access_token`
+  (auto-refresh), token cache `~/.config/onyx/google.json` (mode 600). The
+  interactive consent runs via `PendingExternal::GoogleAuth` (TUI suspended,
+  `external::run_google_auth`). `[google]` config table (client_id/secret).
+- **Google Tasks** (`integrations/gtasks.rs`): list tasklists + tasks, parse to a
+  flat model. `:google auth` / `:google tasks` (`:gtasks`) → `Focus::GoogleTasks`
+  overlay (`ui/gtasks.rs`); Enter pulls a task into the quicknote.
+- 68 tests (7 new: OAuth URL/redirect/token roundtrip, Tasks JSON parsing).
+  Default + `--features cloud` both clippy-clean. The pure logic is unit-tested;
+  the live OAuth/fetch requires the user's Google creds + browser (can't run in
+  CI/sandbox). **Next**: two-way task toggle, then Calendar, Drive, OneDrive.
+
 ### Inline property editing + split view  (2026-06-14)
 
 - **Inline property editing** (`:props`) — a modal over the open note that lists

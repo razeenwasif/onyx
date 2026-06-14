@@ -7,6 +7,7 @@ pub mod database;
 pub mod editor_pane;
 pub mod file_tree;
 pub mod graph;
+pub mod gtasks;
 pub mod help;
 pub mod home;
 pub mod palette;
@@ -71,6 +72,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         Focus::Confirm => confirm::draw(frame, area, app),
         Focus::Tasks => tasks::draw(frame, area, app),
         Focus::Properties => props::draw(frame, area, app),
+        Focus::GoogleTasks => gtasks::draw(frame, area, app),
         _ => {}
     }
     if app.help_open && app.focus != Focus::Help {

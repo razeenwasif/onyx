@@ -44,6 +44,10 @@ pub fn handle(term: &mut Term, app: &mut App, ext: PendingExternal) -> anyhow::R
         PendingExternal::Fzf => run_fzf(app),
         PendingExternal::FzfGrep => run_fzf_grep(app),
         PendingExternal::Yazi => run_yazi(app),
+        PendingExternal::GoogleAuth => {
+            run_google_auth(app);
+            Ok(None)
+        }
     };
 
     // --- resume ---
@@ -61,6 +65,25 @@ pub fn handle(term: &mut Term, app: &mut App, ext: PendingExternal) -> anyhow::R
         Err(e) => app.set_status(format!("external tool failed: {e}")),
     }
     Ok(())
+}
+
+/// Run the interactive Google OAuth consent flow with the TUI suspended (so the
+/// browser-open + "authorizing…" output is visible and stdin works).
+fn run_google_auth(app: &mut App) {
+    let g = app.config.google.clone();
+    if !g.is_configured() {
+        app.set_status("set [google] client_id/client_secret in config.toml first");
+        return;
+    }
+    let path = crate::config::Config::google_token_path();
+    use crate::integrations::oauth;
+    match oauth::run_consent_flow(&g.client_id, &g.client_secret, oauth::SCOPE_TASKS) {
+        Ok(tok) => match oauth::save_token(&path, &tok) {
+            Ok(()) => app.set_status("Google authorized ✓"),
+            Err(e) => app.set_status(format!("auth: couldn't save token: {e}")),
+        },
+        Err(e) => app.set_status(format!("Google auth failed: {e}")),
+    }
 }
 
 fn open_selection(app: &mut App, path: PathBuf) {

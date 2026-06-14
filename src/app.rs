@@ -87,6 +87,8 @@ pub enum Focus {
     Tasks,
     /// Inline frontmatter-property editor for the open note.
     Properties,
+    /// Google Tasks overlay (pulled from the Tasks API).
+    GoogleTasks,
     Help,
     Settings,
     Prompt,
@@ -265,6 +267,8 @@ pub enum PendingExternal {
     FzfGrep,
     /// yazi file manager rooted at the vault (with image/PDF preview).
     Yazi,
+    /// Run the Google OAuth consent flow (suspends the TUI for the browser).
+    GoogleAuth,
 }
 
 /// Vim ex-command-line state. One-row prompt rendered at the bottom of the
@@ -420,6 +424,9 @@ pub struct App {
     pub calendar: CalendarState,
     pub tasks: TasksState,
     pub props_edit: PropsEditState,
+    /// Google Tasks pulled from the API (for the GoogleTasks overlay).
+    pub gtasks: Vec<crate::integrations::gtasks::GTask>,
+    pub gtasks_selected: usize,
 
     /// Active database view (a folder shown as a table/board), or None.
     pub database: Option<DatabaseView>,
@@ -518,6 +525,8 @@ impl App {
             calendar: CalendarState::today(),
             tasks: TasksState::default(),
             props_edit: PropsEditState::default(),
+            gtasks: Vec::new(),
+            gtasks_selected: 0,
             database: None,
             split_doc: None,
             quicknote: QuicknoteState::new(quicknote_text),
@@ -2430,6 +2439,66 @@ impl App {
         }
     }
 
+    /// Queue the Google OAuth consent flow (the event loop runs it suspended).
+    pub fn request_google_auth(&mut self) {
+        if !self.config.google.is_configured() {
+            self.set_status("set [google] client_id/client_secret in config.toml, then :google auth");
+            return;
+        }
+        self.pending_external = Some(PendingExternal::GoogleAuth);
+    }
+
+    /// Fetch Google Tasks (blocking) and open the overlay.
+    pub fn open_gtasks(&mut self) {
+        let g = self.config.google.clone();
+        if !g.is_configured() {
+            self.set_status("set [google] client_id/client_secret in config.toml first");
+            return;
+        }
+        let path = crate::config::Config::google_token_path();
+        self.set_status("fetching Google Tasks…");
+        match crate::integrations::gtasks::fetch_all(&g.client_id, &g.client_secret, &path) {
+            Ok(tasks) => {
+                let open = tasks.iter().filter(|t| !t.completed).count();
+                self.gtasks = tasks;
+                self.gtasks_selected = 0;
+                self.last_focus = self.focus;
+                self.focus = Focus::GoogleTasks;
+                self.set_status(format!("{} Google tasks · {open} open", self.gtasks.len()));
+            }
+            Err(e) => self.set_status(format!("Google Tasks: {e}")),
+        }
+    }
+
+    pub fn gtasks_move(&mut self, delta: i64) {
+        let n = self.gtasks.len();
+        if n == 0 {
+            return;
+        }
+        let cur = self.gtasks_selected.min(n - 1) as i64;
+        self.gtasks_selected = (cur + delta).clamp(0, n as i64 - 1) as usize;
+    }
+
+    /// Pull the selected Google task into the quicknote scratch as a checkbox.
+    pub fn gtasks_pull_selected(&mut self) {
+        let Some(t) = self.gtasks.get(self.gtasks_selected) else {
+            return;
+        };
+        let mark = if t.completed { "x" } else { " " };
+        let title = t.title.clone();
+        let line = format!("- [{mark}] {title}\n");
+        let buf = self.quicknote.buffer.to_string();
+        let joined = if buf.is_empty() || buf.ends_with('\n') {
+            format!("{buf}{line}")
+        } else {
+            format!("{buf}\n{line}")
+        };
+        self.quicknote.buffer = Buffer::from_string(joined);
+        self.quicknote.dirty = true;
+        self.save_quicknote();
+        self.set_status(format!("pulled \"{title}\" into quicknote"));
+    }
+
     pub fn focus_quicknote(&mut self) {
         self.show_left = true;
         self.show_quicknote = true;
@@ -2565,7 +2634,7 @@ impl App {
                     self.close_overlay();
                 }
             }
-            Focus::Palette | Focus::Switcher | Focus::Search | Focus::Help | Focus::Settings | Focus::Prompt | Focus::Tasks => {
+            Focus::Palette | Focus::Switcher | Focus::Search | Focus::Help | Focus::Settings | Focus::Prompt | Focus::Tasks | Focus::GoogleTasks => {
                 self.close_overlay();
             }
             Focus::Confirm => {

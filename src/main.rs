@@ -8,6 +8,7 @@ mod editor;
 mod error;
 mod external;
 mod graph_sim;
+mod integrations;
 mod keymap;
 mod markdown;
 mod notion_import;

@@ -31,6 +31,25 @@ pub struct Config {
 
     /// UI sizing hints (saved between sessions).
     pub layout: LayoutConfig,
+
+    /// Google integration (Calendar/Tasks/Drive). Off until you fill in OAuth
+    /// credentials from a Google Cloud "Desktop app" client.
+    pub google: GoogleConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct GoogleConfig {
+    /// OAuth client id from your Google Cloud project (Desktop app type).
+    pub client_id: String,
+    /// OAuth client secret (not truly secret for installed apps).
+    pub client_secret: String,
+}
+
+impl GoogleConfig {
+    pub fn is_configured(&self) -> bool {
+        !self.client_id.trim().is_empty() && !self.client_secret.trim().is_empty()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,6 +102,7 @@ impl Default for Config {
             daily_notes: DailyNotesConfig::default(),
             editor: EditorConfig::default(),
             layout: LayoutConfig::default(),
+            google: GoogleConfig::default(),
         }
     }
 }
@@ -158,6 +178,12 @@ impl Config {
             return PathBuf::from(path);
         }
         Self::config_dir().join("config.toml")
+    }
+
+    /// Where the Google OAuth token is cached (mode 600), separate from
+    /// `config.toml` so secrets never land in the human-edited file.
+    pub fn google_token_path() -> PathBuf {
+        Self::config_dir().join("google.json")
     }
 
     pub fn load() -> Self {

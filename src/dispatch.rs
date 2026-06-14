@@ -37,6 +37,7 @@ pub fn on_key(app: &mut App, key: KeyEvent) {
         Focus::Database => database_keys(app, key),
         Focus::Tasks => tasks_keys(app, key),
         Focus::Properties => props_keys(app, key),
+        Focus::GoogleTasks => gtasks_keys(app, key),
         Focus::Settings => help_keys(app, key),
         Focus::Editor => editor_keys(app, key),
         Focus::Preview => preview_keys(app, key),
@@ -697,6 +698,21 @@ fn props_keys(app: &mut App, key: KeyEvent) {
         KeyCode::Char('e') | KeyCode::Enter => app.props_begin_edit(),
         KeyCode::Char('a') => app.props_begin_add(),
         KeyCode::Char('d') => app.props_delete_selected(),
+        _ => {}
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Google Tasks overlay
+// -----------------------------------------------------------------------------
+
+fn gtasks_keys(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => app.gtasks_move(1),
+        KeyCode::Char('k') | KeyCode::Up => app.gtasks_move(-1),
+        KeyCode::Char('g') | KeyCode::Home => app.gtasks_move(i64::MIN / 2),
+        KeyCode::Char('G') | KeyCode::End => app.gtasks_move(i64::MAX / 2),
+        KeyCode::Enter | KeyCode::Char('o') => app.gtasks_pull_selected(),
         _ => {}
     }
 }
@@ -1369,6 +1385,18 @@ fn run_ex_command(app: &mut App, raw: &str) {
         }
         "task" | "toggle" => app.toggle_task_on_current_line(),
         "tasks" => app.open_tasks(),
+        "google" | "gauth" => match args {
+            "" | "auth" => app.request_google_auth(),
+            "tasks" => app.open_gtasks(),
+            other => app.set_status(format!("usage: :google auth | :google tasks (got '{other}')")),
+        },
+        "gtasks" => {
+            if args == "auth" {
+                app.request_google_auth();
+            } else {
+                app.open_gtasks();
+            }
+        }
         "props" | "properties" | "prop" => app.open_props_editor(),
         "bookmark" | "pin" => app.toggle_bookmark_current(),
         "tabnext" | "tabn" | "bnext" | "bn" => app.cycle_tab(1),
