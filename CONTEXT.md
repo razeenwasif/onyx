@@ -14,11 +14,13 @@ _Last updated: 2026-06-14._
 > - **Calendar** — events in the calendar pane (`·` marks) + a day agenda overlay
 >   (`v`); two-way create/delete (`a`/`d`). `integrations/gcal.rs`.
 > - **Drive** — `:drive` opens an in-TUI browser (`Focus::Drive`, `ui/drive.rs`);
->   `Enter` enters a folder or opens a text file in the editor (titled `⇪ name`,
->   no local path), and saving uploads it back (two-way). `integrations/gdrive.rs`
->   + `oauth::send_media`. 74 tests, both build configs clippy-clean, overlay
->   verified via pyte. **Live OAuth/fetch/upload only the user can run** (no
->   browser/creds in-sandbox). Setup: `docs/CLOUD_SYNC.md`.
+>   `Enter` enters a folder, opens a text file in the editor (titled `⇪ name`, no
+>   local path; saving uploads it back, two-way), or — for a PDF/image/binary —
+>   downloads it to `$TMPDIR/onyx-drive/` and opens it in the system viewer
+>   (`external::open_external`, detached). `integrations/gdrive.rs` +
+>   `oauth::send_media`/`download_to_file`. 74 tests, both build configs
+>   clippy-clean, overlay verified via pyte. **Live OAuth/fetch/upload only the
+>   user can run** (no browser/creds in-sandbox). Setup: `docs/CLOUD_SYNC.md`.
 > - **Next on cloud: OneDrive** (Microsoft Graph — *separate* OAuth client +
 >   token file, reuse the same background-fetch + write-helper pattern). Then
 >   Drive follow-ups (create/upload-vault-note/Google-doc export/binary). **Keep

@@ -141,9 +141,10 @@ single-note delete (negligible leak today), SIMD literal search via
 ### Google Drive access from within Onyx ✅ DONE (see § Done)
 
 Shipped the native Drive API route: `:drive` opens an in-TUI browser, Enter opens
-a text file in the editor, save uploads back. Follow-ups still open: creating new
-Drive files, uploading existing vault notes, Google-native doc export, binary
-downloads, and the optional `rclone mount` docs page.
+a text file in the editor (save uploads back) or downloads a PDF/binary to temp
+and opens it in the system viewer. Follow-ups still open: creating new Drive
+files, uploading existing vault notes, Google-native doc export, and the optional
+`rclone mount` docs page.
 
 ---
 
@@ -226,9 +227,14 @@ upload it back. Reuses the OAuth foundation (scope broadened to add Drive via
   Drive-backed buffers to `save_drive_doc` (upload) instead of the vault.
 - Browser overlay (`Focus::Drive`, `ui/drive.rs`): `j`/`k` move, `Enter`
   enter/open, `Backspace`/`-` up, `Esc` close. Command: `:drive`.
-- 74 tests (2 new). Default + `--features cloud` clippy-clean; overlay verified
-  e2e via pyte (guards without config). Live list/download/upload need the
-  user's (re-)auth.
+- **Binary files (PDF/image/…):** `Enter` on a non-text file downloads it to
+  `$TMPDIR/onyx-drive/<name>` (`gdrive::download_file` → `oauth::download_to_file`,
+  binary-safe `alt=media`) and opens it in the system viewer via the now-`pub`
+  `external::open_external` (detached — no TUI suspend needed). So PDFs open in
+  the OS reader for full-screen reading.
+- 74 tests (PDF classification added). Default + `--features cloud` clippy-clean;
+  overlay verified e2e via pyte (guards without config). Live list/download/
+  upload need the user's (re-)auth.
 
 ### Two-way Google Calendar  (2026-06-14)
 

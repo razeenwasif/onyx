@@ -111,8 +111,14 @@ sync_calendar = true
 - **Two-way.** Saving a Drive-backed buffer (`Ctrl-S` / `:w`) uploads the new
   content straight back to the same Drive file — it never lands in your local
   vault. (Drive files open with no local path, so save = upload.)
-- **Follow-ups:** creating new Drive files, uploading existing vault notes,
-  Google-native doc export, and binary downloads aren't wired yet.
+- **PDFs, images, and other binaries.** Pressing `Enter` on a non-text file
+  downloads it to a temp file (`$TMPDIR/onyx-drive/<name>`) and hands it to your
+  system's default app — `wslview`/`explorer.exe` under WSL, else `xdg-open`/
+  `open`. Onyx stays on screen (the viewer launches detached). So a PDF opens in
+  your real PDF reader for full-screen reading. The temp copy is read-only as far
+  as Onyx is concerned — edits there are *not* synced back.
+- **Follow-ups:** creating new Drive files, uploading existing vault notes, and
+  Google-native doc export (Docs/Sheets) aren't wired yet.
 
 ## Notes
 

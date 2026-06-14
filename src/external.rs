@@ -146,7 +146,9 @@ fn is_wsl() -> bool {
 
 /// Launch a non-text file in the system's default app, fully detached so its
 /// output can never touch the Onyx alternate screen. Returns the opener used.
-fn open_external(path: &Path) -> io::Result<&'static str> {
+/// Detached (no wait, no terminal handoff), so callers can invoke it inline
+/// without the suspend/resume dance — e.g. opening a downloaded Drive PDF.
+pub fn open_external(path: &Path) -> io::Result<&'static str> {
     use std::process::Stdio;
 
     // Candidate openers, in preference order. Under WSL, hand off to Windows.

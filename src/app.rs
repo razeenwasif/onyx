@@ -2993,7 +2993,8 @@ impl App {
         } else if file.is_text() {
             self.open_drive_file(&file.id, &file.name);
         } else {
-            self.set_status(format!("\"{}\" isn't a text file", file.name));
+            // PDF, image, or other binary → download + open in the system viewer.
+            self.open_drive_binary(&file.id, &file.name);
         }
     }
 
@@ -3027,6 +3028,33 @@ impl App {
                 self.focus = Focus::Editor;
                 self.set_status(format!("opened {name} from Drive (save to upload back)"));
             }
+            Err(e) => self.set_status(format!("Drive: {e}")),
+        }
+    }
+
+    /// Download a non-text Drive file (PDF, image, …) to a temp file and open it
+    /// in the system's default app (detached — Onyx stays on screen).
+    fn open_drive_binary(&mut self, file_id: &str, name: &str) {
+        let g = self.config.google.clone();
+        let path = crate::config::Config::google_token_path();
+        let dest = std::env::temp_dir()
+            .join("onyx-drive")
+            .join(sanitize_filename(name));
+        self.set_status(format!("downloading {name}…"));
+        match crate::integrations::gdrive::download_file(
+            &g.client_id,
+            &g.client_secret,
+            &path,
+            file_id,
+            &dest,
+        ) {
+            Ok(()) => match crate::external::open_external(&dest) {
+                Ok(opener) => self.set_status(format!("opened {name} with {opener}")),
+                Err(e) => self.set_status(format!(
+                    "saved to {} but no opener found: {e}",
+                    dest.display()
+                )),
+            },
             Err(e) => self.set_status(format!("Drive: {e}")),
         }
     }
@@ -3304,6 +3332,21 @@ fn spawn_calendar_fetch(
 
 /// Spawn a background thread that lists a Drive folder's children, returning the
 /// requested folder id alongside the result (so stale fetches can be ignored).
+/// Make a Drive file name safe to use as a single temp-file path component
+/// (Drive names can contain `/` and other separators).
+fn sanitize_filename(name: &str) -> String {
+    let cleaned: String = name
+        .chars()
+        .map(|c| if matches!(c, '/' | '\\' | '\0') { '_' } else { c })
+        .collect();
+    let trimmed = cleaned.trim();
+    if trimmed.is_empty() {
+        "drive-file".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
 fn spawn_drive_list(
     g: &crate::config::GoogleConfig,
     parent: &str,

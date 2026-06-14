@@ -294,6 +294,25 @@ pub fn get_json(url: &str, access_token: &str) -> IntResult<String> {
     resp.text().map_err(|e| e.to_string())
 }
 
+/// GET a binary resource and write the raw bytes straight to `dest` (creating
+/// parent dirs). For non-text Drive files (PDF, images, …) handed to a viewer.
+#[cfg(feature = "cloud")]
+pub fn download_to_file(url: &str, access_token: &str, dest: &std::path::Path) -> IntResult<()> {
+    let resp = reqwest::blocking::Client::new()
+        .get(url)
+        .bearer_auth(access_token)
+        .send()
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("GET {url} → {}", resp.status()));
+    }
+    let bytes = resp.bytes().map_err(|e| e.to_string())?;
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(dest, &bytes).map_err(|e| e.to_string())
+}
+
 /// PATCH/POST a JSON body to an API endpoint with the bearer token, returning
 /// the response text. `method` is "PATCH" or "POST" (the shared write path that
 /// Tasks/Calendar/Drive all use).
@@ -372,6 +391,10 @@ pub fn valid_access_token(_: &str, _: &str, _: &std::path::Path) -> IntResult<St
 }
 #[cfg(not(feature = "cloud"))]
 pub fn get_json(_: &str, _: &str) -> IntResult<String> {
+    Err("cloud features not built — reinstall with `cargo install --path . --features cloud`".into())
+}
+#[cfg(not(feature = "cloud"))]
+pub fn download_to_file(_: &str, _: &str, _: &std::path::Path) -> IntResult<()> {
     Err("cloud features not built — reinstall with `cargo install --path . --features cloud`".into())
 }
 #[cfg(not(feature = "cloud"))]

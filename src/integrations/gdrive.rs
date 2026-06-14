@@ -114,6 +114,22 @@ pub fn download_text(
     oauth::get_json(&format!("{API}/files/{}?alt=media", oauth::urlencode(file_id)), &at)
 }
 
+/// Download any file (binary-safe) to a local path — for PDFs/images/etc. handed
+/// to an external viewer. `alt=media` returns the raw bytes for a normal uploaded
+/// file (a Google-native doc would need export instead; guard with `is_google_doc`).
+#[cfg(feature = "cloud")]
+pub fn download_file(
+    client_id: &str,
+    client_secret: &str,
+    token_path: &std::path::Path,
+    file_id: &str,
+    dest: &std::path::Path,
+) -> IntResult<()> {
+    let at = oauth::valid_access_token(client_id, client_secret, token_path)?;
+    let url = format!("{API}/files/{}?alt=media", oauth::urlencode(file_id));
+    oauth::download_to_file(&url, &at, dest)
+}
+
 /// Upload new text content for an existing file (media update = two-way save).
 #[cfg(feature = "cloud")]
 pub fn upload_text(
@@ -134,6 +150,10 @@ pub fn list_folder(_: &str, _: &str, _: &std::path::Path, _: &str) -> IntResult<
 }
 #[cfg(not(feature = "cloud"))]
 pub fn download_text(_: &str, _: &str, _: &std::path::Path, _: &str) -> IntResult<String> {
+    Err("cloud features not built — reinstall with `cargo install --path . --features cloud`".into())
+}
+#[cfg(not(feature = "cloud"))]
+pub fn download_file(_: &str, _: &str, _: &std::path::Path, _: &str, _: &std::path::Path) -> IntResult<()> {
     Err("cloud features not built — reinstall with `cargo install --path . --features cloud`".into())
 }
 #[cfg(not(feature = "cloud"))]
@@ -170,5 +190,8 @@ mod tests {
         // Unknown mime but .md name → still text.
         let weird = DriveFile { id: "4".into(), name: "notes.md".into(), mime_type: "application/octet-stream".into() };
         assert!(weird.is_text());
+        // A PDF: not text, not folder, not a google doc → routed to the external viewer.
+        let pdf = DriveFile { id: "5".into(), name: "report.pdf".into(), mime_type: "application/pdf".into() };
+        assert!(!pdf.is_text() && !pdf.is_folder() && !pdf.is_google_doc());
     }
 }
