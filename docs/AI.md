@@ -71,8 +71,9 @@ embed_model = "nomic-embed-text"
 
 - **First `:ask` indexes the vault** (embeds every note) — this can take a bit on
   a large vault; progress shows in the overlay title (`indexing 120/1071…`). The
-  index is cached to `<vault>/.onyx/rag-index.json`, so later asks only re-embed
-  notes that changed and are near-instant.
+  index is cached to `<vault>/.onyx/rag-index.json` (vectors int8-quantized +
+  base64-packed to keep it small), so later asks only re-embed notes that changed
+  and are near-instant.
 - If the answer isn't in your notes, it says so rather than inventing one.
 
 ### Rewrite in place

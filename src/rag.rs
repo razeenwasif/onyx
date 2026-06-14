@@ -73,7 +73,9 @@ pub fn chunk_note(content: &str, target: usize) -> Vec<Chunk> {
     chunks
 }
 
-/// Cosine similarity of two equal-length vectors (0 on mismatch/empty).
+/// Cosine similarity of two equal-length f32 vectors (0 on mismatch/empty).
+/// Retained as a reference/helper; ranking uses the int8 `cosine_i8`.
+#[allow(dead_code)]
 pub fn cosine(a: &[f32], b: &[f32]) -> f32 {
     if a.len() != b.len() || a.is_empty() {
         return 0.0;
@@ -92,13 +94,118 @@ pub fn cosine(a: &[f32], b: &[f32]) -> f32 {
     dot / (na.sqrt() * nb.sqrt())
 }
 
+// --- Vector quantization ----------------------------------------------------
+//
+// Embeddings are stored int8-quantized and base64-packed to keep the cache small
+// (~4× smaller than full f32 JSON). Cosine similarity is scale-invariant, so the
+// per-vector scale cancels and ranking on the quantized ints matches the floats.
+
+/// Quantize a float vector to int8 (per-vector max-abs scale).
+pub fn quantize(v: &[f32]) -> Vec<i8> {
+    let max = v.iter().fold(0.0f32, |m, &x| m.max(x.abs()));
+    if max == 0.0 {
+        return vec![0; v.len()];
+    }
+    let scale = max / 127.0;
+    v.iter()
+        .map(|&x| (x / scale).round().clamp(-127.0, 127.0) as i8)
+        .collect()
+}
+
+/// Pack a float vector into a compact base64 string of its int8 quantization.
+pub fn pack(v: &[f32]) -> String {
+    let q = quantize(v);
+    let bytes: Vec<u8> = q.iter().map(|&b| b as u8).collect();
+    b64_encode(&bytes)
+}
+
+/// Unpack a base64-packed quantized vector back to int8.
+pub fn unpack(s: &str) -> Vec<i8> {
+    b64_decode(s).into_iter().map(|b| b as i8).collect()
+}
+
+/// Cosine similarity over int8 vectors (computed in f32). Equal-length only.
+pub fn cosine_i8(a: &[i8], b: &[i8]) -> f32 {
+    if a.len() != b.len() || a.is_empty() {
+        return 0.0;
+    }
+    let mut dot = 0.0f32;
+    let mut na = 0.0f32;
+    let mut nb = 0.0f32;
+    for i in 0..a.len() {
+        let (x, y) = (a[i] as f32, b[i] as f32);
+        dot += x * y;
+        na += x * x;
+        nb += y * y;
+    }
+    if na == 0.0 || nb == 0.0 {
+        return 0.0;
+    }
+    dot / (na.sqrt() * nb.sqrt())
+}
+
+const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+fn b64_encode(data: &[u8]) -> String {
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
+    for chunk in data.chunks(3) {
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
+        let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | (b[2] as u32);
+        out.push(B64[((n >> 18) & 63) as usize] as char);
+        out.push(B64[((n >> 12) & 63) as usize] as char);
+        out.push(if chunk.len() > 1 { B64[((n >> 6) & 63) as usize] as char } else { '=' });
+        out.push(if chunk.len() > 2 { B64[(n & 63) as usize] as char } else { '=' });
+    }
+    out
+}
+
+fn b64_decode(s: &str) -> Vec<u8> {
+    let val = |c: u8| -> Option<u32> {
+        match c {
+            b'A'..=b'Z' => Some((c - b'A') as u32),
+            b'a'..=b'z' => Some((c - b'a' + 26) as u32),
+            b'0'..=b'9' => Some((c - b'0' + 52) as u32),
+            b'+' => Some(62),
+            b'/' => Some(63),
+            _ => None,
+        }
+    };
+    let bytes: Vec<u8> = s.bytes().filter(|&c| c != b'=' && !c.is_ascii_whitespace()).collect();
+    let mut out = Vec::with_capacity(bytes.len() / 4 * 3);
+    for chunk in bytes.chunks(4) {
+        let mut n = 0u32;
+        let mut count = 0;
+        for (i, &c) in chunk.iter().enumerate() {
+            if let Some(v) = val(c) {
+                n |= v << (18 - 6 * i);
+                count += 1;
+            }
+        }
+        if count >= 2 {
+            out.push((n >> 16) as u8);
+        }
+        if count >= 3 {
+            out.push((n >> 8) as u8);
+        }
+        if count >= 4 {
+            out.push(n as u8);
+        }
+    }
+    out
+}
+
 // --- On-disk cache ----------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmbeddedChunk {
     pub text: String,
     pub line: usize,
-    pub vec: Vec<f32>,
+    /// int8-quantized embedding, base64-packed (see `pack`/`unpack`).
+    pub q: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,8 +252,10 @@ pub struct Retrieved {
     pub score: f32,
 }
 
-/// Rank every cached chunk against `query` and return the top `k`.
+/// Rank every cached chunk against `query` and return the top `k`. The query is
+/// quantized the same way as the stored chunks; cosine is scale-invariant.
 pub fn top_k(index: &RagIndex, query: &[f32], k: usize) -> Vec<Retrieved> {
+    let qq = quantize(query);
     let mut scored: Vec<Retrieved> = Vec::new();
     for (path, ne) in &index.notes {
         for ch in &ne.chunks {
@@ -154,7 +263,7 @@ pub fn top_k(index: &RagIndex, query: &[f32], k: usize) -> Vec<Retrieved> {
                 path: path.clone(),
                 text: ch.text.clone(),
                 line: ch.line,
-                score: cosine(query, &ch.vec),
+                score: cosine_i8(&qq, &unpack(&ch.q)),
             });
         }
     }
@@ -204,8 +313,8 @@ mod tests {
             NoteEmbeds {
                 mtime: 0,
                 chunks: vec![
-                    EmbeddedChunk { text: "near".into(), line: 0, vec: vec![1.0, 0.0] },
-                    EmbeddedChunk { text: "far".into(), line: 1, vec: vec![0.0, 1.0] },
+                    EmbeddedChunk { text: "near".into(), line: 0, q: pack(&[1.0, 0.0]) },
+                    EmbeddedChunk { text: "far".into(), line: 1, q: pack(&[0.0, 1.0]) },
                 ],
             },
         );
@@ -213,5 +322,19 @@ mod tests {
         let hits = top_k(&index, &[1.0, 0.0], 2);
         assert_eq!(hits[0].text, "near");
         assert!(hits[0].score > hits[1].score);
+    }
+
+    #[test]
+    fn quantize_pack_roundtrip_preserves_cosine() {
+        let a = vec![0.10, -0.20, 0.30, 0.05, -0.40];
+        let b = vec![0.12, -0.18, 0.28, 0.06, -0.39];
+        // base64 pack → unpack is lossless for the int8 values.
+        assert_eq!(unpack(&pack(&a)), quantize(&a));
+        // Quantized cosine tracks the float cosine closely.
+        let cf = cosine(&a, &b);
+        let cq = cosine_i8(&quantize(&a), &quantize(&b));
+        assert!((cf - cq).abs() < 0.02, "float {cf} vs quantized {cq}");
+        // base64 alphabet round-trips arbitrary bytes.
+        assert_eq!(super::b64_decode(&super::b64_encode(&[0u8, 1, 200, 255, 42])), vec![0u8, 1, 200, 255, 42]);
     }
 }

@@ -4680,7 +4680,7 @@ fn rag_worker(job: RagJob, epoch: u64, gen: Arc<AtomicU64>, tx: mpsc::Sender<Rag
                     let embedded: Vec<rag::EmbeddedChunk> = chunks
                         .into_iter()
                         .zip(vecs)
-                        .map(|(c, v)| rag::EmbeddedChunk { text: c.text, line: c.line, vec: v })
+                        .map(|(c, v)| rag::EmbeddedChunk { text: c.text, line: c.line, q: rag::pack(&v) })
                         .collect();
                     index
                         .notes

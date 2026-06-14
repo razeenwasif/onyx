@@ -5,7 +5,16 @@ for the task queue see **`docs/BACKLOG.md`**. This file is the "where we are rig
 
 _Last updated: 2026-06-14._
 
-> **Latest (2026-06-14): editor Visual selection + AI cheatsheet.** Line-wise
+> **Latest (2026-06-14): RAG cache compacted (int8+base64).** `.onyx/rag-index.json`
+> embeddings are int8-quantized + base64-packed (`rag::{quantize,pack,unpack}` +
+> in-house base64), ~4× smaller; `top_k` quantizes the query + ranks via
+> `cosine_i8` (scale-invariant → same ranking). `EmbeddedChunk.vec:Vec<f32>` →
+> `q:String`; old caches rebuild once. 89 tests. Verified live. Only remaining of
+> the user's last batch: **inline AI autocomplete**.
+>
+> ---
+>
+> **Earlier (2026-06-14): editor Visual selection + AI cheatsheet.** Line-wise
 > Visual mode (`v`/`V`): motions extend, `y`/`d` yank/delete, `p`/`P` paste
 > (`App.register`), `r` AI-rewrites the selection, `Esc` leaves; selected lines
 > highlighted in `ui/editor_pane.rs`. `Buffer::{remove_line_range,insert_lines}`,

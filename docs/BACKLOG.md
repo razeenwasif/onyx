@@ -178,6 +178,15 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ## Done
 
+### RAG cache compaction — int8 + base64  (2026-06-14)
+
+The `.onyx/rag-index.json` embeddings are now stored int8-quantized and
+base64-packed (`rag::{quantize, pack, unpack}` + a tiny in-house base64), ~4×
+smaller than the f32-JSON it replaced. Cosine is scale-invariant so ranking is
+unchanged — `top_k` quantizes the query and compares via `cosine_i8`. Old caches
+deserialize-fail and rebuild once. 89 tests (1 new: pack round-trip + cosine
+parity). Verified live (RAG still answers correctly from the quantized cache).
+
 ### Editor: line-wise Visual selection (+ AI knows shortcuts)  (2026-06-14)
 
 A real Visual mode plus a cheatsheet for the assistant.
