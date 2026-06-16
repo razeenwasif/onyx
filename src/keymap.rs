@@ -45,6 +45,7 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: "Ctrl-K",      action: "Focus calendar pane",      group: "Layout" },
     KeyHelp { keys: "Ctrl-←/→",    action: "Resize editor | preview split", group: "Layout" },
     KeyHelp { keys: "Ctrl-1..4",   action: "Focus pane",               group: "Layout" },
+    KeyHelp { keys: "Ctrl-F",      action: "Expand focused pane fullscreen", group: "Layout" },
     KeyHelp { keys: "Tab",         action: "Next pane",                group: "Layout" },
     KeyHelp { keys: "Shift-Tab",   action: "Previous pane",            group: "Layout" },
 
@@ -99,6 +100,7 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: "Esc",         action: "Exit fullscreen / pane",   group: "Graph" },
 
     KeyHelp { keys: "type",        action: "Edit scratch (autosaves)", group: "Quicknote" },
+    KeyHelp { keys: "Ctrl-F",      action: "Expand fullscreen",        group: "Quicknote" },
     KeyHelp { keys: "Tab / Esc",   action: "Leave (saves)",            group: "Quicknote" },
 
     KeyHelp { keys: "j / k",       action: "Move selection",           group: "Todo" },
@@ -107,6 +109,7 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: "e",           action: "Edit todo",                group: "Todo" },
     KeyHelp { keys: "d",           action: "Delete todo",              group: "Todo" },
     KeyHelp { keys: "s",           action: "Sync Google Tasks into pane", group: "Todo" },
+    KeyHelp { keys: "Ctrl-F",      action: "Expand fullscreen",        group: "Todo" },
 
     KeyHelp { keys: "Type to filter",action: "Fuzzy search items",     group: "Palette / Switcher" },
     KeyHelp { keys: "Enter",       action: "Select",                   group: "Palette / Switcher" },

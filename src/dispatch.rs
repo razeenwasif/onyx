@@ -139,6 +139,12 @@ fn global_shortcut(app: &mut App, key: KeyEvent) -> bool {
             app.open_search();
             true
         }
+        // Ctrl-F expands the focused pane (Todo/Quicknote/Graph/Calendar) to
+        // fill the body, or collapses it back. No-op for other focuses.
+        KeyCode::Char('f') if !in_text_overlay => {
+            app.toggle_fullscreen();
+            true
+        }
         KeyCode::Char('n') if !in_text_overlay => {
             start_prompt(app, "New note title", PromptAction::NewNote, "");
             true

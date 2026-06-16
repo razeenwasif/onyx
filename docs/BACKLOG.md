@@ -178,6 +178,21 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ## Done
 
+### Expandable Todo & Quicknote panes  (2026-06-16)
+
+`Ctrl-F` expands the focused **Todo** or **Quicknote** pane to fill the whole
+body (status/title bars stay), and collapses it back; `Esc` also collapses.
+
+- `FullPane` enum gained `Todo`/`Quicknote`; `toggle_fullscreen` now maps the
+  focused pane → `FullPane` generically (also covers the existing Graph/Calendar).
+- `ui/mod.rs` `match app.fullscreen` draws the pane into the body area; `focus_order`
+  pins focus to the expanded pane while fullscreen.
+- Global `Ctrl-F` chord in `dispatch::global_shortcut` (no-op for non-pane focuses);
+  works in the Quicknote text field since the chord is intercepted before input.
+- Status hints + `keymap` glossary entries updated (so the AI cheatsheet knows it).
+- Verified live e2e via pyte: Todo and Quicknote both expand to full body and
+  collapse back; Quicknote stays editable while expanded.
+
 ### Inline AI autocomplete (ghost text)  (2026-06-14)
 
 Insert-mode ghost suggestions from a fast local model, `Tab` to accept.

@@ -96,8 +96,8 @@ fn hint_for_focus(focus: Focus) -> &'static str {
             "· j/k move · Enter open · Space expand · n new · m folder · t database · r rename · d delete"
         }
         Focus::Home => "· j/k move · Enter open/run · Ctrl-N new · Ctrl-O open · Ctrl-/ help",
-        Focus::Quicknote => "· type to edit · autosaves · Tab/Esc leave",
-        Focus::Todo => "· j/k move · Space toggle · a add · e edit · d delete",
+        Focus::Quicknote => "· type to edit · autosaves · Ctrl-F expand · Tab/Esc leave",
+        Focus::Todo => "· j/k move · Space toggle · a add · e edit · d delete · Ctrl-F expand",
         Focus::Editor => "· i insert · Ctrl-S save · Ctrl-Enter follow link · Ctrl-/ help",
         Focus::Preview => "· j/k fold cursor · Space toggle callout · Tab/Esc back to editor",
         Focus::Sidebar => "· n/p tab (Pages·Backlinks·Outline·Tags) · j/k move · Enter open",

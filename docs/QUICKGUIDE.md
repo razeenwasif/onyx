@@ -150,7 +150,7 @@ The whole program in one walk-through:
 
 5. **`ui::draw()`** (`src/ui/mod.rs`)
    - Splits the frame vertically into title (1 row), body, status/cmdline (1 row).
-   - `match app.fullscreen`: `Graph`/`Calendar` fill the body; otherwise `draw_body` splits into left column / center / right column.
+   - `match app.fullscreen`: `Graph`/`Calendar`/`Todo`/`Quicknote` fill the body (toggled with `Ctrl-F` on the focused pane, `Esc` collapses); otherwise `draw_body` splits into left column / center / right column.
    - Modal overlays (`Palette`, `Switcher`, `Search`, `Help`, `Prompt`, `Confirm`) paint on top via `Clear` + a centered rect.
 
 The render reads `App` directly; the only "update step" is `tick_graph` (graph physics). Everything else is event-driven.
@@ -172,7 +172,7 @@ pub struct App {
     // layout toggles (snapshotted from / to config)
     pub show_left, show_right, show_preview: bool,
     pub show_graph_pane, show_calendar, show_quicknote, show_todo: bool,
-    pub fullscreen: Option<FullPane>,   // Graph or Calendar filling the body
+    pub fullscreen: Option<FullPane>,   // Graph/Calendar/Todo/Quicknote filling the body (Ctrl-F)
     pub sidebar_tab: SidebarTab,        // Backlinks | Outline | Tags
 
     // home start page

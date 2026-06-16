@@ -61,6 +61,8 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         match app.fullscreen {
             Some(FullPane::Graph) => graph::draw(frame, outer[1], app, true),
             Some(FullPane::Calendar) => draw_calendar_fullscreen(frame, outer[1], app),
+            Some(FullPane::Todo) => todo::draw(frame, outer[1], app),
+            Some(FullPane::Quicknote) => quicknote::draw(frame, outer[1], app),
             None => draw_body(frame, outer[1], app),
         }
     }

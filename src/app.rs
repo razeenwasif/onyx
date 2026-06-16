@@ -172,6 +172,8 @@ pub struct HomeItem {
 pub enum FullPane {
     Graph,
     Calendar,
+    Todo,
+    Quicknote,
 }
 
 /// What the upper-right sidebar shows. (The calendar is a separate docked
@@ -1943,6 +1945,8 @@ impl App {
             return vec![match full {
                 FullPane::Graph => Focus::Graph,
                 FullPane::Calendar => Focus::Calendar,
+                FullPane::Todo => Focus::Todo,
+                FullPane::Quicknote => Focus::Quicknote,
             }];
         }
         let mut order = Vec::new();
@@ -3390,23 +3394,18 @@ impl App {
 
     /// Expand the focused graph/calendar pane to fill the body (or collapse it).
     pub fn toggle_fullscreen(&mut self) {
-        match self.focus {
-            Focus::Graph => {
-                self.fullscreen = if self.fullscreen == Some(FullPane::Graph) {
-                    None
-                } else {
-                    Some(FullPane::Graph)
-                };
-            }
-            Focus::Calendar => {
-                self.fullscreen = if self.fullscreen == Some(FullPane::Calendar) {
-                    None
-                } else {
-                    Some(FullPane::Calendar)
-                };
-            }
-            _ => {}
-        }
+        let pane = match self.focus {
+            Focus::Graph => FullPane::Graph,
+            Focus::Calendar => FullPane::Calendar,
+            Focus::Todo => FullPane::Todo,
+            Focus::Quicknote => FullPane::Quicknote,
+            _ => return,
+        };
+        self.fullscreen = if self.fullscreen == Some(pane) {
+            None
+        } else {
+            Some(pane)
+        };
     }
 
     pub fn close_overlay(&mut self) {
