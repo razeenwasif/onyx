@@ -178,6 +178,23 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ## Done
 
+### Todo: completed items grouped, kept a week, uncheckable  (2026-06-16)
+
+Finished todos now sink below the open ones, linger for a week, then vanish;
+`Space` checks and unchecks.
+
+- `TodoItem` gains `done_on: Option<NaiveDate>`, persisted to `.onyx/todos.md`
+  as a trailing `<!--done:YYYY-MM-DD-->` comment (invisible when rendered,
+  portable). `toggle_on` stamps the date on check / clears it on uncheck.
+- `TodoList::prune_expired(today)` drops items completed ≥ `DONE_RETENTION_DAYS`
+  (7) ago; run on load (constructor + vault switch) and on every `save_todos`.
+- `App::todo_rows` orders open local → open Google → completed local (bottom),
+  keeping the original `Local(i)` index so toggle/delete are unaffected.
+- Title shows `· N done`; status hint already covers `Space toggle`.
+- 4 new unit tests (marker parse, toggle stamp/clear, week-boundary prune);
+  93 tests total. Verified live e2e via pyte: completing drops to bottom,
+  unchecking restores, and the on-disk marker round-trips.
+
 ### Expandable Todo & Quicknote panes  (2026-06-16)
 
 `Ctrl-F` expands the focused **Todo** or **Quicknote** pane to fill the whole

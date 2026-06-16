@@ -13,7 +13,11 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
     let focused = app.focus == Focus::Todo;
     let rows = app.todo_rows();
     let left = rows.iter().filter(|r| !r.done).count();
+    let done = rows.len() - left;
     let mut title = format!("Todo · {left} left");
+    if done > 0 {
+        title.push_str(&format!(" · {done} done"));
+    }
     if app.gtasks_syncing() {
         title.push_str(" · ⟳");
     }

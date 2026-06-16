@@ -723,7 +723,11 @@ impl App {
         // Load side-pane data from the vault's `.onyx/` dir.
         let quicknote_text =
             std::fs::read_to_string(vault.quicknote_path()).unwrap_or_default();
-        let todos = TodoList::load(&vault.todos_path());
+        let mut todos = TodoList::load(&vault.todos_path());
+        // Sweep away completed todos older than a week, persisting if changed.
+        if todos.prune_expired(Local::now().date_naive()) {
+            let _ = todos.save(&vault.todos_path());
+        }
         let bookmarks = load_bookmarks(&vault);
         // Opt-in: pull Google Tasks into the Todo pane at launch (background).
         let gtasks_rx = if config.google.sync_tasks && config.google.is_configured() {
@@ -897,6 +901,7 @@ impl App {
 
     /// Persist the todo list to `.onyx/todos.md`.
     pub fn save_todos(&mut self) {
+        self.todos.prune_expired(Local::now().date_naive());
         let _ = self.todos.save(&self.vault.todos_path());
     }
 
@@ -971,6 +976,9 @@ impl App {
         let qn = std::fs::read_to_string(self.vault.quicknote_path()).unwrap_or_default();
         self.quicknote = QuicknoteState::new(qn);
         self.todos = TodoList::load(&self.vault.todos_path());
+        if self.todos.prune_expired(Local::now().date_naive()) {
+            let _ = self.todos.save(&self.vault.todos_path());
+        }
         self.bookmarks = load_bookmarks(&self.vault);
 
         self.focus = Focus::FileTree;
@@ -2862,15 +2870,19 @@ impl App {
 
     /// The Todo pane's rows: every local todo, then *open* Google tasks.
     pub fn todo_rows(&self) -> Vec<TodoRow> {
+        // Open local todos first, then open Google tasks, then completed local
+        // todos grouped at the bottom. `Local(i)` keeps the original item index
+        // regardless of display order, so toggle/delete stay correct.
         let mut rows: Vec<TodoRow> = self
             .todos
             .items
             .iter()
             .enumerate()
+            .filter(|(_, it)| !it.done)
             .map(|(i, it)| TodoRow {
                 source: TodoSource::Local(i),
                 text: it.text.clone(),
-                done: it.done,
+                done: false,
             })
             .collect();
         for (i, t) in self.gtasks.iter().enumerate() {
@@ -2879,6 +2891,15 @@ impl App {
                     source: TodoSource::Google(i),
                     text: t.title.clone(),
                     done: false,
+                });
+            }
+        }
+        for (i, it) in self.todos.items.iter().enumerate() {
+            if it.done {
+                rows.push(TodoRow {
+                    source: TodoSource::Local(i),
+                    text: it.text.clone(),
+                    done: true,
                 });
             }
         }

@@ -40,7 +40,7 @@ src/
 ├── config.rs            — TOML config load/save (+ ONYX_CONFIG override)
 ├── theme.rs             — color palettes and Style helpers
 ├── keymap.rs            — static glossary used by the help overlay
-├── todo.rs              — todo checklist model (.onyx/todos.md)
+├── todo.rs              — todo checklist model (.onyx/todos.md; completed items carry a <!--done:DATE--> marker, grouped at the bottom and pruned after a week)
 ├── graph_sim.rs         — force-directed sim + Barnes-Hut quadtree
 ├── external.rs          — suspend TUI, run fzf/yazi, resume
 ├── error.rs             — OnyxError + Result alias
@@ -313,7 +313,7 @@ ui::draw(frame, app)
                ├─ graph::draw (Min, if show_graph_pane)   ◀── Focus::Graph
                └─ draw_calendar_pane (Length calendar_height, if show_calendar) ◀── Focus::Calendar
 
-Panes are toggled by `App::show_{left,right,preview,graph_pane,calendar,quicknote,todo}` (all but graph/preview default on). `Focus::{Graph,Calendar}` + Enter sets `App::fullscreen` to expand that pane over the body; Esc clears it. Quicknote/Todo persist to `.onyx/quicknote.md` / `.onyx/todos.md` (hidden dir, skipped by the scanner).
+Panes are toggled by `App::show_{left,right,preview,graph_pane,calendar,quicknote,todo}` (all but graph/preview default on). `Focus::{Graph,Calendar}` + Enter sets `App::fullscreen` to expand that pane over the body; Esc clears it. Quicknote/Todo persist to `.onyx/quicknote.md` / `.onyx/todos.md` (hidden dir, skipped by the scanner). Ticking a todo (`Space`) stamps it with the completion date and groups it below the open items; `Space` again unchecks it back into the open group. `TodoList::prune_expired` (run on load + save) sweeps completed todos away `DONE_RETENTION_DAYS` (7) after they were finished.
 
 [then overlays:]
     Focus::Palette  → palette::draw  (centered, Clear, then redraw)
