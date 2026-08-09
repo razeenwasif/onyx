@@ -690,7 +690,37 @@ When you need to find something fast:
 
 ---
 
-## 15. Next docs
+## 15. The desktop app
+
+Everything above describes the Rust TUI. There is a second front end in `desktop/` —
+an Electron + TypeScript GUI shaped like Obsidian — over the *same vault*. It shares
+no code with the TUI, but it does share the on-disk contract:
+
+| Shared on disk | Written by |
+|---|---|
+| `*.md` notes, wikilinks, `#tags`, YAML frontmatter | both |
+| `.onyx/todos.md`, `.onyx/quicknote.md` | both (same `<!--done:-->` marker format) |
+| `.onyx/rag-index.json` | both (same int8 + base64 quantization) |
+| `~/.config/onyx/config.toml` | TUI; the desktop app only *reads* `last_vault` from it |
+| `~/.config/onyx/desktop.json` | desktop app only |
+
+The pieces that had to agree were ported deliberately, not shared:
+
+- `src/markdown/parse.rs` → `desktop/src/shared/parse.ts` (link/tag/frontmatter rules)
+- `src/vault/index.rs` → `desktop/src/main/vault.ts` (resolution order, backlinks)
+- `src/graph_sim.rs` → `desktop/src/renderer/src/graph/physics.worker.ts` (the desktop
+  version follows d3-force's model more closely, since it has a real GPU to draw with)
+- `src/theme.rs` → `desktop/src/renderer/src/themes.ts` (same five palettes)
+- `src/todo.rs` → `desktop/src/renderer/src/components/TodoPane.tsx`
+- `src/integrations/ollama.rs` + `src/rag.rs` → `desktop/src/main/ai.ts`
+
+**If you change any of those Rust files, change the TypeScript twin too** — a drift in
+link resolution or the todo marker format is the kind of bug that only shows up when a
+user has both apps open on one vault.
+
+See `desktop/README.md` for its own architecture map.
+
+## 16. Next docs
 
 This is the architecture quickguide — the "where things live" map. Companion docs to write next, in roughly the order they'd be useful:
 

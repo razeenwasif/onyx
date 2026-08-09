@@ -1,6 +1,16 @@
 # Onyx
 
-A modern, premium markdown notes TUI — an Obsidian-inspired terminal vault.
+A modern, premium markdown notes app — an Obsidian-inspired vault that comes in two
+front ends over the same folder of plain `.md` files:
+
+- **`onyx`** — the terminal app (Rust + ratatui). This README.
+- **[Onyx Desktop](desktop/README.md)** — an Electron/TypeScript GUI built to match
+  Obsidian: live-preview editor, WebGL graph view, canvas, and the Onyx extras.
+
+Both read and write the same vault and the same `.onyx/` sidecar files, so you can
+run them side by side.
+
+![desktop graph view](assets/desktop-graph.png)
 
 ## Features
 
@@ -78,3 +88,18 @@ onyx /path/to/vault
 
 Press `Ctrl-/` or `F1` inside Onyx for the full keybinding glossary.
 Press `Ctrl-Q` to quit.
+
+## Desktop app
+
+```bash
+cd desktop
+npm install
+npm run dev      # or: npm run build && npm start
+```
+
+Onyx Desktop is an Obsidian-shaped GUI over the same vault: Live Preview / Source /
+Reading editor modes, a WebGL graph view with Obsidian's full Filters / Groups /
+Display / Forces panel, local graph, JSON Canvas boards, quick switcher and command
+palette, database views, the Quicknote/Todo panes, and the local-LLM assistant.
+
+Full details, architecture, and packaging: [`desktop/README.md`](desktop/README.md).

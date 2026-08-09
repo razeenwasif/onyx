@@ -1,0 +1,158 @@
+# Onyx Desktop
+
+An Obsidian-style desktop app for the same vault the Onyx TUI edits. Same folder,
+same plain `.md` files, same `.onyx/` sidecar — you can leave both running at once
+and each picks up the other's changes.
+
+![graph view](../assets/desktop-graph.png)
+
+## Run it
+
+```bash
+cd desktop
+npm install
+npm run dev          # hot-reloading dev build
+npm start            # run the production build
+npm run build        # build only, into desktop/out
+```
+
+Packaging (electron-builder, output in `desktop/release`):
+
+```bash
+npm run pack:linux   # AppImage + deb
+npm run pack:win     # NSIS installer
+npm run pack:mac     # dmg
+```
+
+On first launch it opens the vault from `~/.config/onyx/desktop.json`, falling back
+to `last_vault` in the TUI's `config.toml`, then to `~/OnyxVault`. Use the vault icon
+at the bottom of the ribbon (or `Ctrl+Shift+O`) to switch.
+
+> **Running on WSL, a VM, or a headless box?** The graph needs WebGL2. If the GPU
+> process can't start, launch with `--enable-unsafe-swiftshader` to render it in
+> software.
+
+## What's in it
+
+**Workspace** — ribbon, tabbed left/right sidebars, editor tabs (drag to reorder or
+move between panes), horizontal splits, per-pane back/forward history, full-screen
+focus (`Ctrl+F`), status bar, and five themes ported from the TUI's `theme.rs`.
+
+**Editor** — CodeMirror 6 with Obsidian's three modes:
+
+| Mode | What you see |
+|---|---|
+| Live Preview (default) | Rendered markdown; raw syntax appears only on the construct your cursor is touching |
+| Source | Everything raw, with syntax highlighting |
+| Reading (`Ctrl+E`) | Fully rendered, no editing |
+
+Live Preview renders headings, bold/italic/strike/`==highlight==`, inline code and
+fenced blocks, blockquotes, task checkboxes (clickable), images, links, `[[wikilinks]]`,
+`#tags`, horizontal rules, callouts, and the frontmatter properties table.
+`[[` opens the note autocomplete, `#` the tag autocomplete, and `/` at the start of a
+line opens the slash menu (headings, lists, tables, callouts, columns, math, …).
+Vim keybindings are a toggle in Settings → Editor.
+
+**Graph** — see below.
+
+**Canvas** — Obsidian's open [JSON Canvas](https://jsoncanvas.org) format, so `.canvas`
+files move between the two apps. Text cards (markdown-rendered), note cards, link
+cards, groups, and labelled arrow edges; pan, zoom, multi-select, drag, resize, and
+connect by dragging a side handle.
+
+**Search & navigation** — full-vault search with `tag:` / `path:` / `file:` / `line:N`
+operators and `-exclusions`, fuzzy quick switcher (`Ctrl+O`), command palette
+(`Ctrl+P`), backlinks with unlinked mentions, outline, properties, and a tag index.
+
+**Onyx extras** — the Quicknote scratchpad and Todo checklist (same `.onyx/*.md`
+files as the TUI, including the `<!--done:YYYY-MM-DD-->` markers and the one-week
+sweep), a daily-notes calendar, and database views that render any folder as a
+Notion-style table or kanban board keyed by frontmatter.
+
+**AI** — the local-LLM assistant over Ollama: streaming chat with the open note as
+context, `/summarize`, `/index` + `/ask` (semantic RAG with cited sources, cached to
+`.onyx/rag-index.json`), rewrite-in-place, and inline ghost-text autocomplete
+(Tab to accept). No cloud, no keys. See [`../docs/AI.md`](../docs/AI.md).
+
+## The graph view
+
+This is the piece that was built to match Obsidian exactly.
+
+**Rendering.** WebGL2, three instanced draw calls per frame (links, arrowheads,
+nodes). Circles are signed-distance discs in the fragment shader, so they stay crisp
+at any zoom without a texture atlas; links are camera-space quads so thickness stays
+constant in screen pixels. Labels are drawn on a 2D overlay canvas, where the
+browser's font rasterizer beats anything an SDF atlas would produce.
+
+**Layout.** d3-force's model — Barnes-Hut many-body charge, link springs, a weak pull
+toward the origin, Verlet integration with a cooling `alpha` — running in a Web
+Worker. Positions ping-pong back on a transferable `Float32Array`, so a large vault
+costs no per-frame allocation and never blocks the UI.
+
+Repulsion is scaled as `0.011 × linkDistance²`, which is the equilibrium of one
+spring against one charge at `d ≈ 1.1 × linkDistance`. That keeps the two forces
+comparable, so moving the distance slider spreads the graph out instead of making it
+collapse or explode.
+
+**Controls** — the same four panels, with the same names and ranges:
+
+| Panel | Controls |
+|---|---|
+| Filters | Search files · Tags · Attachments · Existing files only · Orphans |
+| Groups | Any number of search-query → color groups |
+| Display | Arrows · Text fade threshold · Node size · Link thickness |
+| Forces | Center force · Repel force · Link force · Link distance |
+
+Local graph adds Depth (1–5), Incoming links, Outgoing links and Neighbor links.
+"Restore default settings" resets the panel. Settings persist per view.
+
+The filter and group queries run through the same full-text search as the search
+pane, so `tag:project`, `path:Notes/`, and plain content terms all work.
+
+**Interaction** — hover highlights a node and its neighbours and dims everything
+else; click opens the note (`Ctrl`/`Cmd`-click for a new tab); drag pins a node while
+you hold it; the wheel zooms about the pointer; `+`/`-` zoom and the arrow keys pan
+(hold Shift to move faster); right-click gives Open / Open in new tab / Open local
+graph / Filter to this folder. Labels fade out as nodes get small on screen, with the
+threshold slider shifting when that happens. The camera frames the layout while it
+settles, then hands control over the moment you touch it.
+
+## Architecture
+
+```
+src/
+  main/        Electron main process — the only code that touches the disk
+    vault.ts     scan, index, resolve links, backlinks, tags, graph, atomic saves, watcher
+    search.ts    full-text search, unlinked mentions, fuzzy scoring
+    settings.ts  ~/.config/onyx/desktop.json (seeded from the TUI's config.toml)
+    ai.ts        Ollama chat/embed/generate + the RAG index
+    index.ts     window, menu, IPC handlers, path validation
+  preload/     the contextBridge surface (`window.onyx`) — the whole API in one file
+  shared/      code both processes use: markdown parsing, types, graph defaults
+  renderer/src
+    store.ts     workspace state (panes, tabs, buffers, sidebars)
+    commands.ts  every command, its hotkey, and its behaviour
+    themes.ts    palettes → CSS custom properties
+    editor/      CodeMirror live preview, completions, ghost text, HTML renderer
+    graph/       WebGL renderer, physics worker, the view and its control panel
+    canvas/      JSON Canvas board
+    components/  shell, sidebars, modals, settings, database, AI pane
+```
+
+The renderer runs with `contextIsolation` on, `nodeIntegration` off, and a strict CSP.
+Every filesystem call goes through IPC, and the main process rejects any path that
+resolves outside the open vault. Rendered markdown is sanitized before it reaches the
+DOM (script/iframe/handler stripping) on top of the CSP.
+
+`shared/parse.ts` is a faithful port of the TUI's `src/markdown/parse.rs`, so both
+apps agree on what counts as a link, a tag, or a property.
+
+## Known gaps
+
+- The `::: columns` block renders in Reading view but stays as source in Live Preview.
+- No plugin API, no sync, no publish, no mobile — those are Obsidian features with no
+  Onyx equivalent yet.
+- Canvas supports the JSON Canvas spec's node and edge kinds, but not portal/embedded
+  canvas nodes.
+- Google Calendar / Tasks / Drive (the TUI's `cloud` feature) aren't wired into the
+  desktop app yet.

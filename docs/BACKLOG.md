@@ -178,6 +178,56 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ## Done
 
+### ⭐ EPIC: Onyx Desktop — an Obsidian-shaped Electron app  (2026-08-09)
+
+A second front end over the same vault, in `desktop/`: Electron + Vite + React +
+TypeScript, no Rust dependency. Both apps read and write the same `.md` files and the
+same `.onyx/` sidecars (`todos.md`, `quicknote.md`, `rag-index.json`), so they can run
+side by side. Architecture, screenshots and packaging: `desktop/README.md`.
+
+Shipped:
+
+- **Vault layer in the main process** — `shared/parse.ts` is a faithful port of
+  `src/markdown/parse.rs` (wikilinks, md links, tags, frontmatter properties/aliases);
+  `main/vault.ts` ports the index (basename/relpath/alias resolution, backlinks, tag
+  index, graph build), atomic saves, rename-with-link-rewriting, and a chokidar
+  watcher. The renderer never touches the disk; every IPC path is validated against
+  the vault root.
+- **Workspace shell** — ribbon, tabbed sidebars, editor tabs (draggable across panes),
+  horizontal splits, per-tab history, zen focus, status bar, five themes ported from
+  `theme.rs` into CSS custom properties.
+- **CodeMirror 6 editor** with Obsidian's Live Preview / Source / Reading modes,
+  wikilink + tag + slash-menu autocomplete, callouts, the frontmatter properties
+  table, clickable task checkboxes, and optional vim keybindings.
+- **Graph view** — WebGL2 instanced renderer + Barnes-Hut physics in a Web Worker,
+  with Obsidian's Filters / Groups / Display / Forces panels, local graph with depth
+  and direction toggles, hover highlight-and-dim, drag-to-pin, pointer-anchored zoom,
+  keyboard pan, and screen-size-relative label fading.
+- **Canvas** — Obsidian's JSON Canvas format: text/file/link/group nodes, labelled
+  arrow edges, pan/zoom, multi-select, drag, resize, connect-by-handle.
+- **Search & navigation** — the TUI's operators (`tag:`/`path:`/`file:`/`line:N`,
+  `-exclude`), fuzzy quick switcher, command palette, backlinks + unlinked mentions,
+  outline, properties, tag index.
+- **Onyx extras** — Quicknote, Todo (same `<!--done:-->` markers and one-week sweep),
+  daily-notes calendar, and database table/board views over folder frontmatter.
+- **AI** — streaming Ollama chat with the open note as context, `/summarize`,
+  `/index` + `/ask` (RAG with cited sources, int8-quantized cache), rewrite in place,
+  and inline ghost-text autocomplete.
+
+Two bugs worth remembering, both found by actually running the app rather than by
+reading it:
+
+- The settings deep-merge dropped every write to a `null`-defaulted key
+  (`typeof null === 'object'`), so the app silently ignored `lastVault` and opened the
+  default vault instead.
+- The persisted graph defaults and the "Restore default settings" values disagreed
+  (link distance 30 vs 250), which read as a broken force simulation. Both now come
+  from `shared/graph-defaults.ts`.
+
+Still open for the desktop app: `::: columns` in Live Preview (Reading view renders
+it), the `cloud` feature's Google Calendar/Tasks/Drive panes, and JSON Canvas
+portal nodes.
+
 ### Todo: completed items grouped, kept a week, uncheckable  (2026-06-16)
 
 Finished todos now sink below the open ones, linger for a week, then vanish;

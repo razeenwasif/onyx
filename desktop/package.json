@@ -1,0 +1,62 @@
+{
+  "name": "onyx-desktop",
+  "version": "0.1.0",
+  "description": "Onyx Desktop — an Obsidian-style markdown vault app for the Onyx vault format.",
+  "main": "./out/main/index.js",
+  "author": "Onyx contributors",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "pack:linux": "electron-vite build && electron-builder --linux",
+    "pack:win": "electron-vite build && electron-builder --win",
+    "pack:mac": "electron-vite build && electron-builder --mac"
+  },
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@codemirror/autocomplete": "^6.18.4",
+    "@codemirror/commands": "^6.7.1",
+    "@codemirror/lang-markdown": "^6.3.1",
+    "@codemirror/language": "^6.10.8",
+    "@codemirror/language-data": "^6.5.1",
+    "@codemirror/search": "^6.5.8",
+    "@codemirror/state": "^6.5.0",
+    "@codemirror/view": "^6.36.1",
+    "@lezer/highlight": "^1.2.1",
+    "@lezer/markdown": "^1.4.1",
+    "@replit/codemirror-vim": "^6.2.1",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.17.10",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.3.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "highlight.js": "^11.11.0",
+    "katex": "^0.16.11",
+    "markdown-it": "^14.1.0",
+    "@types/markdown-it": "^14.1.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "zustand": "^5.0.2"
+  },
+  "build": {
+    "appId": "md.onyx.desktop",
+    "productName": "Onyx",
+    "directories": { "output": "release" },
+    "files": ["out/**/*", "resources/**/*"],
+    "linux": { "target": ["AppImage", "deb"], "category": "Office" },
+    "win": { "target": ["nsis"] },
+    "mac": { "target": ["dmg"], "category": "public.app-category.productivity" }
+  }
+}
