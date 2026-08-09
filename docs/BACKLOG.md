@@ -178,6 +178,23 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ## Done
 
+### Desktop: tag-colored graph nodes, app icon, packaged builds  (2026-08-10)
+
+- **Color by tag** in the graph (on by default). A tag's color is a hash of its
+  top-level segment (`project/web` and `project/api` share a hue), spread by the
+  golden angle so hundreds of tags stay distinct without a fixed palette, and stable
+  across sessions. Multi-tag notes take their alphabetically first tag so a color
+  never shifts because another note changed. Precedence is group → focused note →
+  tag → per-kind default. A legend under Groups lists each tag with its swatch and
+  count; clicking a row filters the graph to `tag:<name>`.
+  Code: `desktop/src/renderer/src/graph/tag-colors.ts`.
+- **App icon** — `assets/onyx-icon.svg` (a dark tile with the graph motif), rasterized
+  into `desktop/build/icon.png` and `desktop/build/icons/{16..512}.png`.
+- **Packaging** — electron-builder targets for Linux (AppImage + deb), Windows (NSIS)
+  and macOS (dmg). The deb installs to `/opt/Onyx`, registers a `.desktop` entry with
+  the right categories/keywords/StartupWMClass, and installs hicolor icons at every
+  size. Both Linux artifacts were built and the packaged binary was smoke-tested.
+
 ### ⭐ EPIC: Onyx Desktop — an Obsidian-shaped Electron app  (2026-08-09)
 
 A second front end over the same vault, in `desktop/`: Electron + Vite + React +

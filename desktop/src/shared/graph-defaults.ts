@@ -16,6 +16,7 @@ export const DEFAULT_GRAPH: GraphSettings = {
   existingOnly: false,
   showOrphans: true,
   groups: [],
+  colorByTag: true,
   arrows: false,
   textFadeThreshold: 1.1,
   nodeSize: 1,

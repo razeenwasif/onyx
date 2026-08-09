@@ -16,12 +16,35 @@ npm start            # run the production build
 npm run build        # build only, into desktop/out
 ```
 
-Packaging (electron-builder, output in `desktop/release`):
+## Install
+
+Packaging is electron-builder; artifacts land in `desktop/release`.
 
 ```bash
 npm run pack:linux   # AppImage + deb
 npm run pack:win     # NSIS installer
 npm run pack:mac     # dmg
+```
+
+On Linux, the `.deb` installs to `/opt/Onyx`, registers `onyx-desktop.desktop`
+and drops the icon into `hicolor` at every size, so Onyx shows up in the
+application menu like any other app:
+
+```bash
+sudo dpkg -i release/onyx-desktop_0.1.0_amd64.deb
+```
+
+The AppImage is self-contained — `chmod +x release/Onyx-0.1.0.AppImage` and run it.
+
+The icon lives in `assets/onyx-icon.svg`; `build/icon.png` and `build/icons/*` are
+generated from it:
+
+```bash
+mkdir -p build/icons
+convert -background none -density 384 ../assets/onyx-icon.svg -resize 512x512 build/icon.png
+for s in 16 24 32 48 64 128 256 512; do
+  convert -background none -density 384 ../assets/onyx-icon.svg -resize ${s}x${s} build/icons/${s}x${s}.png
+done
 ```
 
 On first launch it opens the vault from `~/.config/onyx/desktop.json`, falling back
@@ -99,9 +122,21 @@ collapse or explode.
 | Panel | Controls |
 |---|---|
 | Filters | Search files · Tags · Attachments · Existing files only · Orphans |
-| Groups | Any number of search-query → color groups |
+| Groups | **Color by tag** + legend · any number of search-query → color groups |
 | Display | Arrows · Text fade threshold · Node size · Link thickness |
 | Forces | Center force · Repel force · Link force · Link distance |
+
+**Color by tag** (on by default, and the one place this goes beyond Obsidian)
+colors every node by its tag, with a legend under Groups showing each tag, its
+color and how many nodes carry it — click a row to filter the graph to that tag.
+
+A tag's color comes from a hash of its *top-level segment*, so `project/web` and
+`project/api` share a hue and read as one family, and a color never shifts because
+notes or tags were added elsewhere. Hues are spread by the golden angle, so a vault
+with hundreds of tags still gets visually distinct colors without a fixed palette.
+A note with several tags takes the alphabetically first one — deterministic, so its
+color doesn't change when some *other* note is edited. An explicit group still wins
+over the tag color, and the focused note keeps its accent highlight.
 
 Local graph adds Depth (1–5), Incoming links, Outgoing links and Neighbor links.
 "Restore default settings" resets the panel. Settings persist per view.

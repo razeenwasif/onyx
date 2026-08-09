@@ -3,7 +3,15 @@
   "version": "0.1.0",
   "description": "Onyx Desktop — an Obsidian-style markdown vault app for the Onyx vault format.",
   "main": "./out/main/index.js",
-  "author": "Onyx contributors",
+  "author": {
+    "name": "Razeen Wasif",
+    "email": "razeen.wasif66@gmail.com"
+  },
+  "homepage": "https://github.com/razeenwasif/onyx",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/razeenwasif/onyx.git"
+  },
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -53,10 +61,30 @@
   "build": {
     "appId": "md.onyx.desktop",
     "productName": "Onyx",
-    "directories": { "output": "release" },
-    "files": ["out/**/*", "resources/**/*"],
-    "linux": { "target": ["AppImage", "deb"], "category": "Office" },
-    "win": { "target": ["nsis"] },
-    "mac": { "target": ["dmg"], "category": "public.app-category.productivity" }
+    "directories": { "output": "release", "buildResources": "build" },
+    "files": ["out/**/*"],
+    "extraResources": [{ "from": "build/icon.png", "to": "icon.png" }],
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "build/icons",
+      "category": "Office",
+      "synopsis": "Obsidian-style markdown vault",
+      "description": "A markdown vault app with live preview, a WebGL graph view, canvas boards and a local AI assistant.",
+      "desktop": {
+        "Name": "Onyx",
+        "GenericName": "Markdown vault",
+        "Comment": "Obsidian-style markdown vault",
+        "Categories": "Office;TextEditor;Utility;",
+        "Keywords": "notes;markdown;vault;graph;obsidian;",
+        "MimeType": "text/markdown;",
+        "StartupWMClass": "Onyx"
+      }
+    },
+    "win": { "target": ["nsis"], "icon": "build/icon.png" },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "build/icon.png",
+      "category": "public.app-category.productivity"
+    }
   }
 }

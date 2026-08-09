@@ -46,10 +46,22 @@ function send(channel: string, ...args: unknown[]): void {
 
 // ---------------------------------------------------------------- window
 
+/**
+ * The app icon. Packaged builds get it from `extraResources`; a dev run reads
+ * it straight out of `build/`. Linux window managers use this for the taskbar
+ * entry, so it's worth setting even though the installers set it too.
+ */
+function iconPath(): string {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'icon.png')
+    : path.join(__dirname, '../../build/icon.png')
+}
+
 function createWindow(): void {
   win = new BrowserWindow({
     width: 1440,
     height: 900,
+    icon: iconPath(),
     minWidth: 700,
     minHeight: 480,
     show: false,

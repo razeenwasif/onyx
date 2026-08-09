@@ -106,6 +106,8 @@ export interface GraphSettings {
   showOrphans: boolean
   // Groups
   groups: Array<{ query: string; color: string }>
+  /** Color every node by its tag (an explicit group still wins). */
+  colorByTag: boolean
   // Display
   arrows: boolean
   textFadeThreshold: number

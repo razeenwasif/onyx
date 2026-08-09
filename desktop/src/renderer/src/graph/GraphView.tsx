@@ -15,6 +15,7 @@ import { useStore } from '../store'
 import { hexToRgb, themeById } from '../themes'
 import { Icon } from '../components/Icon'
 import { DEFAULT_GRAPH, DEFAULT_LOCAL_GRAPH } from '@shared/graph-defaults'
+import { primaryTag, tagColor, tagFamily } from './tag-colors'
 import { GraphRenderer, makeFrameData, type Camera, type FrameData } from './renderer'
 import PhysicsWorker from './physics.worker?worker'
 
@@ -239,6 +240,37 @@ export function GraphView({ focusPath, local }: Props): JSX.Element {
     return { nodes, reverse, edges: new Int32Array(pairs), adjacency }
   }, [graph, cfg, local, localCfg.depth, localCfg.incoming, localCfg.outgoing, localCfg.neighborLinks, focusPath, matches])
 
+  /**
+   * Tag color per sub-node, as RGB, or null when the node has no tags or the
+   * option is off. Tag nodes color themselves; notes take their primary tag.
+   */
+  const tagRgb = useMemo(() => {
+    const out: Array<number[] | null> = sub.nodes.map(() => null)
+    if (!cfg.colorByTag || !graph) return out
+    sub.nodes.forEach((full, i) => {
+      const node = graph.nodes[full]
+      const tag = node.kind === 'tag' ? node.tags[0] : primaryTag(node.tags)
+      if (tag) out[i] = hexToRgb(tagColor(tag, palette.dark))
+    })
+    return out
+  }, [sub, graph, cfg.colorByTag, palette.dark])
+
+  /** Tags present in the visible graph, most used first — drives the legend. */
+  const tagLegend = useMemo(() => {
+    if (!cfg.colorByTag || !graph) return []
+    const counts = new Map<string, number>()
+    for (const full of sub.nodes) {
+      const node = graph.nodes[full]
+      const tag = node.kind === 'tag' ? node.tags[0] : primaryTag(node.tags)
+      if (!tag) continue
+      const family = tagFamily(tag)
+      counts.set(family, (counts.get(family) ?? 0) + 1)
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([tag, count]) => ({ tag, count, color: tagColor(tag, palette.dark) }))
+  }, [sub, graph, cfg.colorByTag, palette.dark])
+
   /** Group color per sub-node (index into `sub.nodes`), or null. */
   const groupColors = useMemo(() => {
     const out: Array<string | null> = sub.nodes.map(() => null)
@@ -441,10 +473,14 @@ export function GraphView({ focusPath, local }: Props): JSX.Element {
         frame.nodeXY[i * 2 + 1] = pos[i * 2 + 1]
         frame.nodeRadius[i] = r
 
+        // Precedence: an explicit group, then the focused note, then the
+        // node's tag color, then the per-kind default.
         let rgb: number[]
         const group = groupColors[i]
+        const byTag = tagRgb[i]
         if (group) rgb = hexToRgb(group)
         else if (node.id === focusPath) rgb = nodeFocus
+        else if (byTag) rgb = byTag
         else if (node.kind === 'tag') rgb = nodeTag
         else if (node.kind === 'attachment') rgb = nodeAttachment
         else if (node.kind === 'unresolved') rgb = nodeUnresolved
@@ -496,7 +532,7 @@ export function GraphView({ focusPath, local }: Props): JSX.Element {
 
     rafRef.current = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [graph, sub, cfg, palette, groupColors, focusPath, nodeRadius])
+  }, [graph, sub, cfg, palette, groupColors, tagRgb, focusPath, nodeRadius])
 
   // ------------------------------------------------------------ interaction
 
@@ -720,6 +756,7 @@ export function GraphView({ focusPath, local }: Props): JSX.Element {
           cfg={cfg}
           local={local}
           patch={patch}
+          legend={tagLegend}
           onClose={() => setPanelOpen(false)}
           onReset={() =>
             patch(
@@ -842,18 +879,21 @@ function GraphControls({
   cfg,
   local,
   patch,
+  legend,
   onClose,
   onReset,
 }: {
   cfg: GraphSettings | LocalGraphSettings
   local: boolean
   patch: (p: Partial<LocalGraphSettings>) => void
+  legend: Array<{ tag: string; count: number; color: string }>
   onClose: () => void
   onReset: () => void
 }): JSX.Element {
   const [open, setOpen] = useState<Record<string, boolean>>({
     filters: true,
-    groups: false,
+    // Open by default: this is where the tag-color legend lives.
+    groups: true,
     display: true,
     forces: true,
   })
@@ -935,6 +975,30 @@ function GraphControls({
         'groups',
         'Groups',
         <>
+          <Toggle
+            label="Color by tag"
+            on={cfg.colorByTag !== false}
+            onChange={(v) => patch({ colorByTag: v })}
+          />
+          {cfg.colorByTag !== false && legend.length > 0 && (
+            <div className="graph-legend">
+              {legend.slice(0, 14).map((entry) => (
+                <button
+                  key={entry.tag}
+                  className="graph-legend-row"
+                  title={`Filter to #${entry.tag}`}
+                  onClick={() => patch({ searchQuery: `tag:${entry.tag}` })}
+                >
+                  <span className="swatch" style={{ background: entry.color }} />
+                  <span className="label">#{entry.tag}</span>
+                  <span className="count">{entry.count}</span>
+                </button>
+              ))}
+              {legend.length > 14 && (
+                <div className="graph-legend-more">+{legend.length - 14} more</div>
+              )}
+            </div>
+          )}
           {(cfg.groups ?? []).map((g, i) => (
             <div className="graph-group" key={i}>
               <input

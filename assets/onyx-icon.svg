@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Onyx</title>
+  <!-- Dark onyx tile -->
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="#1e1e24"/>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="none" stroke="#3a3a4d" stroke-width="6"/>
+
+  <!-- Links: a small knowledge graph, drawn under the nodes -->
+  <g stroke="#5b5570" stroke-width="9" stroke-linecap="round" fill="none">
+    <path d="M256 256 L150 148"/>
+    <path d="M256 256 L372 152"/>
+    <path d="M256 256 L132 320"/>
+    <path d="M256 256 L376 330"/>
+    <path d="M256 256 L232 392"/>
+    <path d="M150 148 L372 152"/>
+    <path d="M132 320 L232 392"/>
+    <path d="M376 330 L232 392"/>
+  </g>
+
+  <!-- Satellite nodes, in the tag-color palette -->
+  <circle cx="150" cy="148" r="34" fill="#7aa2f7"/>
+  <circle cx="372" cy="152" r="30" fill="#34d399"/>
+  <circle cx="132" cy="320" r="27" fill="#f59e0b"/>
+  <circle cx="376" cy="330" r="31" fill="#f7768e"/>
+  <circle cx="232" cy="392" r="26" fill="#e0c889"/>
+
+  <!-- Hub -->
+  <circle cx="256" cy="256" r="62" fill="#a78bfa"/>
+  <circle cx="256" cy="256" r="62" fill="none" stroke="#1e1e24" stroke-width="10"/>
+</svg>
