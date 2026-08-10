@@ -1,64 +1,14 @@
-/**
- * Right sidebar: backlinks (+ unlinked mentions), outline, properties, tags,
- * and the Onyx-specific Todo and Calendar panes.
- */
+/** Right-sidebar panes: backlinks (+ unlinked mentions), outline, properties. */
 
 import { useEffect, useMemo, useState } from 'react'
 import type { Backlink } from '@shared/types'
-import { useStore, type RightPanel } from '../store'
-import { Icon, type IconName } from './Icon'
-import { Resizer } from './Resizer'
-import { TagsPane } from './LeftSidebar'
-import { TodoPane } from './TodoPane'
-import { CalendarPane } from './CalendarPane'
+import { useStore } from '../store'
+import { Icon } from './Icon'
 import { extractHeadings, extractFrontmatterProperties } from '@shared/parse'
-import { stem } from '../lib/notes'
-
-const TABS: Array<{ id: RightPanel; icon: IconName; title: string }> = [
-  { id: 'backlinks', icon: 'link', title: 'Backlinks' },
-  { id: 'outline', icon: 'list', title: 'Outline' },
-  { id: 'properties', icon: 'info', title: 'Properties' },
-  { id: 'tags', icon: 'tag', title: 'Tags' },
-  { id: 'todo', icon: 'check', title: 'Todo' },
-  { id: 'calendar', icon: 'calendar', title: 'Calendar' },
-]
-
-export function RightSidebar(): JSX.Element {
-  const panel = useStore((s) => s.rightPanel)
-  const width = useStore((s) => s.rightWidth)
-  const setPanel = useStore((s) => s.setRightPanel)
-  const setWidth = useStore((s) => s.setRightWidth)
-
-  return (
-    <div className="sidebar right" style={{ width, flex: `0 0 ${width}px` }}>
-      <Resizer edge="left" value={width} onChange={setWidth} />
-      <div className="sidebar-tabs">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            className={`sidebar-tab${panel === t.id ? ' is-active' : ''}`}
-            title={t.title}
-            onClick={() => setPanel(t.id)}
-          >
-            <Icon name={t.icon} size={15} />
-          </button>
-        ))}
-      </div>
-      <div className="sidebar-body">
-        {panel === 'backlinks' && <BacklinksPane />}
-        {panel === 'outline' && <OutlinePane />}
-        {panel === 'properties' && <PropertiesPane />}
-        {panel === 'tags' && <TagsPane />}
-        {panel === 'todo' && <TodoPane />}
-        {panel === 'calendar' && <CalendarPane />}
-      </div>
-    </div>
-  )
-}
 
 // -------------------------------------------------------------- backlinks
 
-function BacklinksPane(): JSX.Element {
+export function BacklinksPane(): JSX.Element {
   const path = useStore((s) => s.activeTab()?.path ?? null)
   const notes = useStore((s) => s.notes)
   const openFile = useStore((s) => s.openFile)
@@ -139,7 +89,7 @@ function BacklinksPane(): JSX.Element {
 
 // ---------------------------------------------------------------- outline
 
-function OutlinePane(): JSX.Element {
+export function OutlinePane(): JSX.Element {
   const tab = useStore((s) => s.activeTab())
   const content = useStore((s) => (tab?.path ? s.docs.get(tab.path)?.content : undefined))
 
@@ -150,7 +100,7 @@ function OutlinePane(): JSX.Element {
 
   return (
     <div>
-      <div className="pane-title">Outline</div>
+      
       <div className="list-pane">
         {!headings.length && <div className="empty-note">No headings in this note.</div>}
         {headings.map((h, i) => (
@@ -185,7 +135,7 @@ function OutlinePane(): JSX.Element {
 
 // ------------------------------------------------------------- properties
 
-function PropertiesPane(): JSX.Element {
+export function PropertiesPane(): JSX.Element {
   const tab = useStore((s) => s.activeTab())
   const content = useStore((s) => (tab?.path ? s.docs.get(tab.path)?.content : undefined))
   const meta = useStore((s) => (tab?.path ? s.notes.get(tab.path) : undefined))
@@ -195,7 +145,7 @@ function PropertiesPane(): JSX.Element {
 
   return (
     <div>
-      <div className="pane-title">Properties</div>
+      
       <div style={{ padding: '0 10px 10px' }}>
         {!props.length && (
           <div className="empty-note" style={{ padding: '6px 2px' }}>
@@ -251,4 +201,3 @@ function Row({ label, value }: { label: string; value: string }): JSX.Element {
   )
 }
 
-export { stem }

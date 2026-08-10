@@ -173,14 +173,38 @@ export interface AiSettings {
   host: string
 }
 
-/** Sidebar layout, remembered between sessions like Obsidian's workspace. */
+/** One stacked pane in a sidebar. `height: 0` means "share the leftover space". */
+export interface SectionState {
+  id: SectionId
+  visible: boolean
+  collapsed: boolean
+  height: number
+}
+
+export type SectionId =
+  | 'files'
+  | 'bookmarks'
+  | 'quicknote'
+  | 'todo'
+  | 'backlinks'
+  | 'graph'
+  | 'calendar'
+  | 'outline'
+  | 'tags'
+  | 'properties'
+
+/**
+ * Sidebar layout, remembered between sessions. Each side is a vertical stack
+ * of panes in order, following the TUI's layout rather than Obsidian's
+ * one-tab-at-a-time sidebars.
+ */
 export interface LayoutSettings {
   leftOpen: boolean
   rightOpen: boolean
   leftWidth: number
   rightWidth: number
-  leftPanel: 'files' | 'search' | 'bookmarks' | 'tags'
-  rightPanel: 'backlinks' | 'outline' | 'properties' | 'tags' | 'ai' | 'todo' | 'calendar'
+  left: SectionState[]
+  right: SectionState[]
 }
 
 export interface AppSettings {
@@ -194,6 +218,11 @@ export interface AppSettings {
   lineNumbers: boolean
   readableLineLength: boolean
   spellcheck: boolean
+  /**
+   * Filesystem watching. `auto` polls when the vault is on a filesystem that
+   * doesn't deliver change events (WSL shares, /mnt/c, SMB).
+   */
+  watchMode: 'auto' | 'native' | 'polling'
   fontSize: number
   tabSize: number
   useSpaces: boolean

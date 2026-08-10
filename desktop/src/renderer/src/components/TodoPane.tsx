@@ -195,27 +195,31 @@ export function TodoPane(): JSX.Element {
 
   return (
     <div className="mini-pane">
-      <div className="pane-title">
-        <span>Todo</span>
-        <span className="actions">
-          <span style={{ color: 'var(--fg-subtle)', marginRight: 4 }}>{openCount} open</span>
-          {gBusy && <span className="spinner" />}
-          {syncTasks && (
-            <button title="Refresh Google Tasks" onClick={() => void loadGoogle()}>
+      
+      <div className="todo-add-row">
+        <input
+          className="todo-add"
+          placeholder={syncTasks ? 'Add a todo…  (prefix “g ” for Google)' : 'Add a todo…'}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') add()
+          }}
+        />
+        {gBusy ? (
+          <span className="spinner" />
+        ) : (
+          syncTasks && (
+            <button
+              className="icon-btn"
+              title="Refresh Google Tasks"
+              onClick={() => void loadGoogle()}
+            >
               <Icon name="history" size={13} />
             </button>
-          )}
-        </span>
+          )
+        )}
       </div>
-      <input
-        className="todo-add"
-        placeholder={syncTasks ? 'Add a todo…  (prefix “g ” for Google)' : 'Add a todo…'}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') add()
-        }}
-      />
       {loaded && !items.length && <div className="empty-note">Nothing to do. Enjoy it.</div>}
       {items.map((item, i) => (
         <div className={`todo-item${item.done ? ' is-done' : ''}`} key={`${item.text}-${i}`}>
@@ -269,7 +273,6 @@ export function TodoPane(): JSX.Element {
           ))}
         </>
       )}
-      <QuicknotePane />
     </div>
   )
 }
@@ -298,11 +301,7 @@ export function QuicknotePane(): JSX.Element {
   }, [text, dirty])
 
   return (
-    <>
-      <div className="pane-title">
-        <span>Quicknote</span>
-        {dirty && <span style={{ color: 'var(--fg-subtle)' }}>saving…</span>}
-      </div>
+    <div className="mini-pane quicknote-pane">
       <textarea
         value={text}
         placeholder="Scratch pad — autosaved to the vault"
@@ -311,6 +310,7 @@ export function QuicknotePane(): JSX.Element {
           setDirty(true)
         }}
       />
-    </>
+      {dirty && <div className="quicknote-status">saving…</div>}
+    </div>
   )
 }

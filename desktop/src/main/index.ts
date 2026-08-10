@@ -185,7 +185,7 @@ async function openVault(root: string): Promise<AppSettings['lastVault']> {
   vault = new Vault(root)
   await fs.mkdir(root, { recursive: true })
   await vault.load()
-  vault.watch()
+  vault.watch(settings.get().watchMode)
   vault.on('change', (kind, rel) => send('vault:changed', kind, rel))
   vault.on('settled', () => send('vault:settled'))
   rag = new RagIndex(vault)
@@ -220,8 +220,15 @@ function registerIpc(): void {
   ipcMain.handle('settings:set', (_e, patch: Partial<AppSettings>) => settings.update(patch))
 
   ipcMain.handle('vault:current', () =>
-    vault ? { root: vault.root, name: vault.name } : null,
+    vault ? { root: vault.root, name: vault.name, watchMode: vault.watchMode } : null,
   )
+
+  /** Re-scan from disk — the escape hatch when the watcher can't see changes. */
+  ipcMain.handle('vault:reload', async () => {
+    const v = requireVault()
+    await v.load()
+    return { notes: v.notes.size, cachedBytes: v.cachedBytes }
+  })
 
   ipcMain.handle('vault:pick', async () => {
     const res = await dialog.showOpenDialog({

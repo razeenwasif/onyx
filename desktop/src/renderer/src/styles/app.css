@@ -189,6 +189,122 @@ textarea {
   overflow-x: hidden;
 }
 
+/* Stacked panes (the TUI layout): headers, bodies, and drag dividers. */
+
+.sidebar-stack {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.stack-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+  border-bottom: 1px solid var(--divider);
+}
+
+.stack-pane:last-child {
+  border-bottom: none;
+}
+
+.stack-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  flex: 0 0 26px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+  cursor: default;
+  user-select: none;
+}
+
+.stack-header:hover {
+  color: var(--fg-dim);
+  background: var(--bg-hover);
+}
+
+.stack-header .twisty {
+  transition: transform 100ms ease;
+}
+
+.stack-header .twisty.collapsed {
+  transform: rotate(-90deg);
+}
+
+.stack-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stack-actions {
+  display: flex;
+  gap: 1px;
+}
+
+.stack-actions button {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--fg-subtle);
+}
+
+.stack-actions button:hover {
+  color: var(--fg);
+  background: var(--bg-sel);
+}
+
+.stack-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Views that fill their pane (the docked graph) rather than scrolling. */
+.stack-body > .graph-view {
+  flex: 1;
+  min-height: 0;
+}
+
+.stack-resizer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 7px;
+  cursor: row-resize;
+  z-index: 4;
+}
+
+.stack-resizer:hover,
+.stack-resizer.dragging {
+  background: var(--accent-soft);
+}
+
+.context-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-subtle);
+  padding: 4px 10px 2px;
+}
+
 .pane-title {
   font-size: 11px;
   font-weight: 600;
@@ -2011,19 +2127,27 @@ textarea {
   min-height: 0;
 }
 
+.mini-pane {
+  flex: 1;
+  min-height: 0;
+}
+
 .mini-pane textarea {
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  min-height: 120px;
-  background: var(--bg-alt);
-  border: 1px solid var(--divider);
-  border-radius: var(--radius);
-  padding: 8px;
+  background: none;
+  border: none;
+  border-top: 1px solid transparent;
+  padding: 8px 12px;
   outline: none;
-  resize: vertical;
+  resize: none;
   font-family: var(--font-text);
   font-size: 13px;
-  margin: 0 10px 10px;
-  width: calc(100% - 20px);
+}
+
+.mini-pane textarea:focus {
+  background: var(--bg-alt);
 }
 
 .todo-item {
@@ -2053,6 +2177,36 @@ textarea {
 .todo-item .text {
   flex: 1;
   overflow-wrap: anywhere;
+}
+
+.todo-add-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px 8px;
+}
+
+.todo-add-row .todo-add {
+  margin: 0;
+  width: auto;
+  flex: 1;
+}
+
+.quicknote-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.quicknote-status {
+  position: absolute;
+  right: 10px;
+  bottom: 6px;
+  font-size: 10px;
+  color: var(--fg-subtle);
+  pointer-events: none;
 }
 
 .todo-add {

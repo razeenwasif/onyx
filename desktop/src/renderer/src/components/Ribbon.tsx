@@ -11,39 +11,71 @@ interface Item {
 }
 
 export function Ribbon(): JSX.Element {
-  const leftPanel = useStore((s) => s.leftPanel)
   const leftOpen = useStore((s) => s.leftOpen)
+  const rightOpen = useStore((s) => s.rightOpen)
+  const sections = useStore((s) => s.sections)
   const activeType = useStore((s) => s.activeTab()?.type)
-  const setLeftPanel = useStore((s) => s.setLeftPanel)
+  const toggleSection = useStore((s) => s.toggleSection)
+  const shown = (id: string, side: 'left' | 'right'): boolean =>
+    (side === 'left' ? leftOpen : rightOpen) &&
+    sections[side].some((sec) => sec.id === id && sec.visible)
 
   const items: Item[] = [
     {
       id: 'files',
       icon: 'files',
-      title: 'Files',
-      run: () => setLeftPanel('files'),
-      active: leftOpen && leftPanel === 'files',
+      title: 'Files pane',
+      run: () => toggleSection('files'),
+      active: shown('files', 'left'),
     },
     {
       id: 'search',
       icon: 'search',
-      title: 'Search',
-      run: () => setLeftPanel('search'),
-      active: leftOpen && leftPanel === 'search',
+      title: 'Search (Ctrl+Shift+F)',
+      run: () => runCommand('search:open'),
+      active: activeType === 'search',
     },
     {
       id: 'bookmarks',
       icon: 'star',
-      title: 'Bookmarks',
-      run: () => setLeftPanel('bookmarks'),
-      active: leftOpen && leftPanel === 'bookmarks',
+      title: 'Bookmarks pane',
+      run: () => toggleSection('bookmarks'),
+      active: shown('bookmarks', 'left'),
     },
     {
-      id: 'tags',
-      icon: 'tag',
-      title: 'Tags',
-      run: () => setLeftPanel('tags'),
-      active: leftOpen && leftPanel === 'tags',
+      id: 'quicknote',
+      icon: 'edit',
+      title: 'Quicknote pane',
+      run: () => toggleSection('quicknote'),
+      active: shown('quicknote', 'left'),
+    },
+    {
+      id: 'todo',
+      icon: 'check',
+      title: 'Todo pane',
+      run: () => toggleSection('todo'),
+      active: shown('todo', 'left'),
+    },
+    {
+      id: 'backlinks',
+      icon: 'link',
+      title: 'Backlinks pane',
+      run: () => toggleSection('backlinks'),
+      active: shown('backlinks', 'right'),
+    },
+    {
+      id: 'graphpane',
+      icon: 'target',
+      title: 'Graph pane',
+      run: () => toggleSection('graph'),
+      active: shown('graph', 'right'),
+    },
+    {
+      id: 'calendarpane',
+      icon: 'calendar',
+      title: 'Calendar pane',
+      run: () => toggleSection('calendar'),
+      active: shown('calendar', 'right'),
     },
   ]
 
@@ -65,7 +97,7 @@ export function Ribbon(): JSX.Element {
     },
     {
       id: 'daily',
-      icon: 'calendar',
+      icon: 'book',
       title: "Open today's daily note",
       run: () => runCommand('file:daily'),
     },

@@ -25,6 +25,8 @@ interface Props {
   /** null = global graph; a path = local graph centred on that note. */
   focusPath: string | null
   local: boolean
+  /** Docked in a sidebar: no control panel, smaller toolbar. */
+  compact?: boolean
 }
 
 interface Sub {
@@ -67,7 +69,7 @@ function bfsDepths(
   return out
 }
 
-export function GraphView({ focusPath, local }: Props): JSX.Element {
+export function GraphView({ focusPath, local, compact = false }: Props): JSX.Element {
   const graph = useStore((s) => s.graph)
   const settingsAll = useStore((s) => s.settings)
   const setSettings = useStore((s) => s.setSettings)
@@ -100,7 +102,7 @@ export function GraphView({ focusPath, local }: Props): JSX.Element {
   const rafRef = useRef(0)
 
   const [hoverLabel, setHoverLabel] = useState<{ x: number; y: number; text: string } | null>(null)
-  const [panelOpen, setPanelOpen] = useState(true)
+  const [panelOpen, setPanelOpen] = useState(!compact)
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null)
   /** Paths matched by the filter query and by each group query (content search). */
   const [queryHits, setQueryHits] = useState<Map<string, Set<string>>>(new Map())
@@ -631,7 +633,9 @@ export function GraphView({ focusPath, local }: Props): JSX.Element {
         if (node.kind === 'note' || node.kind === 'attachment') {
           void openFile(node.id, { newTab: e.ctrlKey || e.metaKey })
         } else if (node.kind === 'tag') {
-          useStore.getState().setLeftPanel('search')
+          useStore.setState({
+            modal: { kind: 'search', initial: `tag:${node.tags[0] ?? node.title.slice(1)}` },
+          })
         }
       }
       dragRef.current = null
@@ -767,14 +771,16 @@ export function GraphView({ focusPath, local }: Props): JSX.Element {
           }
         />
       ) : (
-        <button
-          className="graph-toolbar icon-btn"
-          style={{ left: 10, right: 'auto' }}
-          onClick={() => setPanelOpen(true)}
-          title="Show settings"
-        >
-          <Icon name="settings" />
-        </button>
+        !compact && (
+          <button
+            className="graph-toolbar icon-btn"
+            style={{ left: 10, right: 'auto' }}
+            onClick={() => setPanelOpen(true)}
+            title="Show settings"
+          >
+            <Icon name="settings" />
+          </button>
+        )
       )}
 
       <div className="graph-toolbar">
@@ -856,19 +862,21 @@ export function GraphView({ focusPath, local }: Props): JSX.Element {
         </div>
       )}
 
-      <div
-        style={{
-          position: 'absolute',
-          right: 12,
-          bottom: 10,
-          fontSize: 11,
-          color: 'var(--fg-subtle)',
-          pointerEvents: 'none',
-        }}
-      >
-        {stats}
-        {notes.size === 0 && ' · empty vault'}
-      </div>
+      {!compact && (
+        <div
+          style={{
+            position: 'absolute',
+            right: 12,
+            bottom: 10,
+            fontSize: 11,
+            color: 'var(--fg-subtle)',
+            pointerEvents: 'none',
+          }}
+        >
+          {stats}
+          {notes.size === 0 && ' · empty vault'}
+        </div>
+      )}
     </div>
   )
 }

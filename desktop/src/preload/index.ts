@@ -38,8 +38,10 @@ export const api = {
   },
 
   vault: {
-    current: (): Promise<{ root: string; name: string } | null> =>
+    current: (): Promise<{ root: string; name: string; watchMode: string } | null> =>
       ipcRenderer.invoke('vault:current'),
+    reload: (): Promise<{ notes: number; cachedBytes: number }> =>
+      ipcRenderer.invoke('vault:reload'),
     pick: (): Promise<{ root: string; name: string } | null> => ipcRenderer.invoke('vault:pick'),
     open: (root: string): Promise<{ root: string; name: string }> =>
       ipcRenderer.invoke('vault:open', root),

@@ -1,50 +1,11 @@
-/** Left sidebar: file explorer, search, bookmarks, tags — Obsidian's four. */
+/** Left-sidebar panes: the file explorer, bookmarks, and the tag index. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FileNode, SearchHit } from '@shared/types'
-import { useStore, type LeftPanel } from '../store'
+import { useStore } from '../store'
 import { Icon, type IconName } from './Icon'
 import { runCommand } from '../commands'
 import { dirname, joinPath, stem } from '../lib/notes'
-import { Resizer } from './Resizer'
-
-const TABS: Array<{ id: LeftPanel; icon: IconName; title: string }> = [
-  { id: 'files', icon: 'files', title: 'Files' },
-  { id: 'search', icon: 'search', title: 'Search' },
-  { id: 'bookmarks', icon: 'star', title: 'Bookmarks' },
-  { id: 'tags', icon: 'tag', title: 'Tags' },
-]
-
-export function LeftSidebar(): JSX.Element {
-  const panel = useStore((s) => s.leftPanel)
-  const width = useStore((s) => s.leftWidth)
-  const setPanel = useStore((s) => s.setLeftPanel)
-  const setWidth = useStore((s) => s.setLeftWidth)
-
-  return (
-    <div className="sidebar left" style={{ width, flex: `0 0 ${width}px` }}>
-      <div className="sidebar-tabs">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            className={`sidebar-tab${panel === t.id ? ' is-active' : ''}`}
-            title={t.title}
-            onClick={() => setPanel(t.id)}
-          >
-            <Icon name={t.icon} size={15} />
-          </button>
-        ))}
-      </div>
-      <div className="sidebar-body">
-        {panel === 'files' && <FileExplorer />}
-        {panel === 'search' && <SearchPane />}
-        {panel === 'bookmarks' && <BookmarksPane />}
-        {panel === 'tags' && <TagsPane />}
-      </div>
-      <Resizer edge="right" value={width} onChange={setWidth} />
-    </div>
-  )
-}
 
 // ---------------------------------------------------------- file explorer
 
@@ -162,31 +123,7 @@ export function FileExplorer(): JSX.Element {
 
   return (
     <div>
-      <div className="pane-title">
-        <span>{vault?.name}</span>
-        <span className="actions">
-          <button title="New note" onClick={() => runCommand('file:new')}>
-            <Icon name="newNote" size={14} />
-          </button>
-          <button title="New folder" onClick={() => runCommand('file:new-folder')}>
-            <Icon name="newFolder" size={14} />
-          </button>
-          <button
-            title="Collapse all"
-            onClick={() => {
-              const all = new Set<string>()
-              const walk = (n: FileNode): void => {
-                if (n.isDir && n.path) all.add(n.path)
-                n.children?.forEach(walk)
-              }
-              if (tree) walk(tree)
-              setCollapsed(collapsed.size ? new Set() : all)
-            }}
-          >
-            <Icon name="collapse" size={14} />
-          </button>
-        </span>
-      </div>
+      
       <div className="tree">{tree ? renderNode(tree, 0) : null}</div>
 
       {menu && (
@@ -390,7 +327,7 @@ export function SearchPane({ initial }: { initial?: string } = {}): JSX.Element 
 
 // -------------------------------------------------------------- bookmarks
 
-function BookmarksPane(): JSX.Element {
+export function BookmarksPane(): JSX.Element {
   const bookmarks = useStore((s) => s.bookmarks)
   const notes = useStore((s) => s.notes)
   const openFile = useStore((s) => s.openFile)
@@ -398,7 +335,7 @@ function BookmarksPane(): JSX.Element {
 
   return (
     <div>
-      <div className="pane-title">Bookmarks</div>
+      
       <div className="list-pane">
         {!bookmarks.length && (
           <div className="empty-note">
@@ -442,7 +379,7 @@ export function TagsPane(): JSX.Element {
 
   return (
     <div>
-      <div className="pane-title">Tags</div>
+      
       <div className="list-pane">
         {!tags.length && <div className="empty-note">No tags in this vault yet.</div>}
         {tags.map(([tag, count]) => (

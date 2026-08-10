@@ -151,7 +151,7 @@ export const COMMANDS: Command[] = [
     name: 'Search in all files',
     hotkey: `${mod}+Shift+F`,
     keys: ['mod+shift+f'],
-    run: () => s().setLeftPanel('search'),
+    run: () => s().openView('search', { title: 'Search' }),
   },
   {
     id: 'graph:open',
@@ -328,6 +328,45 @@ export const COMMANDS: Command[] = [
       const picked = await window.onyx.vault.pick()
       if (picked) window.location.reload()
     },
+  },
+  {
+    id: 'vault:reload',
+    name: 'Reload vault from disk',
+    hotkey: 'F5',
+    keys: ['f5'],
+    run: async () => {
+      const st = s()
+      st.setStatus('Reloading vault…')
+      const res = await window.onyx.vault.reload()
+      await st.refreshVault()
+      await st.refreshGraph()
+      st.setStatus(`Reloaded ${res.notes} notes`)
+    },
+  },
+  {
+    id: 'pane:toggle-quicknote',
+    name: 'Toggle Quicknote pane',
+    run: () => s().toggleSection('quicknote'),
+  },
+  { id: 'pane:toggle-todo', name: 'Toggle Todo pane', run: () => s().toggleSection('todo') },
+  { id: 'pane:toggle-files', name: 'Toggle Files pane', run: () => s().toggleSection('files') },
+  {
+    id: 'pane:toggle-backlinks',
+    name: 'Toggle Backlinks pane',
+    run: () => s().toggleSection('backlinks'),
+  },
+  { id: 'pane:toggle-graph', name: 'Toggle Graph pane', run: () => s().toggleSection('graph') },
+  {
+    id: 'pane:toggle-calendar',
+    name: 'Toggle Calendar pane',
+    run: () => s().toggleSection('calendar'),
+  },
+  { id: 'pane:toggle-outline', name: 'Toggle Outline pane', run: () => s().toggleSection('outline') },
+  { id: 'pane:toggle-tags', name: 'Toggle Tags pane', run: () => s().toggleSection('tags') },
+  {
+    id: 'pane:toggle-properties',
+    name: 'Toggle Properties pane',
+    run: () => s().toggleSection('properties'),
   },
   {
     id: 'settings:open',

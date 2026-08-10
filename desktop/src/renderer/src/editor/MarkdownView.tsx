@@ -114,7 +114,6 @@ function CodeMirrorView({ tab, mode }: { tab: Tab; mode: 'livePreview' | 'source
         })()
       },
       openTag: (tag) => {
-        useStore.getState().setLeftPanel('search')
         useStore.setState({ modal: { kind: 'search', initial: `tag:${tag}` } })
       },
       imageSrc: (target) => {

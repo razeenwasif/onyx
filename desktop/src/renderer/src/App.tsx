@@ -2,8 +2,7 @@ import { useEffect } from 'react'
 import { useStore } from './store'
 import { COMMANDS, keyString, runCommand } from './commands'
 import { Ribbon } from './components/Ribbon'
-import { LeftSidebar } from './components/LeftSidebar'
-import { RightSidebar } from './components/RightSidebar'
+import { LeftSidebar, RightSidebar } from './components/Sidebars'
 import { Workspace } from './components/Workspace'
 import { StatusBar } from './components/StatusBar'
 import { Modals } from './components/Modals'
@@ -28,6 +27,8 @@ export function App(): JSX.Element {
     () =>
       window.onyx.app.onMenuCommand((id) => {
         if (id.startsWith('open:')) void useStore.getState().openFile(id.slice(5))
+        else if (id.startsWith('search:q:'))
+          useStore.getState().openView('search', { title: 'Search', state: { initial: id.slice(9) } })
         else runCommand(id)
       }),
     [],

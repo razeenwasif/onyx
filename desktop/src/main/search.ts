@@ -87,7 +87,8 @@ export async function search(vault: Vault, raw: string, limit = 400): Promise<Se
 
     let content: string
     try {
-      content = await vault.read(meta.path)
+      // Bulk scan: read through the in-memory cache, not the disk.
+      content = await vault.cachedContent(meta.path)
     } catch {
       continue
     }
@@ -146,7 +147,7 @@ export async function unlinkedMentions(
     if (other === rel) continue
     let content: string
     try {
-      content = await vault.read(other)
+      content = await vault.cachedContent(other)
     } catch {
       continue
     }

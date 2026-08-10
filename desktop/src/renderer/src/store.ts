@@ -12,6 +12,8 @@ import type {
   FileNode,
   GraphData,
   NoteMeta,
+  SectionId,
+  SectionState,
   VaultSnapshot,
 } from '@shared/types'
 import { applyTheme, themeById } from './themes'
@@ -23,6 +25,7 @@ export type ViewType =
   | 'canvas'
   | 'database'
   | 'ai'
+  | 'search'
   | 'image'
   | 'pdf'
   | 'empty'
@@ -49,8 +52,6 @@ export interface Pane {
   activeTabId: string | null
 }
 
-export type LeftPanel = 'files' | 'search' | 'bookmarks' | 'tags'
-export type RightPanel = 'backlinks' | 'outline' | 'properties' | 'tags' | 'ai' | 'todo' | 'calendar'
 
 export interface UnsavedDoc {
   content: string
@@ -62,6 +63,8 @@ export interface UnsavedDoc {
 interface State {
   ready: boolean
   vault: { root: string; name: string } | null
+  /** 'native' or 'polling' — surfaced in the status bar. */
+  watchMode: 'native' | 'polling'
   tree: FileNode | null
   notes: Map<string, NoteMeta>
   attachments: string[]
@@ -74,8 +77,8 @@ interface State {
   rightOpen: boolean
   leftWidth: number
   rightWidth: number
-  leftPanel: LeftPanel
-  rightPanel: RightPanel
+  /** Stacked panes per side, in order. */
+  sections: { left: SectionState[]; right: SectionState[] }
   /** Full-screen focus on one pane (Onyx's Ctrl-F expand). */
   zenPaneId: string | null
 
@@ -136,11 +139,14 @@ interface Actions {
 
   toggleLeft(): void
   toggleRight(): void
-  setLeftPanel(p: LeftPanel): void
-  setRightPanel(p: RightPanel): void
+  setSectionHeight(id: SectionId, height: number): void
+  toggleSectionCollapsed(id: SectionId): void
+  /** Show/hide a pane; `show` forces a state, otherwise it flips. */
+  toggleSection(id: SectionId, show?: boolean): void
   setLeftWidth(w: number): void
   setRightWidth(w: number): void
   persistLayout(patch: Partial<AppSettings['layout']>): void
+  updateSection(id: SectionId, patch: (s: SectionState) => Partial<SectionState>): void
   toggleZen(paneId?: string): void
 
   setModal(m: State['modal']): void
@@ -183,6 +189,7 @@ function viewTypeFor(path: string): ViewType {
 export const useStore = create<State & Actions>((set, get) => ({
   ready: false,
   vault: null,
+  watchMode: 'native',
   tree: null,
   notes: new Map(),
   attachments: [],
@@ -195,8 +202,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   rightOpen: true,
   leftWidth: 260,
   rightWidth: 300,
-  leftPanel: 'files',
-  rightPanel: 'backlinks',
+  sections: { left: [], right: [] },
   zenPaneId: null,
 
   docs: new Map(),
@@ -210,16 +216,17 @@ export const useStore = create<State & Actions>((set, get) => ({
   async init() {
     const settings = await window.onyx.settings.get()
     applyTheme(themeById(settings.theme))
-    const vault = await window.onyx.vault.current()
+    const current = await window.onyx.vault.current()
+    const vault = current ? { root: current.root, name: current.name } : null
     set({
       settings,
       vault,
+      watchMode: (current?.watchMode as 'native' | 'polling') ?? 'native',
       leftOpen: settings.layout.leftOpen,
       rightOpen: settings.layout.rightOpen,
       leftWidth: settings.layout.leftWidth,
       rightWidth: settings.layout.rightWidth,
-      leftPanel: settings.layout.leftPanel,
-      rightPanel: settings.layout.rightPanel,
+      sections: { left: settings.layout.left, right: settings.layout.right },
     })
     if (vault) {
       await get().refreshVault()
@@ -541,14 +548,15 @@ export const useStore = create<State & Actions>((set, get) => ({
     set({ rightOpen })
     get().persistLayout({ rightOpen })
   },
-  setLeftPanel: (p) => {
-    set({ leftPanel: p, leftOpen: true })
-    get().persistLayout({ leftPanel: p, leftOpen: true })
-  },
-  setRightPanel: (p) => {
-    set({ rightPanel: p, rightOpen: true })
-    get().persistLayout({ rightPanel: p, rightOpen: true })
-  },
+  setSectionHeight: (id, height) => get().updateSection(id, () => ({ height })),
+  toggleSectionCollapsed: (id) =>
+    get().updateSection(id, (sec) => ({ collapsed: !sec.collapsed })),
+  toggleSection: (id, show) =>
+    get().updateSection(id, (sec) => {
+      const visible = show ?? !sec.visible
+      // Revealing a pane in a closed sidebar should open that sidebar too.
+      return { visible, collapsed: visible ? false : sec.collapsed }
+    }),
   setLeftWidth: (w) => {
     const leftWidth = Math.max(180, Math.min(560, w))
     set({ leftWidth })
@@ -558,6 +566,26 @@ export const useStore = create<State & Actions>((set, get) => ({
     const rightWidth = Math.max(200, Math.min(620, w))
     set({ rightWidth })
     get().persistLayout({ rightWidth })
+  },
+
+  /** Apply a patch to one section and persist both stacks. */
+  updateSection(id, patch) {
+    const s = get()
+    const apply = (list: SectionState[]): SectionState[] =>
+      list.map((sec) => (sec.id === id ? { ...sec, ...patch(sec) } : sec))
+    const left = apply(s.sections.left)
+    const right = apply(s.sections.right)
+    const inLeft = s.sections.left.some((sec) => sec.id === id)
+    const revealed = (inLeft ? left : right).find((sec) => sec.id === id)?.visible
+    set({
+      sections: { left, right },
+      ...(revealed ? (inLeft ? { leftOpen: true } : { rightOpen: true }) : {}),
+    })
+    get().persistLayout({
+      left,
+      right,
+      ...(revealed ? (inLeft ? { leftOpen: true } : { rightOpen: true }) : {}),
+    })
   },
 
   /** Debounced write-through of the sidebar layout (drags fire constantly). */

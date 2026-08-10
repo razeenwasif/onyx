@@ -9,6 +9,7 @@ export function StatusBar(): JSX.Element {
   const notes = useStore((s) => s.notes)
   const settings = useStore((s) => s.settings)
   const vault = useStore((s) => s.vault)
+  const watchMode = useStore((s) => s.watchMode)
 
   const words = doc ? doc.content.trim().split(/\s+/).filter(Boolean).length : (meta?.wordCount ?? 0)
   const chars = doc?.content.length ?? meta?.size ?? 0
@@ -25,6 +26,15 @@ export function StatusBar(): JSX.Element {
           {meta && <span className="item">{relativeTime(meta.mtime)}</span>}
           <span className="item">{doc?.dirty ? 'Unsaved' : 'Saved'}</span>
         </>
+      )}
+      {watchMode === 'polling' && (
+        <span
+          className="item"
+          title="This vault is on a filesystem that doesn't report changes (a WSL or network share), so Onyx polls it. Click to re-scan now."
+          onClick={() => runCommand('vault:reload')}
+        >
+          polling
+        </span>
       )}
       <span className="item" onClick={() => runCommand('theme:cycle')} title="Cycle theme">
         {settings?.theme}

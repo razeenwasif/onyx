@@ -115,17 +115,7 @@ export function CalendarPane(): JSX.Element {
 
   return (
     <div>
-      <div className="pane-title">
-        <span>Calendar</span>
-        <span className="actions">
-          {busy && <span className="spinner" />}
-          {syncCalendar && (
-            <button title="Refresh Google events" onClick={() => void loadEvents()}>
-              <Icon name="history" size={13} />
-            </button>
-          )}
-        </span>
-      </div>
+      
       <div className="calendar">
         <div className="calendar-head">
           <button
@@ -135,12 +125,27 @@ export function CalendarPane(): JSX.Element {
             <Icon name="chevronLeft" size={14} />
           </button>
           <span>{formatDate(cursor, 'MMMM YYYY')}</span>
-          <button
-            className="icon-btn"
-            onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
-          >
-            <Icon name="chevronRight" size={14} />
-          </button>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <button
+              className="icon-btn"
+              onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
+            >
+              <Icon name="chevronRight" size={14} />
+            </button>
+            {busy ? (
+              <span className="spinner" />
+            ) : (
+              syncCalendar && (
+                <button
+                  className="icon-btn"
+                  title="Refresh Google events"
+                  onClick={() => void loadEvents()}
+                >
+                  <Icon name="history" size={13} />
+                </button>
+              )
+            )}
+          </span>
         </div>
         <div className="calendar-grid">
           {DOW.map((d, i) => (

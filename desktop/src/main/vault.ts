@@ -62,6 +62,60 @@ export interface VaultEvents {
   settled: () => void
 }
 
+/**
+ * Note text kept in memory for bulk scans (search, unlinked mentions).
+ *
+ * Re-reading 1000+ notes per query costs ~20ms on a local disk and *twelve
+ * seconds* over a WSL 9P mount, so the scanners read through this cache while
+ * single-file reads still go to disk (see `read` vs `cachedContent`).
+ */
+const CONTENT_BUDGET_BYTES = 96 * 1024 * 1024
+/** Don't spend the budget on one enormous file. */
+const CONTENT_MAX_FILE_BYTES = 2 * 1024 * 1024
+
+/** Filesystems where inotify/ReadDirectoryChangesW don't deliver events. */
+const NETWORK_FSTYPES = new Set([
+  '9p',
+  'drvfs',
+  'cifs',
+  'smb3',
+  'nfs',
+  'nfs4',
+  'fuse.sshfs',
+  'fuse.rclone',
+  'virtiofs',
+  'vboxsf',
+])
+
+export type WatchMode = 'native' | 'polling'
+
+/**
+ * True when `root` lives on a filesystem that won't deliver change events.
+ * On Windows that's any UNC path; on Linux we look the mount point up in
+ * /proc/mounts, which catches `/mnt/c` (drvfs) and network shares.
+ */
+export function isNetworkPath(root: string): boolean {
+  if (process.platform === 'win32') return /^\\\\/.test(root)
+  try {
+    const mounts = fsSync.readFileSync('/proc/mounts', 'utf8')
+    let best = ''
+    let bestType = ''
+    for (const line of mounts.split('\n')) {
+      const [, mountPoint, fstype] = line.split(' ')
+      if (!mountPoint || !fstype) continue
+      const point = mountPoint.replace(/\\040/g, ' ')
+      if ((root === point || root.startsWith(point.endsWith('/') ? point : `${point}/`)) &&
+        point.length > best.length) {
+        best = point
+        bestType = fstype
+      }
+    }
+    return NETWORK_FSTYPES.has(bestType)
+  } catch {
+    return false
+  }
+}
+
 export class Vault extends EventEmitter {
   readonly root: string
   readonly name: string
@@ -70,6 +124,12 @@ export class Vault extends EventEmitter {
   notes = new Map<string, NoteMeta>()
   /** Non-markdown files (attachments, canvases), vault-relative. */
   files = new Set<string>()
+
+  /** How the watcher is running, for the status bar. */
+  watchMode: WatchMode = 'native'
+
+  private contents = new Map<string, string>()
+  private contentBytes = 0
 
   private byBasename = new Map<string, string[]>()
   private byRelpath = new Map<string, string>()
@@ -105,6 +165,8 @@ export class Vault extends EventEmitter {
   async load(): Promise<void> {
     this.notes.clear()
     this.files.clear()
+    this.contents.clear()
+    this.contentBytes = 0
     const found: string[] = []
     await this.walk(this.root, found)
     for (const rel of found) {
@@ -113,6 +175,7 @@ export class Vault extends EventEmitter {
           const content = await fs.readFile(this.abs(rel), 'utf8')
           const st = await fs.stat(this.abs(rel))
           this.notes.set(rel, parseNote(rel, content, st))
+          this.cacheContent(rel, content)
         } catch {
           /* unreadable — skip */
         }
@@ -121,6 +184,51 @@ export class Vault extends EventEmitter {
       }
     }
     this.reindex()
+  }
+
+  // -------------------------------------------------------- content cache
+
+  private cacheContent(rel: string, content: string): void {
+    const size = content.length
+    if (size > CONTENT_MAX_FILE_BYTES) {
+      this.dropContent(rel)
+      return
+    }
+    const previous = this.contents.get(rel)
+    if (previous !== undefined) this.contentBytes -= previous.length
+    if (this.contentBytes + size > CONTENT_BUDGET_BYTES) {
+      // Over budget: keep what's already cached rather than thrashing.
+      if (previous !== undefined) this.contents.delete(rel)
+      return
+    }
+    this.contents.set(rel, content)
+    this.contentBytes += size
+  }
+
+  private dropContent(rel: string): void {
+    const previous = this.contents.get(rel)
+    if (previous === undefined) return
+    this.contentBytes -= previous.length
+    this.contents.delete(rel)
+  }
+
+  /**
+   * Note text for a bulk scan. Served from memory when possible — this is what
+   * keeps full-vault search fast on a slow filesystem. Single-file reads that
+   * the user can see (opening a note) go through `read` instead, which always
+   * hits the disk.
+   */
+  async cachedContent(rel: string): Promise<string> {
+    const hit = this.contents.get(rel)
+    if (hit !== undefined) return hit
+    const content = await fs.readFile(this.abs(rel), 'utf8')
+    this.cacheContent(rel, content)
+    return content
+  }
+
+  /** Bytes currently held in the content cache (for diagnostics). */
+  get cachedBytes(): number {
+    return this.contentBytes
   }
 
   private async walk(dir: string, out: string[]): Promise<void> {
@@ -389,8 +497,15 @@ export class Vault extends EventEmitter {
 
   // ------------------------------------------------------------- mutation
 
+  /**
+   * Read a single file from disk. Deliberately *not* served from the content
+   * cache: this backs opening a note, and it has to be correct even when the
+   * watcher can't see external edits (network filesystems).
+   */
   async read(rel: string): Promise<string> {
-    return fs.readFile(this.abs(rel), 'utf8')
+    const content = await fs.readFile(this.abs(rel), 'utf8')
+    if (isMarkdown(rel)) this.cacheContent(rel, content)
+    return content
   }
 
   /**
@@ -412,6 +527,7 @@ export class Vault extends EventEmitter {
     if (isMarkdown(rel)) {
       const st = await fs.stat(target)
       this.notes.set(rel, parseNote(rel, content, st))
+      this.cacheContent(rel, content)
       this.reindex()
       return this.notes.get(rel) ?? null
     }
@@ -442,10 +558,12 @@ export class Vault extends EventEmitter {
     await trash(this.abs(rel))
     this.notes.delete(rel)
     this.files.delete(rel)
+    this.dropContent(rel)
     for (const key of [...this.notes.keys(), ...this.files]) {
       if (key.startsWith(`${rel}/`)) {
         this.notes.delete(key)
         this.files.delete(key)
+        this.dropContent(key)
       }
     }
     this.reindex()
@@ -532,8 +650,19 @@ export class Vault extends EventEmitter {
 
   // -------------------------------------------------------------- watching
 
-  watch(): void {
+  /**
+   * Start watching the vault.
+   *
+   * `mode: 'auto'` polls when the vault sits on a filesystem that doesn't
+   * deliver change events — a WSL 9P share, `/mnt/c`, an SMB mount. Neither
+   * direction of the WSL boundary propagates inotify or
+   * ReadDirectoryChangesW, so without this a vault opened across it would
+   * silently never refresh.
+   */
+  watch(mode: 'auto' | 'native' | 'polling' = 'auto'): void {
     if (this.watcher) return
+    const polling = mode === 'polling' || (mode === 'auto' && isNetworkPath(this.root))
+    this.watchMode = polling ? 'polling' : 'native'
     this.watcher = chokidar.watch(this.root, {
       ignoreInitial: true,
       ignored: (p: string) => {
@@ -541,6 +670,11 @@ export class Vault extends EventEmitter {
         return IGNORED_DIRS.has(base) || base.startsWith('.') || base.endsWith('.onyx-tmp')
       },
       awaitWriteFinish: { stabilityThreshold: 120, pollInterval: 40 },
+      // Polling a big vault is not free; 2s keeps it responsive enough to feel
+      // live without spinning the CPU on a thousand stat() calls.
+      usePolling: polling,
+      interval: 2000,
+      binaryInterval: 4000,
     })
     const onEvent = (kind: 'add' | 'change' | 'unlink') => async (abs: string) => {
       if (!this.contains(abs)) return
@@ -548,11 +682,13 @@ export class Vault extends EventEmitter {
       if (kind === 'unlink') {
         this.notes.delete(rel)
         this.files.delete(rel)
+        this.dropContent(rel)
       } else if (isMarkdown(rel)) {
         try {
           const content = await fs.readFile(abs, 'utf8')
           const st = await fs.stat(abs)
           this.notes.set(rel, parseNote(rel, content, st))
+          this.cacheContent(rel, content)
         } catch {
           return
         }

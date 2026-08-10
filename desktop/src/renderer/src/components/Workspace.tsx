@@ -8,6 +8,7 @@ import { MarkdownView } from '../editor/MarkdownView'
 import { GraphView } from '../graph/GraphView'
 import { CanvasView } from '../canvas/CanvasView'
 import { DatabaseView } from './DatabaseView'
+import { SearchPane } from './LeftSidebar'
 import { AIView } from './AIView'
 import { assetUrl } from '../lib/assets'
 import { stem } from '../lib/notes'
@@ -273,6 +274,14 @@ function ViewFor({ tab }: { tab: Tab }): JSX.Element {
       return <DatabaseView tab={tab} />
     case 'ai':
       return <AIView tab={tab} />
+    case 'search':
+      return (
+        <div className="markdown-view">
+          <div style={{ maxWidth: 820, margin: '0 auto', padding: '8px 16px' }}>
+            <SearchPane initial={tab.state.initial as string | undefined} />
+          </div>
+        </div>
+      )
     case 'image':
       return <ImageView path={tab.path!} />
     case 'pdf':

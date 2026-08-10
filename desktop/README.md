@@ -76,9 +76,23 @@ at the bottom of the ribbon (or `Ctrl+Shift+O`) to switch.
 
 ## What's in it
 
-**Workspace** — ribbon, tabbed left/right sidebars, editor tabs (drag to reorder or
-move between panes), horizontal splits, per-pane back/forward history, full-screen
-focus (`Ctrl+F`), status bar, and five themes ported from the TUI's `theme.rs`.
+**Workspace** — ribbon, editor tabs (drag to reorder or move between panes),
+horizontal splits, per-pane back/forward history, full-screen focus (`Ctrl+F`),
+status bar, and five themes ported from the TUI's `theme.rs`.
+
+The sidebars follow the **TUI's layout** rather than Obsidian's: each side is a
+vertical stack of panes, not one visible tab at a time.
+
+| | Panes |
+|---|---|
+| Left | Files · Quicknote · Todo |
+| Right | Backlinks · Graph · Calendar |
+
+Click a header to collapse a pane, drag the divider below it to resize (double-click
+to make it flexible again), and right-click the sidebar background to show or hide
+panes — Bookmarks, Outline, Tags and Properties are available but hidden by default.
+The ribbon toggles individual panes, and everything persists. Search opens as a
+full tab (`Ctrl+Shift+F`), the way the TUI's full-screen search does.
 
 **Editor** — CodeMirror 6 with Obsidian's three modes:
 
@@ -185,6 +199,28 @@ you hold it; the wheel zooms about the pointer; `+`/`-` zoom and the arrow keys 
 graph / Filter to this folder. Labels fade out as nodes get small on screen, with the
 threshold slider shifting when that happens. The camera frames the layout while it
 settles, then hands control over the moment you touch it.
+
+## Vaults on slow or remote filesystems
+
+Two things make a vault on a WSL share, `/mnt/c`, or an SMB mount behave:
+
+**Note text is cached in memory.** Full-vault scans — search, unlinked mentions —
+read through that cache instead of the disk. Measured on a 1090-note vault, reading
+every note costs 0.02s locally, ~2.3s over `/mnt/c`, and 11.5s over
+`\\wsl.localhost`; search used to pay that on *every query*. Single-file reads
+(opening a note) still go to disk, so they stay correct even when the watcher can't
+see external edits.
+
+**The watcher polls when it has to.** Neither direction of the WSL boundary
+propagates change notifications — verified in both directions — so `watchMode: auto`
+detects the filesystem (UNC on Windows, `/proc/mounts` elsewhere) and switches
+chokidar to polling. The status bar shows `polling` when it does; click it, or press
+`F5`, to force a re-scan. Force the behaviour either way with `watchMode` in
+`desktop.json`.
+
+Startup still pays a full read, so a big vault across the WSL boundary takes a while
+to open. If that's your setup, keeping the vault on the same side as the app you use
+most is still the better answer.
 
 ## Architecture
 

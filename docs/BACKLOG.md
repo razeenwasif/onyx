@@ -178,6 +178,28 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ## Done
 
+### Desktop: TUI sidebar layout, content cache, polling watcher  (2026-08-10)
+
+**Sidebars now follow the TUI**, not Obsidian: each side is a vertical stack of
+panes (left: files/quicknote/todo, right: backlinks/graph/calendar) instead of one
+visible tab at a time. Headers collapse, dividers resize, right-click shows or hides
+panes (bookmarks/outline/tags/properties ship hidden), and it all persists. The
+right-hand graph pane is the local graph of whatever note you're reading, as in the
+TUI. Search moved out of the sidebar into a full tab, like the TUI's Ctrl-Shift-F.
+
+**Two fixes for vaults on slow filesystems**, both prompted by measuring the WSL
+boundary (see the numbers in `desktop/README.md`):
+
+- Note text is cached in memory and bulk scans (search, unlinked mentions) read
+  through it. Search previously re-read every note from disk per query — 0.02s
+  locally but 11.5s over `\\wsl.localhost`. Single-file reads still hit the disk so
+  opening a note stays correct when the watcher is blind.
+- `watchMode: auto` detects a filesystem that won't deliver change events (UNC on
+  Windows, `/proc/mounts` elsewhere) and switches chokidar to polling. Verified by
+  opening a vault on `/mnt/c` and creating a note from another process: the app
+  picked it up (45 → 46 notes) where inotify delivers nothing. The status bar shows
+  `polling`, and F5 forces a re-scan.
+
 ### Desktop: Windows build + Google Calendar/Tasks panes  (2026-08-10)
 
 **Windows build.** NSIS installer + portable zip, with a multi-resolution `.ico`.
