@@ -178,6 +178,19 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ## Done
 
+### Desktop: `::: columns` in Live Preview + a rootless Linux installer  (2026-08-10)
+
+- Columns now render side by side in Live Preview, not just Reading view. They're a
+  block widget (like the frontmatter properties table) rather than line decorations,
+  because side-by-side layout can't be expressed per line; clicking into the block
+  reverts it to source, the way Obsidian's block widgets do.
+- `desktop/scripts/install-linux.sh` installs under `~/.local` with no root: unpacked
+  build to `~/.local/lib/Onyx`, symlink on PATH, desktop entry + hicolor icons,
+  `--uninstall` to reverse. Needed on WSL, where the AppImage can't self-mount
+  (no FUSE) and `dpkg -i` needs sudo. The entry passes
+  `--enable-unsafe-swiftshader`, which only *permits* the software WebGL fallback —
+  hardware GL is still used when present — so the graph works on WSL and VMs.
+
 ### Desktop: tag-colored graph nodes, app icon, packaged builds  (2026-08-10)
 
 - **Color by tag** in the graph (on by default). A tag's color is a hash of its

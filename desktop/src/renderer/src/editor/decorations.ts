@@ -21,6 +21,7 @@ import { EditorState, Range, StateEffect, StateField } from '@codemirror/state'
 import { syntaxTree } from '@codemirror/language'
 
 import { extractFrontmatterProperties, frontmatterLength } from '@shared/parse'
+import { renderMarkdown } from './render'
 
 /** Callout types → the CSS color token and glyph used in Live Preview. */
 const CALLOUT_COLORS: Record<string, string> = {
@@ -247,6 +248,66 @@ class PropertiesWidget extends WidgetType {
     return wrap
   }
 
+  ignoreEvent(): boolean {
+    return false
+  }
+}
+
+/**
+ * An Onyx `::: columns … +++ … :::` block, rendered side by side.
+ *
+ * Unlike callouts (which are line decorations) columns need a real
+ * side-by-side layout, so the whole block is replaced with one widget — and,
+ * like Obsidian's own block widgets, it reverts to source the moment the
+ * selection moves inside it.
+ */
+class ColumnsWidget extends WidgetType {
+  constructor(
+    readonly source: string,
+    readonly host: EditorHost | null,
+  ) {
+    super()
+  }
+
+  eq(o: ColumnsWidget): boolean {
+    return o.source === this.source
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const wrap = document.createElement('div')
+    wrap.className = 'columns-block cm-columns-widget'
+    for (const column of this.source.split(/^\+\+\+[ \t]*$/m)) {
+      const cell = document.createElement('div')
+      cell.className = 'rendered'
+      cell.innerHTML = renderMarkdown(column.trim(), {
+        path: '',
+        resolve: (t) => this.host?.resolve(t) ?? null,
+        fileUrl: (t) => this.host?.imageSrc(t) ?? null,
+        embed: () => null,
+      })
+      wrap.append(cell)
+    }
+    // Internal links inside the widget still navigate.
+    wrap.addEventListener('mousedown', (e) => {
+      const link = (e.target as HTMLElement).closest('a')
+      if (!link) return
+      const href = link.getAttribute('data-href')
+      const tag = link.getAttribute('data-tag')
+      const host = view.state.field(hostField)
+      if (href) {
+        e.preventDefault()
+        e.stopPropagation()
+        host?.openLink(href, e.ctrlKey || e.metaKey)
+      } else if (tag) {
+        e.preventDefault()
+        e.stopPropagation()
+        host?.openTag(tag)
+      }
+    })
+    return wrap
+  }
+
+  /** Let CodeMirror handle plain clicks, so clicking in reveals the source. */
   ignoreEvent(): boolean {
     return false
   }
@@ -643,31 +704,57 @@ function frontmatterEditing(state: EditorState, fmEnd: number): boolean {
 }
 
 /**
- * The frontmatter properties table. This has to be a state field rather than
- * part of the view plugin above: CodeMirror rejects decorations that replace
- * line breaks when they come from a plugin.
+ * Block-level widgets for Live Preview: the frontmatter properties table and
+ * `::: columns` blocks. Both replace line breaks, which CodeMirror only allows
+ * from a state field — hence this living apart from the view plugin.
  */
-export const frontmatterProperties = StateField.define<DecorationSet>({
-  create: (state) => buildFrontmatter(state),
+export const blockWidgets = StateField.define<DecorationSet>({
+  create: (state) => buildBlockWidgets(state),
   update(value, tr) {
-    if (!tr.docChanged && !tr.selection) return value
-    return buildFrontmatter(tr.state)
+    if (!tr.docChanged && !tr.selection && !tr.effects.some((e) => e.is(setHost))) return value
+    return buildBlockWidgets(tr.state)
   },
   provide: (f) => EditorView.decorations.from(f),
 })
 
-function buildFrontmatter(state: EditorState): DecorationSet {
+function buildBlockWidgets(state: EditorState): DecorationSet {
+  const marks: Range<Decoration>[] = [...buildFrontmatter(state)]
+  const host = state.field(hostField, false) ?? null
+
+  for (let n = 1; n <= state.doc.lines; n++) {
+    const line = state.doc.line(n)
+    if (!/^:::\s*columns\s*$/i.test(line.text.trim())) continue
+    let last = n + 1
+    while (last <= state.doc.lines && state.doc.line(last).text.trim() !== ':::') last++
+    if (last > state.doc.lines) break // unterminated — leave it as source
+    const endLine = state.doc.line(last)
+    if (!selectionTouches(state, line.from, endLine.to)) {
+      const body = state.doc.sliceString(line.to + 1, endLine.from)
+      marks.push(
+        Decoration.replace({ widget: new ColumnsWidget(body, host), block: true }).range(
+          line.from,
+          endLine.to,
+        ),
+      )
+    }
+    n = last
+  }
+  return Decoration.set(marks, true)
+}
+
+/** The frontmatter properties table, as a (possibly empty) list of ranges. */
+function buildFrontmatter(state: EditorState): Range<Decoration>[] {
   const head = state.doc.sliceString(0, Math.min(state.doc.length, 8000))
   const fmEnd = frontmatterLength(head)
-  if (fmEnd <= 0) return Decoration.none
-  if (frontmatterEditing(state, fmEnd)) return Decoration.none
+  if (fmEnd <= 0) return []
+  if (frontmatterEditing(state, fmEnd)) return []
   const lastLine = state.doc.lineAt(Math.max(0, Math.min(fmEnd, state.doc.length) - 1))
-  return Decoration.set([
+  return [
     Decoration.replace({
       widget: new PropertiesWidget(state.doc.sliceString(0, Math.min(fmEnd, state.doc.length))),
       block: true,
     }).range(0, lastLine.to),
-  ])
+  ]
 }
 
 /** `live` = Live Preview; false = Source mode (markers stay visible). */

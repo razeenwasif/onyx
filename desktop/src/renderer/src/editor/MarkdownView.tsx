@@ -20,23 +20,25 @@ import { vim } from '@replit/codemirror-vim'
 
 import { useStore, type Tab } from '../store'
 import {
-  frontmatterProperties,
+  blockWidgets,
   hostField,
   markdownDecorations,
   setHost,
   type EditorHost,
 } from './decorations'
 
-/** Decoration layers for a mode: Live Preview also renders the block widgets. */
-function livePreviewExtensions(live: boolean): Extension {
-  return live ? [markdownDecorations(true), frontmatterProperties] : markdownDecorations(false)
-}
 import { slashCompletion, tagCompletion, wikilinkCompletion } from './completions'
 import { ghostAutocomplete, ghostField, ghostKeymap } from './ghost'
 import { renderMarkdown, type RenderContext } from './render'
 import { assetUrl, onAssetLoaded } from '../lib/assets'
 import { toggleTaskOnLine } from '../lib/notes'
 import { frontmatterLength } from '@shared/parse'
+
+/** Decoration layers for a mode: Live Preview also renders the block widgets. */
+function livePreviewExtensions(live: boolean): Extension {
+  return live ? [markdownDecorations(true), blockWidgets] : markdownDecorations(false)
+}
+
 
 const highlightStyle = HighlightStyle.define([
   { tag: t.keyword, color: 'var(--accent)' },

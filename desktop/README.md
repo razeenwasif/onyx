@@ -34,7 +34,18 @@ application menu like any other app:
 sudo dpkg -i release/onyx-desktop_0.1.0_amd64.deb
 ```
 
-The AppImage is self-contained — `chmod +x release/Onyx-0.1.0.AppImage` and run it.
+No root? `scripts/install-linux.sh` does the same thing under `~/.local` — copies
+the unpacked build to `~/.local/lib/Onyx`, symlinks `~/.local/bin/onyx-desktop`,
+and writes a desktop entry with the icon set. `--uninstall` reverses it. This is
+also the way to go on **WSL**, where the AppImage can't self-mount (no FUSE):
+
+```bash
+npm run pack:linux
+./scripts/install-linux.sh
+```
+
+The AppImage is self-contained where FUSE exists — `chmod +x` it and run.
+Elsewhere use `--appimage-extract-and-run`.
 
 The icon lives in `assets/onyx-icon.svg`; `build/icon.png` and `build/icons/*` are
 generated from it:
@@ -184,7 +195,6 @@ apps agree on what counts as a link, a tag, or a property.
 
 ## Known gaps
 
-- The `::: columns` block renders in Reading view but stays as source in Live Preview.
 - No plugin API, no sync, no publish, no mobile — those are Obsidian features with no
   Onyx equivalent yet.
 - Canvas supports the JSON Canvas spec's node and edge kinds, but not portal/embedded
