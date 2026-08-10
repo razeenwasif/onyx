@@ -178,6 +178,42 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ## Done
 
+### Desktop: test suite + session restore  (2026-08-10)
+
+**87 vitest tests** (`cd desktop && npm test`), covering the pure layer — markdown
+parsing, the todo file format, search operators and fuzzy scoring, settings
+merging, the `[google]` config reader, tag colours — plus the `Vault` class end to
+end against a temp directory: indexing, link resolution, backlinks, the graph
+build, atomic writes, rename-with-link-rewriting. Every bug that had already
+shipped now has a regression test named after it.
+
+Writing them immediately found four more, all in code that looked fine:
+
+- **Stray `U+0001` control characters** inside two template literals in
+  `vault.ts`, so every tag and unresolved graph node id was `\x01tag:foo`. Third
+  time this corruption class has appeared (NUL bytes twice before); the whole
+  `src/` tree is now clean and was scanned to prove it.
+- **The nested-tag hierarchy code was never actually inserted.** The patch script
+  targeted text containing those control characters, matched nothing, and printed
+  its own success message anyway — so `linkNestedTags` had been a no-op toggle
+  since it was added. (Second time an unconditional "done!" print hid a failed
+  edit. Patch scripts now assert before writing.)
+- **Link resolution ignored the linking note's own folder.** `[[Onyx]]` from
+  `Projects/Roadmap.md` resolved to the root `Onyx.md` because the exact-relpath
+  lookup ran first and a bare name matches it. Obsidian resolves to the nearest
+  note; now a path-qualified target uses the relpath and a bare name prefers the
+  same folder, then the shallowest path, then an alias.
+- **Rename lowercased its own links.** `relKey()` lowercases for comparison, and
+  the replacement text was taken from it, so renaming to `Onyx Desktop.md` rewrote
+  every link as `[[onyx desktop]]`.
+
+**Session restore.** The workspace is saved as it changes and rebuilt on launch:
+the same tabs in the same panes with the same one in front, notes and AI and Drive
+and graph alike. Buffers load lazily so only each pane's visible tab is read at
+startup; tabs whose files have gone are dropped, and a session from a different
+vault is ignored. Verified by opening two notes plus the AI and Drive panes,
+quitting, and relaunching into the identical layout.
+
 ### Desktop: tag-first graph, docked full graph, window state  (2026-08-10)
 
 - **Tags on by default in the graph.** This vault has wikilinks in 9% of notes but

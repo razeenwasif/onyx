@@ -76,8 +76,12 @@ at the bottom of the ribbon (or `Ctrl+Shift+O`) to switch.
 
 ## What's in it
 
-**Workspace** — the window remembers its size, position and maximized state and
-restores them next launch (checked against the displays that currently exist, so a
+**Workspace** — the session is restored on launch: the same tabs, in the same
+panes, with the same one in front, whether that's a note, the AI pane, a Drive
+browser or the graph. Buffers reload lazily, so only the visible tab of each pane
+is read at startup; a tab whose file has since been deleted is quietly dropped, and
+a session belonging to a different vault is ignored. The window also remembers its
+size, position and maximized state (checked against the displays that currently exist, so a
 window saved on a monitor you've since unplugged still opens somewhere visible).
 Plus a ribbon, editor tabs (drag to reorder or move between panes),
 horizontal splits, per-pane back/forward history, full-screen focus (`Ctrl+F`),
@@ -232,6 +236,26 @@ you hold it; the wheel zooms about the pointer; `+`/`-` zoom and the arrow keys 
 graph / Filter to this folder. Labels fade out as nodes get small on screen, with the
 threshold slider shifting when that happens. The camera frames the layout while it
 settles, then hands control over the moment you touch it.
+
+## Tests
+
+```bash
+npm test          # vitest, one pass
+npm run test:watch
+```
+
+They cover the pure layer — markdown parsing, the todo file format, search
+operators and fuzzy scoring, settings merging, the `[google]` config reader, tag
+colours — plus the `Vault` class end to end against a temp directory (indexing,
+link resolution, backlinks, the graph build, atomic writes, rename-with-link-
+rewriting).
+
+That's deliberately where the coverage is: every bug that has actually shipped in
+this app came from that layer, and each one now has a regression test named after
+it — the settings merge that dropped writes to a `null` default, the `\Z` that
+truncated a client secret at the first capital Z, the BOM that shifted every
+frontmatter offset by one, and a rename that rewrote `[[Onyx Desktop]]` as
+`[[onyx desktop]]`.
 
 ## Vaults on slow or remote filesystems
 

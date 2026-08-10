@@ -9,70 +9,11 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type { GTask } from '@shared/types'
+import { parseTodos, serializeTodos, sweep, today, type TodoItem } from '@shared/todo'
 import { useStore } from '../store'
 import { Icon } from './Icon'
 
 const TODO_PATH = '.onyx/todos.md'
-const DONE_RETENTION_DAYS = 7
-
-interface TodoItem {
-  text: string
-  done: boolean
-  /** `YYYY-MM-DD` the item was ticked, or null while open. */
-  doneOn: string | null
-}
-
-function today(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-function daysBetween(a: string, b: string): number {
-  return Math.round((Date.parse(b) - Date.parse(a)) / 86400000)
-}
-
-export function parseTodos(content: string): TodoItem[] {
-  const out: TodoItem[] = []
-  const now = today()
-  for (const raw of content.split(/\r?\n/)) {
-    const line = raw.trimStart()
-    const m = /^- \[([ xX])\] (.*)$/.exec(line)
-    if (!m) continue
-    const done = m[1] !== ' '
-    let text = m[2]
-    let doneOn: string | null = null
-    if (done) {
-      const marker = /<!--done:(\d{4}-\d{2}-\d{2})-->\s*$/.exec(text)
-      if (marker) {
-        doneOn = marker[1]
-        text = text.slice(0, marker.index).trimEnd()
-      } else {
-        // Ticked elsewhere (e.g. in Obsidian) — start its week now.
-        doneOn = now
-      }
-    }
-    out.push({ text: text.trim(), done, doneOn })
-  }
-  return out
-}
-
-export function serializeTodos(items: TodoItem[]): string {
-  const open = items.filter((i) => !i.done)
-  const done = items.filter((i) => i.done)
-  const lines = [
-    ...open.map((i) => `- [ ] ${i.text}`),
-    ...done.map((i) => `- [x] ${i.text} <!--done:${i.doneOn ?? today()}-->`),
-  ]
-  return `${lines.join('\n')}\n`
-}
-
-/** Drop completed items that finished more than a week ago. */
-export function sweep(items: TodoItem[]): TodoItem[] {
-  const now = today()
-  return items.filter(
-    (i) => !i.done || !i.doneOn || daysBetween(i.doneOn, now) < DONE_RETENTION_DAYS,
-  )
-}
 
 export function TodoPane(): JSX.Element {
   const [items, setItems] = useState<TodoItem[]>([])

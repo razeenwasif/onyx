@@ -308,20 +308,25 @@ export class Vault extends EventEmitter {
   }
 
   /**
-   * Resolve a link target to a note path, Obsidian-style:
-   * exact relative path → basename (preferring the linking note's own folder,
-   * then the shallowest match) → alias.
+   * Resolve a link target to a note path, Obsidian-style.
+   *
+   * A *path-qualified* target (`Projects/Roadmap`) resolves by exact relative
+   * path. A *bare* name resolves to the nearest match: the linking note's own
+   * folder first, then the shallowest path, then an alias — so `[[Onyx]]` from
+   * `Projects/Roadmap.md` finds `Projects/Onyx.md` rather than the one at the
+   * vault root. Checking the exact relpath first would always hand back the
+   * root note, which is not how Obsidian behaves.
    */
   resolve(target: string, from?: string): string | null {
     const name = noteName(target).trim()
     if (!name) return null
     const key = name.toLowerCase().replace(/^\.\//, '')
 
-    const exact = this.byRelpath.get(key)
-    if (exact) return exact
+    if (key.includes('/')) {
+      const exact = this.byRelpath.get(key)
+      if (exact) return exact
+    }
 
-    // A target that already carries a folder resolves only by relpath, except
-    // when the whole thing happens to be a basename.
     const candidates = this.byBasename.get(path.basename(key))
     if (candidates && candidates.length) {
       if (candidates.length === 1) return candidates[0]
@@ -337,6 +342,11 @@ export class Vault extends EventEmitter {
         return da !== db ? da - db : a.localeCompare(b)
       })[0]
     }
+
+    // A bare name that matched no basename may still be a relpath (a folder
+    // named like a note), so fall back to the exact lookup here.
+    const exact = this.byRelpath.get(key)
+    if (exact) return exact
 
     const aliased = this.byAlias.get(key)
     if (aliased && aliased.length) return aliased[0]
@@ -481,14 +491,40 @@ export class Vault extends EventEmitter {
           pushLink(from, index.get(file)!, 'attachment')
           continue
         }
-        const id = `unresolved:${name.toLowerCase()}`
+        const id = `unresolved:${name.toLowerCase()}`
         const to = add(id, { id, title: name, kind: 'unresolved', folder: '', tags: [] })
         pushLink(from, to, 'link')
       }
       for (const tag of meta.tags) {
-        const id = `tag:${tag}`
+        const id = `tag:${tag}`
         const to = add(id, { id, title: `#${tag}`, kind: 'tag', folder: '', tags: [tag] })
         pushLink(from, to, 'tag')
+
+        // Nested tags also get their ancestors as nodes, joined parent → child.
+        // The renderer decides whether to show those edges (`linkNestedTags`);
+        // emitting them here keeps the walk out of the render loop.
+        const parts = tag.split('/')
+        for (let i = parts.length - 1; i > 0; i--) {
+          const childTag = parts.slice(0, i + 1).join('/')
+          const parentTag = parts.slice(0, i).join('/')
+          const childId = `tag:${childTag}`
+          const parentId = `tag:${parentTag}`
+          const childIdx = add(childId, {
+            id: childId,
+            title: `#${childTag}`,
+            kind: 'tag',
+            folder: '',
+            tags: [childTag],
+          })
+          const parentIdx = add(parentId, {
+            id: parentId,
+            title: `#${parentTag}`,
+            kind: 'tag',
+            folder: '',
+            tags: [parentTag],
+          })
+          pushLink(parentIdx, childIdx, 'tagParent')
+        }
       }
     }
 
@@ -614,10 +650,17 @@ export class Vault extends EventEmitter {
       this.files.add(to)
     }
 
+    // `relKey` lowercases for comparison, so the *replacement* text has to come
+    // from the path as written — otherwise renaming to `Onyx Desktop.md`
+    // rewrites every link as `[[onyx desktop]]`.
+    const stripExt = (rel: string): string => {
+      const e = extOf(rel)
+      return MARKDOWN_EXTS.has(e) ? rel.slice(0, rel.length - e.length - 1) : rel
+    }
     const oldName = path.posix.basename(relKey(from))
-    const newName = path.posix.basename(relKey(to))
+    const newName = path.posix.basename(stripExt(to))
     const oldRel = relKey(from)
-    const newRel = relKey(to)
+    const newRel = stripExt(to)
     const touched: string[] = []
 
     if (oldName !== newName || oldRel !== newRel) {

@@ -1,7 +1,7 @@
 {
   "name": "onyx-desktop",
   "version": "0.1.0",
-  "description": "Onyx Desktop — an Obsidian-style markdown vault app for the Onyx vault format.",
+  "description": "Onyx Desktop \u2014 an Obsidian-style markdown vault app for the Onyx vault format.",
   "main": "./out/main/index.js",
   "author": {
     "name": "Razeen Wasif",
@@ -23,7 +23,9 @@
     "pack:linux": "electron-vite build && electron-builder --linux",
     "pack:win": "electron-vite build && electron-builder --win",
     "pack:win:docker": "bash scripts/pack-win-docker.sh",
-    "pack:mac": "electron-vite build && electron-builder --mac"
+    "pack:mac": "electron-vite build && electron-builder --mac",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "chokidar": "^3.6.0",
@@ -42,6 +44,7 @@
     "@lezer/markdown": "^1.4.1",
     "@replit/codemirror-vim": "^6.2.1",
     "@types/js-yaml": "^4.0.9",
+    "@types/markdown-it": "^14.1.2",
     "@types/node": "^20.17.10",
     "@types/react": "^18.3.17",
     "@types/react-dom": "^18.3.5",
@@ -52,21 +55,34 @@
     "highlight.js": "^11.11.0",
     "katex": "^0.16.11",
     "markdown-it": "^14.1.0",
-    "@types/markdown-it": "^14.1.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "typescript": "^5.7.2",
     "vite": "^5.4.11",
+    "vitest": "^2.1.9",
     "zustand": "^5.0.2"
   },
   "build": {
     "appId": "md.onyx.desktop",
     "productName": "Onyx",
-    "directories": { "output": "release", "buildResources": "build" },
-    "files": ["out/**/*"],
-    "extraResources": [{ "from": "build/icon.png", "to": "icon.png" }],
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      }
+    ],
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "icon": "build/icons",
       "category": "Office",
       "synopsis": "Obsidian-style markdown vault",
@@ -83,8 +99,18 @@
     },
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "zip", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icon.ico",
       "artifactName": "${productName}-${version}-${arch}.${ext}"
@@ -100,7 +126,9 @@
       "uninstallerIcon": "build/icon.ico"
     },
     "mac": {
-      "target": ["dmg"],
+      "target": [
+        "dmg"
+      ],
       "icon": "build/icon.png",
       "category": "public.app-category.productivity"
     }

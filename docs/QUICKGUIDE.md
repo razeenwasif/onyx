@@ -722,6 +722,11 @@ The pieces that had to agree were ported deliberately, not shared:
 link resolution or the todo marker format is the kind of bug that only shows up when a
 user has both apps open on one vault.
 
+The desktop app has its own test suite (`cd desktop && npm test`, vitest) covering
+the ported parsers, the vault/index layer and search — the same ground the TUI's
+93 `#[test]`s cover on the Rust side. If you change a rule on one side, change and
+test it on the other.
+
 See `desktop/README.md` for its own architecture map.
 
 ## 16. Next docs

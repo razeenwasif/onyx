@@ -54,6 +54,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
       { id: 'calendar', visible: true, collapsed: false, height: 340 },
     ],
   },
+  session: null,
   defaultEditorMode: 'livePreview',
   vimMode: false,
   lineNumbers: false,
@@ -87,7 +88,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 }
 
 /** Deep-merge stored settings over the defaults so new keys appear on upgrade. */
-function merge<T>(base: T, patch: unknown): T {
+export function merge<T>(base: T, patch: unknown): T {
   if (patch === undefined) return base
   // `typeof null === 'object'`, so a nullable default (lastVault) has to be
   // handled before the object branch or every write to it is dropped.

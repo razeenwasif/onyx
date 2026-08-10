@@ -15,6 +15,7 @@ import type {
   NoteMeta,
   SectionId,
   SectionState,
+  SessionState,
   VaultSnapshot,
 } from '@shared/types'
 import { applyTheme, themeById } from './themes'
@@ -119,6 +120,7 @@ interface State {
 interface Actions {
   init(): Promise<void>
   refreshVault(): Promise<void>
+  restoreSession(session: SessionState | null): Promise<void>
   refreshGraph(): Promise<void>
   setSettings(patch: Partial<AppSettings>): Promise<void>
 
@@ -144,6 +146,10 @@ interface Actions {
   setTabMode(tabId: string, mode: NonNullable<Tab['mode']>): void
   navigate(delta: number): void
 
+  /** Load a buffer if it isn't already open (restored tabs load lazily). */
+  ensureDoc(path: string): Promise<void>
+  /** Snapshot the workspace into settings, debounced. */
+  persistSession(): void
   setDoc(path: string, content: string, dirty?: boolean): void
   saveDoc(path: string): Promise<void>
   saveAll(): Promise<void>
@@ -167,6 +173,7 @@ interface Actions {
 
 let seq = 0
 let layoutTimer: ReturnType<typeof setTimeout> | null = null
+let sessionTimer: ReturnType<typeof setTimeout> | null = null
 const uid = (): string => `${Date.now().toString(36)}-${(seq++).toString(36)}`
 
 function newTab(partial: Partial<Tab> = {}): Tab {
@@ -251,6 +258,8 @@ export const useStore = create<State & Actions>((set, get) => ({
         /* no bookmarks yet */
       }
     }
+    await get().restoreSession(settings.session)
+
     const pane = get().panes[0]
     if (pane.tabs.length && pane.activeTabId === null) {
       set({ panes: [{ ...pane, activeTabId: pane.tabs[0].id }] })
@@ -266,6 +275,60 @@ export const useStore = create<State & Actions>((set, get) => ({
       notes: new Map(snap.notes.map((n) => [n.path, n])),
       attachments: snap.attachments,
     })
+  },
+
+  /**
+   * Rebuild the workspace saved by `persistSession`. Anything that no longer
+   * makes sense is dropped rather than restored broken: a session from another
+   * vault, a tab whose file was deleted, a view type this build doesn't have.
+   */
+  async restoreSession(session) {
+    const s = get()
+    if (!session || !s.vault || session.vault !== s.vault.root) return
+    if (!session.panes.length) return
+
+    const driveDocs = new Map(session.driveDocs.map((d) => [d.key, { id: d.id, name: d.name, mime: d.mime }]))
+    const known = new Set<ViewType>([
+      'markdown', 'graph', 'localgraph', 'canvas', 'database', 'ai', 'search', 'drive', 'image', 'pdf', 'empty',
+    ])
+    const exists = (path: string | null): boolean => {
+      if (!path) return true
+      if (path.startsWith('drive:')) return driveDocs.has(path)
+      return s.notes.has(path) || s.attachments.includes(path)
+    }
+
+    const panes: Pane[] = []
+    for (const saved of session.panes) {
+      const tabs = saved.tabs
+        .filter((t) => known.has(t.type as ViewType) && exists(t.path))
+        .map((t) =>
+          newTab({
+            type: t.type as ViewType,
+            path: t.path,
+            title: t.title,
+            mode: t.mode,
+            pinned: t.pinned,
+            state: t.state ?? {},
+            history: t.history ?? [],
+            historyIndex: t.historyIndex ?? -1,
+          }),
+        )
+      if (!tabs.length) continue
+      const active = tabs[Math.min(Math.max(saved.activeIndex, 0), tabs.length - 1)]
+      panes.push({ id: uid(), tabs, activeTabId: active.id })
+    }
+    if (!panes.length) return
+
+    const activePane = panes[Math.min(Math.max(session.activePaneIndex, 0), panes.length - 1)]
+    set({ panes, activePaneId: activePane.id, driveDocs })
+
+    // Only the visible tab of each pane needs its buffer now; the rest load
+    // when they're selected.
+    for (const pane of panes) {
+      const tab = pane.tabs.find((t) => t.id === pane.activeTabId)
+      if (tab?.type === 'markdown' && tab.path) await get().ensureDoc(tab.path)
+      if (tab?.type === 'markdown' && tab.path) set({ lastNotePath: tab.path })
+    }
   },
 
   async refreshGraph() {
@@ -468,6 +531,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   setActiveTab(paneId, tabId) {
     const s = get()
     const tab = s.panes.find((p) => p.id === paneId)?.tabs.find((t) => t.id === tabId)
+    if (tab?.type === 'markdown' && tab.path) void get().ensureDoc(tab.path)
     set({
       activePaneId: paneId,
       lastNotePath: tab?.type === 'markdown' && tab.path ? tab.path : s.lastNotePath,
@@ -561,6 +625,59 @@ export const useStore = create<State & Actions>((set, get) => ({
   },
 
   // ------------------------------------------------------------ documents
+
+  async ensureDoc(path) {
+    const s = get()
+    if (s.docs.has(path)) return
+    try {
+      const drive = s.driveDocs.get(path)
+      const content = drive
+        ? await window.onyx.drive.read(drive.id)
+        : await window.onyx.file.read(path)
+      const docs = new Map(get().docs)
+      docs.set(path, { content, dirty: false, baseMtime: get().notes.get(path)?.mtime ?? Date.now() })
+      set({ docs })
+    } catch {
+      // The file moved or vanished since the session was saved; the tab stays
+      // open and empty rather than the restore failing wholesale.
+    }
+  },
+
+  persistSession() {
+    const s = get()
+    if (!s.vault || !s.ready) return
+    if (sessionTimer) clearTimeout(sessionTimer)
+    sessionTimer = setTimeout(() => {
+      const state = useStore.getState()
+      if (!state.vault) return
+      const session: SessionState = {
+        vault: state.vault.root,
+        activePaneIndex: Math.max(
+          0,
+          state.panes.findIndex((p) => p.id === state.activePaneId),
+        ),
+        panes: state.panes.map((pane) => ({
+          activeIndex: pane.tabs.findIndex((t) => t.id === pane.activeTabId),
+          tabs: pane.tabs.map((tab) => ({
+            type: tab.type,
+            path: tab.path,
+            title: tab.title,
+            mode: tab.mode,
+            pinned: tab.pinned,
+            // `pending` is a one-shot instruction (run a summary, say); it must
+            // not fire again on every restore.
+            state: Object.fromEntries(
+              Object.entries(tab.state).filter(([k]) => k !== 'pending'),
+            ),
+            history: tab.history,
+            historyIndex: tab.historyIndex,
+          })),
+        })),
+        driveDocs: [...state.driveDocs.entries()].map(([key, d]) => ({ key, ...d })),
+      }
+      void window.onyx.settings.set({ session })
+    }, 600)
+  },
 
   setDoc(path, content, dirty = true) {
     const docs = new Map(get().docs)

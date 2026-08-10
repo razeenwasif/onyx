@@ -62,20 +62,23 @@ function nowUnix(): number {
  * than a TOML dependency: we only ever need two string keys from one table,
  * and the desktop app must never rewrite that file.
  */
+export function parseGoogleTable(raw: string): { clientId: string; clientSecret: string } {
+  // Everything between `[google]` and the next table header (or EOF).
+  // Note `$(?![\s\S])` for end-of-input: JavaScript has no `\Z`, and using one
+  // matches a literal "Z" — which silently truncates the section at the first
+  // capital Z inside a client secret.
+  const table = /^\[google\][ \t]*\r?\n([\s\S]*?)(?=^\[|$(?![\s\S]))/m.exec(raw)
+  const body = table ? table[1] : ''
+  const read = (key: string): string => {
+    const m = new RegExp(`^\\s*${key}\\s*=\\s*"((?:[^"\\\\]|\\\\.)*)"`, 'm').exec(body)
+    return m ? m[1].replace(/\\(.)/g, '$1') : ''
+  }
+  return { clientId: read('client_id'), clientSecret: read('client_secret') }
+}
+
 export function credentialsFromTui(): { clientId: string; clientSecret: string } {
   try {
-    const raw = fsSync.readFileSync(path.join(configDir(), 'config.toml'), 'utf8')
-    // Everything between `[google]` and the next table header (or EOF).
-    // Note `$(?![\s\S])` for end-of-input: JavaScript has no `\Z`, and using
-    // one matches a literal "Z" — which silently truncates the section at the
-    // first capital Z inside a client secret.
-    const table = /^\[google\][ \t]*\r?\n([\s\S]*?)(?=^\[|$(?![\s\S]))/m.exec(raw)
-    const body = table ? table[1] : ''
-    const read = (key: string): string => {
-      const m = new RegExp(`^\\s*${key}\\s*=\\s*"((?:[^"\\\\]|\\\\.)*)"`, 'm').exec(body)
-      return m ? m[1].replace(/\\(.)/g, '$1') : ''
-    }
-    return { clientId: read('client_id'), clientSecret: read('client_secret') }
+    return parseGoogleTable(fsSync.readFileSync(path.join(configDir(), 'config.toml'), 'utf8'))
   } catch {
     return { clientId: '', clientSecret: '' }
   }

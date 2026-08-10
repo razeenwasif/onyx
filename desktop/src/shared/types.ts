@@ -235,12 +235,45 @@ export interface WindowState {
   maximized: boolean
 }
 
+/**
+ * A restorable workspace: which tabs were open, in which panes, and which was
+ * in front. Tab ids are not persisted — they're regenerated on restore — and
+ * neither is buffer content, which is re-read from disk (or Drive) lazily.
+ */
+export interface SessionTab {
+  type: string
+  path: string | null
+  title: string
+  mode?: 'livePreview' | 'source' | 'reading'
+  pinned: boolean
+  state: Record<string, unknown>
+  history: string[]
+  historyIndex: number
+}
+
+export interface SessionPane {
+  tabs: SessionTab[]
+  /** Index into `tabs`; -1 when the pane is somehow empty. */
+  activeIndex: number
+}
+
+export interface SessionState {
+  /** The vault this layout belongs to; a different one discards it. */
+  vault: string
+  panes: SessionPane[]
+  activePaneIndex: number
+  /** Metadata for open Drive buffers, keyed by their `drive:<id>` path. */
+  driveDocs: Array<{ key: string; id: string; name: string; mime: string }>
+}
+
 export interface AppSettings {
   lastVault: string | null
   window: WindowState
   recentVaults: string[]
   theme: string
   layout: LayoutSettings
+  /** The workspace as it was when the app last closed. */
+  session: SessionState | null
   /** `livePreview` | `source` | `reading` */
   defaultEditorMode: 'livePreview' | 'source' | 'reading'
   vimMode: boolean

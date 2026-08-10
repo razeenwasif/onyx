@@ -178,12 +178,6 @@ export function DriveView({ tab }: { tab: Tab }): JSX.Element {
       {error && (
         <div className="empty-note" style={{ color: 'var(--warning)' }}>
           {error}
-          {/not connected|no google oauth/i.test(error) && (
-            <>
-              {' '}
-              Connect in Settings → Google.
-            </>
-          )}
         </div>
       )}
 

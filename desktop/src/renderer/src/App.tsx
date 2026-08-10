@@ -85,6 +85,21 @@ export function App(): JSX.Element {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [])
 
+  // Remember the workspace whenever it changes: which tabs are open, in which
+  // panes, which is in front. Subscribing beats sprinkling save calls through
+  // every action that can open, close, move or retitle a tab.
+  useEffect(() => {
+    let previous = useStore.getState()
+    return useStore.subscribe((state) => {
+      const changed =
+        state.panes !== previous.panes ||
+        state.activePaneId !== previous.activePaneId ||
+        state.driveDocs !== previous.driveDocs
+      previous = state
+      if (changed && state.ready) state.persistSession()
+    })
+  }, [])
+
   // Save everything before the window goes away.
   useEffect(() => {
     const onBeforeUnload = (): void => {

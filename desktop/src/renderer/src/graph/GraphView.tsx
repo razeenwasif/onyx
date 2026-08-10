@@ -579,7 +579,10 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
       // Labels fade with how big a node actually is on screen, not with raw
       // zoom, so the threshold behaves the same on a 40-note and a 4000-note
       // vault. Sliding "Text fade threshold" right makes them fade sooner.
-      const fade = Math.max(0.05, cfg.textFadeThreshold ?? 1.1)
+      // The docked minimap packs nodes far closer together, so labels need a
+      // higher bar before they're worth drawing — otherwise they overlap into
+      // an unreadable smear.
+      const fade = Math.max(0.05, (cfg.textFadeThreshold ?? 1.1) * (compact ? 3 : 1))
       const onScreen = cam.scale * 10 * (cfg.nodeSize || 1)
       const labelAlpha = Math.max(0, Math.min(1, onScreen / (fade * 4) - 0.25))
       if (labelAlpha > 0.01) {
