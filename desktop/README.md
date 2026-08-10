@@ -140,6 +140,16 @@ installed-app loopback one — the browser opens, and Google redirects back to
 `127.0.0.1` on a one-off port. See [`../docs/CLOUD_SYNC.md`](../docs/CLOUD_SYNC.md)
 for creating the Desktop-app client.
 
+**Google Drive** — a browser for your Drive (ribbon → cloud, or the "Open Google
+Drive" command). Navigate folders, search by name, and open a text file straight
+into an editor tab: it behaves like any other tab, and saving `PATCH`es the content
+back to Drive rather than writing to the vault. PDFs and images are downloaded to a
+temp file and handed to the system viewer. You can also upload the note you're
+reading, copy a Drive file into the vault as a note, create folders, and move files
+to the Drive trash. Google-native Docs/Sheets/Slides are listed but greyed out —
+they need an export conversion, and Onyx shouldn't pretend it can round-trip an edit
+back into one.
+
 **AI** — the local-LLM assistant over Ollama: streaming chat with the open note as
 context, `/summarize`, `/index` + `/ask` (semantic RAG with cited sources, cached to
 `.onyx/rag-index.json`), rewrite-in-place, and inline ghost-text autocomplete
@@ -256,8 +266,8 @@ apps agree on what counts as a link, a tag, or a property.
 
 - No plugin API, no sync, no publish, no mobile — those are Obsidian features with no
   Onyx equivalent yet.
-- Google Drive (the third of the TUI's `cloud` integrations) isn't wired up yet;
-  Calendar and Tasks are.
+- Google-native Docs/Sheets/Slides can be browsed but not opened (they need an
+  export conversion rather than a download).
 - Canvas supports the JSON Canvas spec's node and edge kinds, but not portal/embedded
   canvas nodes.
 - Google Calendar / Tasks / Drive (the TUI's `cloud` feature) aren't wired into the

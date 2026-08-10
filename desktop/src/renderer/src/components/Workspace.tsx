@@ -9,6 +9,7 @@ import { GraphView } from '../graph/GraphView'
 import { CanvasView } from '../canvas/CanvasView'
 import { DatabaseView } from './DatabaseView'
 import { SearchPane } from './LeftSidebar'
+import { DriveView } from './DriveView'
 import { AIView } from './AIView'
 import { assetUrl } from '../lib/assets'
 import { stem } from '../lib/notes'
@@ -274,6 +275,8 @@ function ViewFor({ tab }: { tab: Tab }): JSX.Element {
       return <DatabaseView tab={tab} />
     case 'ai':
       return <AIView tab={tab} />
+    case 'drive':
+      return <DriveView tab={tab} />
     case 'search':
       return (
         <div className="markdown-view">

@@ -28,6 +28,7 @@ import {
   ONYX_SYSTEM_PROMPT,
   type ChatMessage,
 } from './ai.js'
+import * as drive from './drive.js'
 import * as google from './google.js'
 import { SCOPES } from './google.js'
 import type { AppSettings } from '../shared/types.js'
@@ -318,6 +319,41 @@ function registerIpc(): void {
   ipcMain.handle('search:unlinked', (_e, rel: string) =>
     unlinkedMentions(requireVault(), safeRel(rel)),
   )
+
+  // --------------------------------------------------------------- Drive
+
+  ipcMain.handle('drive:list', (_e, folderId?: string) => drive.listFolder(creds(), folderId))
+  ipcMain.handle('drive:search', (_e, term: string) => drive.searchFiles(creds(), term))
+  ipcMain.handle('drive:info', (_e, fileId: string) => drive.fileInfo(creds(), fileId))
+  ipcMain.handle('drive:read', (_e, fileId: string) => drive.downloadText(creds(), fileId))
+  ipcMain.handle('drive:write', (_e, fileId: string, content: string, mime?: string) =>
+    drive.updateText(creds(), fileId, content, mime),
+  )
+  ipcMain.handle('drive:open-external', async (_e, fileId: string) =>
+    drive.openExternally(creds(), await drive.fileInfo(creds(), fileId)),
+  )
+  ipcMain.handle('drive:create-folder', (_e, name: string, parentId?: string) =>
+    drive.createFolder(creds(), name, parentId),
+  )
+  ipcMain.handle('drive:trash', (_e, fileId: string) => drive.trashFile(creds(), fileId))
+
+  /** Upload an open vault note to Drive as a new file. */
+  ipcMain.handle('drive:upload-note', async (_e, rel: string, parentId?: string) => {
+    const v = requireVault()
+    const target = safeRel(rel)
+    const content = await v.read(target)
+    const name = target.split('/').pop() ?? target
+    return drive.createFile(creds(), name, content, parentId, drive.mimeForName(name))
+  })
+
+  /** Save a Drive text file into the vault as a note. */
+  ipcMain.handle('drive:import', async (_e, fileId: string, rel: string) => {
+    const v = requireVault()
+    const content = await drive.downloadText(creds(), fileId)
+    const target = safeRel(rel)
+    await v.write(target, content)
+    return target
+  })
 
   // ------------------------------------------------------------------ AI
 

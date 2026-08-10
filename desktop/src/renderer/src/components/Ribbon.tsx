@@ -109,6 +109,13 @@ export function Ribbon(): JSX.Element {
       active: activeType === 'ai',
     },
     {
+      id: 'drive',
+      icon: 'cloud',
+      title: 'Google Drive',
+      run: () => runCommand('drive:open'),
+      active: activeType === 'drive',
+    },
+    {
       id: 'db',
       icon: 'list',
       title: 'Open folder as database',

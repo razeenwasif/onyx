@@ -713,7 +713,8 @@ The pieces that had to agree were ported deliberately, not shared:
 - `src/theme.rs` → `desktop/src/renderer/src/themes.ts` (same five palettes)
 - `src/todo.rs` → `desktop/src/renderer/src/components/TodoPane.tsx`
 - `src/integrations/ollama.rs` + `src/rag.rs` → `desktop/src/main/ai.ts`
-- `src/integrations/{oauth,gcal,gtasks}.rs` → `desktop/src/main/google.ts` (these two
+- `src/integrations/{oauth,gcal,gtasks}.rs` → `desktop/src/main/google.ts`;
+  `src/integrations/gdrive.rs` → `desktop/src/main/drive.ts` (these two
   go further than "agree": they share the *same* `google.json` token file and the same
   `[google]` client in `config.toml`, so authorizing in one app signs in the other)
 

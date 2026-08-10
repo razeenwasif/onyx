@@ -150,6 +150,11 @@ const P: Record<string, JSX.Element> = {
   ),
   maximize: <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />,
   text: <path d="M4 6h16M4 12h16M4 18h10" />,
+  cloud: (
+    <>
+      <path d="M6.5 19a4.5 4.5 0 0 1-.6-8.96 6 6 0 0 1 11.5 1.36A3.8 3.8 0 0 1 17.5 19Z" />
+    </>
+  ),
   trash: (
     <>
       <path d="M4 7h16M10 11v6M14 11v6" />

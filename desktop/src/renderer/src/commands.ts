@@ -204,6 +204,11 @@ export const COMMANDS: Command[] = [
     run: () => s().openView('ai', { state: { pending: { kind: 'ask' } } }),
   },
   {
+    id: 'drive:open',
+    name: 'Open Google Drive',
+    run: () => s().openView('drive', { title: 'Google Drive' }),
+  },
+  {
     id: 'db:open',
     name: 'Open folder as database',
     run: () => {

@@ -9,6 +9,7 @@
 import { create } from 'zustand'
 import type {
   AppSettings,
+  DriveFile,
   FileNode,
   GraphData,
   NoteMeta,
@@ -26,6 +27,7 @@ export type ViewType =
   | 'database'
   | 'ai'
   | 'search'
+  | 'drive'
   | 'image'
   | 'pdf'
   | 'empty'
@@ -105,6 +107,13 @@ interface State {
   status: string
   /** Bookmarked note paths (persisted in the vault's `.onyx/bookmarks.json`). */
   bookmarks: string[]
+
+  /**
+   * Drive-backed buffers, keyed by their synthetic `drive:<id>` path. Kept
+   * apart from `notes` because they aren't vault files: they never appear in
+   * the index or the graph, and saving them goes to Drive, not the disk.
+   */
+  driveDocs: Map<string, { id: string; name: string; mime: string }>
 }
 
 interface Actions {
@@ -116,6 +125,8 @@ interface Actions {
   activePane(): Pane
   activeTab(): Tab | null
   openFile(path: string, opts?: { pane?: string; newTab?: boolean; mode?: Tab['mode'] }): Promise<void>
+  /** Open a Drive text file in an editor tab; saving writes back to Drive. */
+  openDriveFile(file: DriveFile): Promise<void>
   openView(
     type: ViewType,
     opts?: {
@@ -178,6 +189,7 @@ function titleFor(path: string): string {
 }
 
 function viewTypeFor(path: string): ViewType {
+  if (path.startsWith('drive:')) return 'markdown'
   const ext = (path.split('.').pop() ?? '').toLowerCase()
   if (['md', 'markdown', 'mdx'].includes(ext)) return 'markdown'
   if (ext === 'canvas') return 'canvas'
@@ -210,6 +222,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   modal: null,
   status: '',
   bookmarks: [],
+  driveDocs: new Map(),
 
   // ------------------------------------------------------------------ init
 
@@ -339,6 +352,44 @@ export const useStore = create<State & Actions>((set, get) => ({
               tabs: reuse ? p.tabs.map((t) => (t.id === tab.id ? tab : t)) : [...p.tabs, tab],
               activeTabId: tab.id,
             },
+      ),
+    })
+  },
+
+  async openDriveFile(file) {
+    const key = `drive:${file.id}`
+    const s = get()
+    if (!s.docs.has(key)) {
+      let content: string
+      try {
+        content = await window.onyx.drive.read(file.id)
+      } catch (e) {
+        s.setStatus((e as Error).message)
+        return
+      }
+      const docs = new Map(s.docs)
+      docs.set(key, { content, dirty: false, baseMtime: Date.now() })
+      const driveDocs = new Map(s.driveDocs)
+      driveDocs.set(key, { id: file.id, name: file.name, mime: file.mimeType || 'text/plain' })
+      set({ docs, driveDocs })
+    }
+    const pane = get().activePane()
+    const existing = pane.tabs.find((t) => t.path === key)
+    if (existing) {
+      get().setActiveTab(pane.id, existing.id)
+      return
+    }
+    const tab = newTab({
+      type: 'markdown',
+      path: key,
+      title: file.name,
+      mode: get().settings?.defaultEditorMode ?? 'livePreview',
+      history: [key],
+      historyIndex: 0,
+    })
+    set({
+      panes: get().panes.map((p) =>
+        p.id === pane.id ? { ...p, tabs: [...p.tabs, tab], activeTabId: tab.id } : p,
       ),
     })
   },
@@ -521,6 +572,23 @@ export const useStore = create<State & Actions>((set, get) => ({
   async saveDoc(path) {
     const doc = get().docs.get(path)
     if (!doc || !doc.dirty) return
+
+    // Drive-backed buffer: PATCH it back instead of writing to the vault.
+    const drive = get().driveDocs.get(path)
+    if (drive) {
+      try {
+        await window.onyx.drive.write(drive.id, doc.content, drive.mime)
+      } catch (e) {
+        get().setStatus((e as Error).message)
+        return
+      }
+      const docs = new Map(get().docs)
+      docs.set(path, { ...doc, dirty: false })
+      set({ docs })
+      get().setStatus(`Saved "${drive.name}" to Google Drive`)
+      return
+    }
+
     const meta = await window.onyx.file.write(path, doc.content)
     const docs = new Map(get().docs)
     docs.set(path, { ...doc, dirty: false, baseMtime: meta?.mtime ?? Date.now() })

@@ -8,6 +8,7 @@ import type {
   AppSettings,
   Backlink,
   CalEvent,
+  DriveFile,
   GTask,
   GoogleStatus,
   GraphData,
@@ -101,6 +102,24 @@ export const api = {
       ipcRenderer.invoke('google:create-task', title, listId),
     deleteTask: (listId: string, taskId: string): Promise<void> =>
       ipcRenderer.invoke('google:delete-task', listId, taskId),
+  },
+
+  drive: {
+    list: (folderId?: string): Promise<DriveFile[]> => ipcRenderer.invoke('drive:list', folderId),
+    search: (term: string): Promise<DriveFile[]> => ipcRenderer.invoke('drive:search', term),
+    info: (fileId: string): Promise<DriveFile> => ipcRenderer.invoke('drive:info', fileId),
+    read: (fileId: string): Promise<string> => ipcRenderer.invoke('drive:read', fileId),
+    write: (fileId: string, content: string, mime?: string): Promise<void> =>
+      ipcRenderer.invoke('drive:write', fileId, content, mime),
+    openExternal: (fileId: string): Promise<string> =>
+      ipcRenderer.invoke('drive:open-external', fileId),
+    createFolder: (name: string, parentId?: string): Promise<DriveFile> =>
+      ipcRenderer.invoke('drive:create-folder', name, parentId),
+    trash: (fileId: string): Promise<void> => ipcRenderer.invoke('drive:trash', fileId),
+    uploadNote: (rel: string, parentId?: string): Promise<DriveFile> =>
+      ipcRenderer.invoke('drive:upload-note', rel, parentId),
+    importFile: (fileId: string, rel: string): Promise<string> =>
+      ipcRenderer.invoke('drive:import', fileId, rel),
   },
 
   ai: {

@@ -165,6 +165,19 @@ export interface GTask {
   completed: boolean
 }
 
+export interface DriveFile {
+  id: string
+  name: string
+  mimeType: string
+  isFolder: boolean
+  /** Onyx can open this as editable text. */
+  isText: boolean
+  /** A Google-native doc — needs export rather than download. */
+  isGoogleDoc: boolean
+  modifiedTime: string | null
+  size: number | null
+}
+
 export interface AiSettings {
   model: string
   embedModel: string

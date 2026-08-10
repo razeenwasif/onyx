@@ -178,6 +178,29 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ## Done
 
+### Desktop: Google Drive browser  (2026-08-10)
+
+Port of `src/integrations/gdrive.rs`, sharing the OAuth client and token already
+used by Calendar/Tasks (Drive is part of Onyx's single consent). `main/drive.ts` +
+a `drive` view: folder navigation with breadcrumbs, name search, create folder,
+move to Drive trash, and upload the open note.
+
+Opening a Drive **text** file gives it an ordinary editor tab under a synthetic
+`drive:<id>` path; `saveDoc` notices the prefix and PATCHes the content back to
+Drive instead of writing to the vault, which is how the two-way edit works without
+the vault index ever seeing a non-vault file. Binary files (PDF, images) download to
+a temp path and open in the system viewer. Google-native docs are listed but
+disabled — they need an export conversion, not a download.
+
+Verified live against the real account: folder listing, sizes, modified times, and
+the Google-doc classification. Opening/saving a Drive file and uploading a note are
+implemented but not exercised against live data (they write).
+
+A `str.replace` bug worth remembering: the section marker used as an insertion
+anchor appeared twice in `main/index.ts`, so Python replaced *both* and the Drive
+IPC handlers were registered twice — Electron threw "Attempted to register a second
+handler" at startup and the app hung before it ever painted.
+
 ### Desktop: TUI sidebar layout, content cache, polling watcher  (2026-08-10)
 
 **Sidebars now follow the TUI**, not Obsidian: each side is a vertical stack of

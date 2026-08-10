@@ -2554,3 +2554,81 @@ textarea {
   font-size: 13px;
   max-width: 380px;
 }
+
+/* ------------------------------------------------------------ Drive browser */
+
+.drive-view {
+  flex: 1;
+  overflow: auto;
+  padding: 12px 16px 40px;
+  display: flex;
+  flex-direction: column;
+}
+
+.drive-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  overflow: hidden;
+}
+
+.drive-crumbs .crumb {
+  color: var(--link);
+  padding: 2px 4px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.drive-crumbs .crumb:disabled {
+  color: var(--fg);
+  cursor: default;
+}
+
+.drive-crumbs .crumb:not(:disabled):hover {
+  background: var(--bg-hover);
+}
+
+.drive-crumbs .sep {
+  color: var(--fg-subtle);
+}
+
+.drive-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+}
+
+.drive-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  color: var(--fg-dim);
+  cursor: default;
+}
+
+.drive-row:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.drive-row .name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drive-row .name.is-muted {
+  color: var(--fg-subtle);
+  font-style: italic;
+}
+
+.drive-row .meta {
+  color: var(--fg-subtle);
+  font-size: 11px;
+  min-width: 70px;
+  text-align: right;
+}
