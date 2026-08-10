@@ -140,6 +140,7 @@ interface Actions {
   setRightPanel(p: RightPanel): void
   setLeftWidth(w: number): void
   setRightWidth(w: number): void
+  persistLayout(patch: Partial<AppSettings['layout']>): void
   toggleZen(paneId?: string): void
 
   setModal(m: State['modal']): void
@@ -148,6 +149,7 @@ interface Actions {
 }
 
 let seq = 0
+let layoutTimer: ReturnType<typeof setTimeout> | null = null
 const uid = (): string => `${Date.now().toString(36)}-${(seq++).toString(36)}`
 
 function newTab(partial: Partial<Tab> = {}): Tab {
@@ -209,7 +211,16 @@ export const useStore = create<State & Actions>((set, get) => ({
     const settings = await window.onyx.settings.get()
     applyTheme(themeById(settings.theme))
     const vault = await window.onyx.vault.current()
-    set({ settings, vault })
+    set({
+      settings,
+      vault,
+      leftOpen: settings.layout.leftOpen,
+      rightOpen: settings.layout.rightOpen,
+      leftWidth: settings.layout.leftWidth,
+      rightWidth: settings.layout.rightWidth,
+      leftPanel: settings.layout.leftPanel,
+      rightPanel: settings.layout.rightPanel,
+    })
     if (vault) {
       await get().refreshVault()
       await get().refreshGraph()
@@ -520,12 +531,44 @@ export const useStore = create<State & Actions>((set, get) => ({
 
   // ---------------------------------------------------------------- chrome
 
-  toggleLeft: () => set({ leftOpen: !get().leftOpen }),
-  toggleRight: () => set({ rightOpen: !get().rightOpen }),
-  setLeftPanel: (p) => set({ leftPanel: p, leftOpen: true }),
-  setRightPanel: (p) => set({ rightPanel: p, rightOpen: true }),
-  setLeftWidth: (w) => set({ leftWidth: Math.max(180, Math.min(560, w)) }),
-  setRightWidth: (w) => set({ rightWidth: Math.max(200, Math.min(620, w)) }),
+  toggleLeft: () => {
+    const leftOpen = !get().leftOpen
+    set({ leftOpen })
+    get().persistLayout({ leftOpen })
+  },
+  toggleRight: () => {
+    const rightOpen = !get().rightOpen
+    set({ rightOpen })
+    get().persistLayout({ rightOpen })
+  },
+  setLeftPanel: (p) => {
+    set({ leftPanel: p, leftOpen: true })
+    get().persistLayout({ leftPanel: p, leftOpen: true })
+  },
+  setRightPanel: (p) => {
+    set({ rightPanel: p, rightOpen: true })
+    get().persistLayout({ rightPanel: p, rightOpen: true })
+  },
+  setLeftWidth: (w) => {
+    const leftWidth = Math.max(180, Math.min(560, w))
+    set({ leftWidth })
+    get().persistLayout({ leftWidth })
+  },
+  setRightWidth: (w) => {
+    const rightWidth = Math.max(200, Math.min(620, w))
+    set({ rightWidth })
+    get().persistLayout({ rightWidth })
+  },
+
+  /** Debounced write-through of the sidebar layout (drags fire constantly). */
+  persistLayout(patch) {
+    const s = get()
+    if (!s.settings) return
+    const layout = { ...s.settings.layout, ...patch }
+    set({ settings: { ...s.settings, layout } })
+    if (layoutTimer) clearTimeout(layoutTimer)
+    layoutTimer = setTimeout(() => void window.onyx.settings.set({ layout }), 300)
+  },
   toggleZen: (paneId) => {
     const s = get()
     const id = paneId ?? s.activePaneId

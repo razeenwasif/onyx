@@ -128,6 +128,43 @@ export interface LocalGraphSettings extends GraphSettings {
   neighborLinks: boolean
 }
 
+export interface GoogleSettings {
+  /** Left empty to inherit the TUI's `[google]` client from config.toml. */
+  clientId: string
+  clientSecret: string
+  /** Pull Calendar events for the visible month automatically. */
+  syncCalendar: boolean
+  /** Merge Google Tasks into the Todo pane automatically. */
+  syncTasks: boolean
+}
+
+export interface GoogleStatus {
+  connected: boolean
+  /** Where the OAuth client came from. */
+  source: 'config.toml' | 'desktop' | 'none'
+  /** Granted scopes, when connected. */
+  scope: string
+}
+
+export interface CalEvent {
+  id: string
+  calendarId: string
+  summary: string
+  date: string
+  allDay: boolean
+  timeLabel: string
+}
+
+export interface GTask {
+  id: string
+  listId: string
+  listTitle: string
+  title: string
+  notes: string
+  due: string | null
+  completed: boolean
+}
+
 export interface AiSettings {
   model: string
   embedModel: string
@@ -136,10 +173,21 @@ export interface AiSettings {
   host: string
 }
 
+/** Sidebar layout, remembered between sessions like Obsidian's workspace. */
+export interface LayoutSettings {
+  leftOpen: boolean
+  rightOpen: boolean
+  leftWidth: number
+  rightWidth: number
+  leftPanel: 'files' | 'search' | 'bookmarks' | 'tags'
+  rightPanel: 'backlinks' | 'outline' | 'properties' | 'tags' | 'ai' | 'todo' | 'calendar'
+}
+
 export interface AppSettings {
   lastVault: string | null
   recentVaults: string[]
   theme: string
+  layout: LayoutSettings
   /** `livePreview` | `source` | `reading` */
   defaultEditorMode: 'livePreview' | 'source' | 'reading'
   vimMode: boolean
@@ -157,6 +205,7 @@ export interface AppSettings {
   graph: GraphSettings
   localGraph: LocalGraphSettings
   ai: AiSettings
+  google: GoogleSettings
 }
 
 export type ThemeName = string

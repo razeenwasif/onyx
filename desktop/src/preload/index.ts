@@ -7,6 +7,9 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppSettings,
   Backlink,
+  CalEvent,
+  GTask,
+  GoogleStatus,
   GraphData,
   NoteMeta,
   SearchHit,
@@ -77,6 +80,25 @@ export const api = {
   search: {
     query: (q: string): Promise<SearchHit[]> => ipcRenderer.invoke('search:query', q),
     unlinked: (rel: string): Promise<Backlink[]> => ipcRenderer.invoke('search:unlinked', rel),
+  },
+
+  google: {
+    status: (): Promise<GoogleStatus> => ipcRenderer.invoke('google:status'),
+    connect: (): Promise<GoogleStatus> => ipcRenderer.invoke('google:connect'),
+    disconnect: (): Promise<void> => ipcRenderer.invoke('google:disconnect'),
+    events: (year: number, month: number): Promise<CalEvent[]> =>
+      ipcRenderer.invoke('google:events', year, month),
+    createEvent: (date: string, summary: string): Promise<CalEvent> =>
+      ipcRenderer.invoke('google:create-event', date, summary),
+    deleteEvent: (calendarId: string, eventId: string): Promise<void> =>
+      ipcRenderer.invoke('google:delete-event', calendarId, eventId),
+    tasks: (): Promise<GTask[]> => ipcRenderer.invoke('google:tasks'),
+    setTaskCompleted: (listId: string, taskId: string, done: boolean): Promise<void> =>
+      ipcRenderer.invoke('google:task-completed', listId, taskId, done),
+    createTask: (title: string, listId?: string): Promise<GTask> =>
+      ipcRenderer.invoke('google:create-task', title, listId),
+    deleteTask: (listId: string, taskId: string): Promise<void> =>
+      ipcRenderer.invoke('google:delete-task', listId, taskId),
   },
 
   ai: {

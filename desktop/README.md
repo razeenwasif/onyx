@@ -21,10 +21,18 @@ npm run build        # build only, into desktop/out
 Packaging is electron-builder; artifacts land in `desktop/release`.
 
 ```bash
-npm run pack:linux   # AppImage + deb
-npm run pack:win     # NSIS installer
-npm run pack:mac     # dmg
+npm run pack:linux       # AppImage + deb
+npm run pack:win         # NSIS installer + portable zip  (needs Wine on Linux)
+npm run pack:win:docker  # …or build it from Linux with no Wine installed
+npm run pack:mac         # dmg
 ```
+
+`pack:win` from Linux needs Wine, because electron-builder patches the .exe's icon
+and version info with rcedit. `pack:win:docker` avoids installing it by running the
+same build inside electron-builder's own image (which ships Wine), as your own user
+so nothing in the tree ends up owned by root. Artifacts land in `release/` either way:
+`Onyx-<version>-x64.exe` (NSIS, per-user, installable to a chosen directory) and
+`Onyx-<version>-x64.zip` (portable).
 
 On Linux, the `.deb` installs to `/opt/Onyx`, registers `onyx-desktop.desktop`
 and drops the icon into `hicolor` at every size, so Onyx shows up in the
@@ -102,6 +110,21 @@ operators and `-exclusions`, fuzzy quick switcher (`Ctrl+O`), command palette
 files as the TUI, including the `<!--done:YYYY-MM-DD-->` markers and the one-week
 sweep), a daily-notes calendar, and database views that render any folder as a
 Notion-style table or kanban board keyed by frontmatter.
+
+**Google Calendar & Tasks** — optional, and set up once for both apps. Calendar
+events appear as dots on the calendar pane; select a day for its agenda, and add or
+delete all-day events from there. Google Tasks merge into the Todo pane below your
+local todos, with completed ones struck through and sunk to the bottom; ticking a box
+writes straight back, and prefixing a new todo with `g ` creates it in Google instead
+of the vault. Both are toggleable in Settings → Google.
+
+Credentials and the token are shared with the TUI: the OAuth client comes from
+`[google]` in `~/.config/onyx/config.toml` (or Settings → Google, which takes
+precedence), and the token is the same `~/.config/onyx/google.json` at mode 600.
+Authorize in either app and the other one is already signed in. The flow is the
+installed-app loopback one — the browser opens, and Google redirects back to
+`127.0.0.1` on a one-off port. See [`../docs/CLOUD_SYNC.md`](../docs/CLOUD_SYNC.md)
+for creating the Desktop-app client.
 
 **AI** — the local-LLM assistant over Ollama: streaming chat with the open note as
 context, `/summarize`, `/index` + `/ask` (semantic RAG with cited sources, cached to
@@ -197,6 +220,8 @@ apps agree on what counts as a link, a tag, or a property.
 
 - No plugin API, no sync, no publish, no mobile — those are Obsidian features with no
   Onyx equivalent yet.
+- Google Drive (the third of the TUI's `cloud` integrations) isn't wired up yet;
+  Calendar and Tasks are.
 - Canvas supports the JSON Canvas spec's node and edge kinds, but not portal/embedded
   canvas nodes.
 - Google Calendar / Tasks / Drive (the TUI's `cloud` feature) aren't wired into the

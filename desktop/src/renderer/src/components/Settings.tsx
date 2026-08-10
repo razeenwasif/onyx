@@ -2,9 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { useStore } from '../store'
+import type { GoogleStatus } from '@shared/types'
 import { THEMES } from '../themes'
 
-const SECTIONS = ['Editor', 'Appearance', 'Files & links', 'Daily notes', 'Graph', 'AI', 'About'] as const
+const SECTIONS = [
+  'Editor',
+  'Appearance',
+  'Files & links',
+  'Daily notes',
+  'Graph',
+  'Google',
+  'AI',
+  'About',
+] as const
 type Section = (typeof SECTIONS)[number]
 
 export function Settings(): JSX.Element {
@@ -187,6 +197,8 @@ export function Settings(): JSX.Element {
             </p>
           )}
 
+          {section === 'Google' && <GoogleSection />}
+
           {section === 'AI' && (
             <>
               <Setting name="Ollama host" desc="Local LLM server. No cloud, no keys.">
@@ -242,6 +254,130 @@ export function Settings(): JSX.Element {
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * Google Calendar + Tasks. Credentials and the token are shared with the TUI:
+ * an empty client id here means "use `[google]` from config.toml", and the
+ * token lands in the same `google.json`, so authorizing once covers both.
+ */
+function GoogleSection(): JSX.Element {
+  const settings = useStore((s) => s.settings)!
+  const set = useStore((s) => s.setSettings)
+  const setStatus = useStore((s) => s.setStatus)
+  const [status, setStatusState] = useState<GoogleStatus | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const refresh = async (): Promise<void> => {
+    try {
+      setStatusState(await window.onyx.google.status())
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  useEffect(() => {
+    void refresh()
+  }, [])
+
+  const connect = async (): Promise<void> => {
+    setBusy(true)
+    setError(null)
+    try {
+      setStatusState(await window.onyx.google.connect())
+      setStatus('Connected to Google')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const disconnect = async (): Promise<void> => {
+    await window.onyx.google.disconnect()
+    await refresh()
+    setStatus('Signed out of Google')
+  }
+
+  const sourceLabel =
+    status?.source === 'config.toml'
+      ? 'from the TUI’s config.toml'
+      : status?.source === 'desktop'
+        ? 'set here'
+        : 'not configured'
+
+  return (
+    <>
+      <Setting
+        name="Account"
+        desc={
+          status?.connected
+            ? `Connected · OAuth client ${sourceLabel}`
+            : `Not connected · OAuth client ${sourceLabel}`
+        }
+      >
+        {busy ? (
+          <span className="spinner" />
+        ) : status?.connected ? (
+          <button className="btn" onClick={() => void disconnect()}>
+            Sign out
+          </button>
+        ) : (
+          <button className="btn primary" onClick={() => void connect()}>
+            Connect…
+          </button>
+        )}
+      </Setting>
+
+      <Toggle
+        name="Sync Google Calendar"
+        desc="Show events in the calendar pane, and allow creating and deleting them."
+        on={settings.google.syncCalendar}
+        onChange={(v) => void set({ google: { ...settings.google, syncCalendar: v } })}
+      />
+      <Toggle
+        name="Sync Google Tasks"
+        desc="Merge your task lists into the Todo pane. Prefix a new todo with “g ” to create it in Google."
+        on={settings.google.syncTasks}
+        onChange={(v) => void set({ google: { ...settings.google, syncTasks: v } })}
+      />
+
+      <Setting
+        name="OAuth client id"
+        desc="From a Google Cloud “Desktop app” client. Leave blank to reuse the TUI's."
+      >
+        <input
+          type="text"
+          value={settings.google.clientId}
+          placeholder="inherit from config.toml"
+          onChange={(e) => void set({ google: { ...settings.google, clientId: e.target.value } })}
+        />
+      </Setting>
+      <Setting name="OAuth client secret" desc="Not truly secret for installed apps.">
+        <input
+          type="password"
+          value={settings.google.clientSecret}
+          placeholder="inherit from config.toml"
+          onChange={(e) =>
+            void set({ google: { ...settings.google, clientSecret: e.target.value } })
+          }
+        />
+      </Setting>
+
+      {error && (
+        <div className="empty-note" style={{ color: 'var(--error)' }}>
+          {error}
+        </div>
+      )}
+      <p style={{ color: 'var(--fg-subtle)', fontSize: 12, lineHeight: 1.6, marginTop: 16 }}>
+        Onyx uses the installed-app loopback flow: connecting opens your browser, and the
+        redirect comes back to <code>127.0.0.1</code> on a one-off port. The token is stored at{' '}
+        <code>~/.config/onyx/google.json</code> (mode 600) — the same file the TUI uses, so you
+        only ever authorize once. See <code>docs/CLOUD_SYNC.md</code> for creating the client.
+      </p>
+    </>
   )
 }
 

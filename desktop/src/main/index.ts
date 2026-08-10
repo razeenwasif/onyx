@@ -28,6 +28,8 @@ import {
   ONYX_SYSTEM_PROMPT,
   type ChatMessage,
 } from './ai.js'
+import * as google from './google.js'
+import { SCOPES } from './google.js'
 import type { AppSettings } from '../shared/types.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -308,6 +310,43 @@ function registerIpc(): void {
   ipcMain.handle('search:query', (_e, q: string) => search(requireVault(), q))
   ipcMain.handle('search:unlinked', (_e, rel: string) =>
     unlinkedMentions(requireVault(), safeRel(rel)),
+  )
+
+  // ------------------------------------------------------------------ AI
+
+  // -------------------------------------------------------------- Google
+
+  const creds = (): google.GoogleCredentials =>
+    google.resolveCredentials(settings.get().google)
+
+  ipcMain.handle('google:status', async () => {
+    const c = creds()
+    const token = await google.loadToken()
+    return { connected: Boolean(token?.access_token), source: c.source, scope: token?.scope ?? '' }
+  })
+  ipcMain.handle('google:connect', async () => {
+    await google.runConsentFlow(creds())
+    return { connected: true, source: creds().source, scope: SCOPES }
+  })
+  ipcMain.handle('google:disconnect', () => google.clearToken())
+  ipcMain.handle('google:events', (_e, year: number, month: number) =>
+    google.fetchMonth(creds(), year, month),
+  )
+  ipcMain.handle('google:create-event', (_e, date: string, summary: string) =>
+    google.createEvent(creds(), date, summary),
+  )
+  ipcMain.handle('google:delete-event', (_e, calendarId: string, eventId: string) =>
+    google.deleteEvent(creds(), calendarId, eventId),
+  )
+  ipcMain.handle('google:tasks', () => google.fetchTasks(creds()))
+  ipcMain.handle('google:task-completed', (_e, listId: string, taskId: string, done: boolean) =>
+    google.setTaskCompleted(creds(), listId, taskId, done),
+  )
+  ipcMain.handle('google:create-task', async (_e, title: string, listId?: string) =>
+    google.createTask(creds(), listId ?? (await google.defaultTaskList(creds())), title),
+  )
+  ipcMain.handle('google:delete-task', (_e, listId: string, taskId: string) =>
+    google.deleteTask(creds(), listId, taskId),
   )
 
   // ------------------------------------------------------------------ AI

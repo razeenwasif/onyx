@@ -32,6 +32,14 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lastVault: null,
   recentVaults: [],
   theme: 'onyx-dark',
+  layout: {
+    leftOpen: true,
+    rightOpen: true,
+    leftWidth: 260,
+    rightWidth: 300,
+    leftPanel: 'files',
+    rightPanel: 'backlinks',
+  },
   defaultEditorMode: 'livePreview',
   vimMode: false,
   lineNumbers: false,
@@ -47,6 +55,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
   attachmentFolder: 'attachments',
   graph: DEFAULT_GRAPH,
   localGraph: DEFAULT_LOCAL_GRAPH,
+  google: {
+    // Empty means "use the TUI's [google] client from config.toml".
+    clientId: '',
+    clientSecret: '',
+    syncCalendar: true,
+    syncTasks: true,
+  },
   ai: {
     model: 'gemma4:e4b-it-qat',
     embedModel: 'nomic-embed-text',

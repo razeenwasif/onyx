@@ -178,6 +178,37 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ## Done
 
+### Desktop: Windows build + Google Calendar/Tasks panes  (2026-08-10)
+
+**Windows build.** NSIS installer + portable zip, with a multi-resolution `.ico`.
+Cross-building from Linux needs Wine (electron-builder patches the exe with rcedit);
+`scripts/pack-win-docker.sh` runs the same build inside electron-builder's own image
+instead, as the invoking user so nothing lands root-owned. Both artifacts built and
+verified: `Onyx-0.1.0-x64.exe` (84 MB), `Onyx-0.1.0-x64.zip` (114 MB).
+
+**Google Calendar + Tasks** (`desktop/src/main/google.ts`, ported from
+`integrations/{oauth,gcal,gtasks}.rs`). Deliberately *shares* the TUI's setup rather
+than duplicating it: the OAuth client comes from `[google]` in config.toml (Settings
+→ Google overrides), and the token is the same `~/.config/onyx/google.json` at mode
+600 — authorize in either app and the other is signed in. Installed-app loopback
+flow via a one-off 127.0.0.1 listener.
+
+- Calendar pane: event dots per day, a day agenda on select, create/delete all-day
+  events, refresh button.
+- Todo pane: Google Tasks merged under the local list, completed struck through and
+  sunk; ticking writes back; `g <text>` creates a task in Google instead of the vault.
+- Sidebar layout (which panel, widths, open/closed) is now persisted, like Obsidian's
+  workspace — needed so the panes can be restored, useful on its own.
+
+Verified against the live API with a throwaway copy of the token (read paths only;
+the copy was deleted afterwards and the real token file untouched). That test caught
+a bug worth remembering: the config.toml section reader used `\Z` for end-of-input,
+which is Python/Perl — in JavaScript it matches a literal "Z", so the `[google]`
+section was truncated at the first capital Z inside the client secret and the app
+reported "no OAuth client configured".
+
+Still open: Google Drive, the third `cloud` integration.
+
 ### Desktop: `::: columns` in Live Preview + a rootless Linux installer  (2026-08-10)
 
 - Columns now render side by side in Live Preview, not just Reading view. They're a

@@ -22,6 +22,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "pack:linux": "electron-vite build && electron-builder --linux",
     "pack:win": "electron-vite build && electron-builder --win",
+    "pack:win:docker": "bash scripts/pack-win-docker.sh",
     "pack:mac": "electron-vite build && electron-builder --mac"
   },
   "dependencies": {
@@ -80,7 +81,24 @@
         "StartupWMClass": "Onyx"
       }
     },
-    "win": { "target": ["nsis"], "icon": "build/icon.png" },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "zip", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Onyx",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
+    },
     "mac": {
       "target": ["dmg"],
       "icon": "build/icon.png",

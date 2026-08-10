@@ -2121,6 +2121,88 @@ textarea {
   font-weight: 700;
 }
 
+.calendar-day.is-selected {
+  background: var(--bg-active);
+  color: var(--fg);
+}
+
+/* A day with Google events gets a second, offset dot. */
+.calendar-day.has-events::before {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--info);
+  transform: translateX(5px);
+}
+
+.calendar-day.has-note.has-events::after {
+  transform: translateX(-5px);
+}
+
+.agenda {
+  margin-top: 10px;
+  border-top: 1px solid var(--divider);
+  padding-top: 6px;
+}
+
+.agenda-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-subtle);
+  padding: 2px 2px 4px;
+}
+
+.agenda-head .actions {
+  display: flex;
+  gap: 2px;
+}
+
+.agenda-head button {
+  color: var(--fg-subtle);
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+}
+
+.agenda-head button:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+
+.agenda-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 2px;
+  border-radius: var(--radius);
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+
+.agenda-row:hover {
+  background: var(--bg-hover);
+}
+
+.agenda-row .when {
+  color: var(--info);
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.agenda-row .what {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
 .calendar-day.has-note::after {
   content: '';
   position: absolute;
