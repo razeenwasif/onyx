@@ -7,7 +7,7 @@
  * path outside the open vault.
  */
 
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, screen, shell } from 'electron'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promises as fs } from 'node:fs'
@@ -60,10 +60,64 @@ function iconPath(): string {
     : path.join(__dirname, '../../build/icon.png')
 }
 
+/**
+ * The saved window geometry, sanity-checked against the displays that actually
+ * exist right now. A window restored onto a monitor that has since been
+ * unplugged would open off-screen, so anything not intersecting a work area
+ * falls back to a centred default.
+ */
+function restoredBounds(): Electron.BrowserWindowConstructorOptions {
+  const saved = settings.get().window
+  const primary = screen.getPrimaryDisplay().workArea
+  const width = Math.max(700, Math.min(saved.width, primary.width))
+  const height = Math.max(480, Math.min(saved.height, primary.height))
+  if (saved.x === undefined || saved.y === undefined) return { width, height }
+
+  const box = { x: saved.x, y: saved.y, width, height }
+  const area = screen.getDisplayMatching(box).workArea
+  const onScreen =
+    box.x < area.x + area.width &&
+    box.x + box.width > area.x &&
+    box.y < area.y + area.height &&
+    box.y + box.height > area.y
+  return onScreen ? box : { width, height }
+}
+
+/** Remember size, position and maximized state; debounced, drags are noisy. */
+function trackWindowState(window: BrowserWindow): void {
+  let timer: NodeJS.Timeout | null = null
+  const save = (): void => {
+    if (window.isDestroyed()) return
+    // `getNormalBounds` reports the un-maximized geometry, which is what we
+    // want to restore to when the user un-maximizes later.
+    const b = window.getNormalBounds()
+    settings.update({
+      window: {
+        width: b.width,
+        height: b.height,
+        x: b.x,
+        y: b.y,
+        maximized: window.isMaximized(),
+      },
+    })
+  }
+  const schedule = (): void => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(save, 400)
+  }
+  window.on('resize', schedule)
+  window.on('move', schedule)
+  window.on('maximize', save)
+  window.on('unmaximize', save)
+  window.on('close', () => {
+    if (timer) clearTimeout(timer)
+    save()
+  })
+}
+
 function createWindow(): void {
   win = new BrowserWindow({
-    width: 1440,
-    height: 900,
+    ...restoredBounds(),
     icon: iconPath(),
     minWidth: 700,
     minHeight: 480,
@@ -81,6 +135,9 @@ function createWindow(): void {
       spellcheck: true,
     },
   })
+
+  if (settings.get().window.maximized) win.maximize()
+  trackWindowState(win)
 
   win.on('ready-to-show', () => {
     win?.show()

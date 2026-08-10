@@ -271,9 +271,17 @@ function CodeMirrorView({ tab, mode }: { tab: Tab; mode: 'livePreview' | 'source
     if (!view || doc === undefined) return
     const current = view.state.doc.toString()
     if (current !== doc.content) {
+      // If the editor mounted before the buffer arrived, the cursor is still at
+      // 0 — inside the frontmatter, which makes Live Preview show raw YAML
+      // instead of the properties table. Put it at the top of the body, as it
+      // would have been had the content been there at construction.
+      const anchor =
+        current.length === 0
+          ? Math.min(frontmatterLength(doc.content), doc.content.length)
+          : Math.min(view.state.selection.main.anchor, doc.content.length)
       view.dispatch({
         changes: { from: 0, to: current.length, insert: doc.content },
-        selection: { anchor: Math.min(view.state.selection.main.anchor, doc.content.length) },
+        selection: { anchor },
       })
     }
   }, [doc?.content])

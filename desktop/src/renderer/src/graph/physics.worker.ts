@@ -257,6 +257,7 @@ const stack = new Int32Array(4096)
 function applyCharge(strength: number, a: number): void {
   const root = buildTree()
   if (root < 0) return
+  const maxD2 = maxChargeDistance2()
   for (let i = 0; i < n; i++) {
     let sp = 0
     stack[sp++] = root
@@ -284,6 +285,9 @@ function applyCharge(strength: number, a: number): void {
       if (body >= 0 || (w * w) / d2 < THETA2) {
         // Leaf, or far enough away to treat as a single body.
         if (body === i) continue
+        // Beyond the cutoff this cell contributes nothing, and because it was
+        // far enough to approximate, neither does anything inside it.
+        if (d2 > maxD2) continue
         const k = (strength * mass * a) / d2
         fx += dx * k
         fy += dy * k
@@ -339,15 +343,29 @@ function applyCenter(a: number): void {
 /**
  * Charge strength for the current sliders.
  *
- * Repulsion has to scale with the square of the link distance, or the two
- * forces stop being comparable and the graph either collapses into a ball or
- * explodes when the distance slider moves. Balancing a single spring against a
- * single charge at equilibrium `d ≈ 1.1 × linkDistance` gives
- * `|S| ≈ 0.11 × linkDistance²`, which is where the constant comes from; the
- * Repel force slider then scales around that (10 = neutral).
+ * Repulsion scales with the square of the link distance so the two forces stay
+ * comparable and moving the distance slider spreads the graph instead of
+ * collapsing or exploding it. The constant comes from d3's own defaults, which
+ * is the look Obsidian has: charge -30 at link distance 30, i.e. 0.033 × L².
+ * The Repel slider scales around that, with 10 as neutral.
+ *
+ * (An earlier constant of 0.11 × L² came from balancing a *single* spring
+ * against a *single* charge. That's right for two nodes and much too strong for
+ * a thousand, where the aggregate repulsion blows the layout apart.)
  */
 function chargeStrength(): number {
-  return -params.repelForce * params.linkDistance * params.linkDistance * 0.011
+  return -params.repelForce * params.linkDistance * params.linkDistance * 0.0033
+}
+
+/**
+ * Past this distance a node stops repelling. Without a cutoff every cluster
+ * pushes every other cluster, and a large vault inflates into a sparse haze
+ * instead of the dense islands Obsidian shows. It also lets Barnes-Hut skip
+ * most of the tree.
+ */
+function maxChargeDistance2(): number {
+  const d = params.linkDistance * 12
+  return d * d
 }
 
 function tick(): void {

@@ -1,9 +1,12 @@
 /**
- * The small graph docked in the right sidebar — the TUI's graph pane, which
- * shows the neighbourhood of whatever note you're reading.
+ * The graph docked in the right sidebar: the full vault graph, not a local
+ * neighbourhood — the same view the Graph tab shows, sharing its settings, with
+ * the note you're reading highlighted in the accent colour.
  *
- * It's the same `GraphView` the full tab uses, sharing the same local-graph
- * settings; only the control panel is hidden, since there's no room for it.
+ * It runs in `compact` mode: no control panel (there's no room), and the
+ * simulation is allowed to freeze once it settles rather than drifting
+ * forever, so a docked graph over a thousand notes doesn't burn CPU in the
+ * background. The maximize button in the pane header opens the full tab.
  */
 
 import { useStore } from '../store'
@@ -18,8 +21,5 @@ export function SidebarGraph(): JSX.Element {
     return s.lastNotePath
   })
 
-  if (!focus) {
-    return <div className="empty-note">Open a note to see its neighbourhood.</div>
-  }
-  return <GraphView focusPath={focus} local compact />
+  return <GraphView focusPath={focus} local={false} compact />
 }

@@ -69,6 +69,13 @@ function bfsDepths(
   return out
 }
 
+/**
+ * The docked pane is a minimap: a layout sized for a full tab is sub-pixel in a
+ * 260px-wide pane on a large vault, so shorten the springs there. Everything
+ * else — forces, filters, colours — is the tab's own configuration.
+ */
+const COMPACT_DISTANCE_SCALE = 0.35
+
 export function GraphView({ focusPath, local, compact = false }: Props): JSX.Element {
   const graph = useStore((s) => s.graph)
   const settingsAll = useStore((s) => s.settings)
@@ -95,10 +102,17 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
   const dragRef = useRef<{ node: number; moved: boolean } | null>(null)
   const panRef = useRef<{ x: number; y: number; camX: number; camY: number } | null>(null)
   /**
-   * The camera tracks the layout while it settles, then stops. Any pan, zoom
-   * or drag hands control to the user immediately (Obsidian does the same).
+   * The camera tracks the layout while it settles, then stops. "Settled" comes
+   * from the simulation's own cooling `alpha`, not a timer: a 46-node graph
+   * settles in a second and a 1500-node one takes far longer, and a fixed
+   * window would leave the big one framed on its first, tiny frame. Any pan,
+   * zoom or drag hands control straight to the user, as Obsidian does.
    */
-  const autoFitUntilRef = useRef(0)
+  const autoFitRef = useRef(true)
+  const alphaRef = useRef(1)
+  /** Extent of the layout last frame, and how long it's held steady. */
+  const lastExtentRef = useRef(0)
+  const steadyFramesRef = useRef(0)
   const rafRef = useRef(0)
 
   const [hoverLabel, setHoverLabel] = useState<{ x: number; y: number; text: string } | null>(null)
@@ -217,30 +231,64 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
       }
     }
 
-    const nodes = [...keep].sort((a, b) => a - b)
+    const nodes: number[] = [...keep].sort((a, b) => a - b)
     const reverse = new Int32Array(graph.nodes.length).fill(-1)
     nodes.forEach((full, subIdx) => {
       reverse[full] = subIdx
     })
 
-    const pairs: number[] = []
-    const adjacency: number[][] = nodes.map(() => [])
-    for (const l of graph.links) {
-      const s = reverse[l.source]
-      const t = reverse[l.target]
-      if (s < 0 || t < 0) continue
-      // Local graph without neighbour links: only edges touching the focus.
-      if (local && localCfg.neighborLinks === false) {
-        const f = reverse[focusIndex]
-        if (s !== f && t !== f) continue
+    /** Edges among a given node set, honouring the edge-kind filters. */
+    const buildEdges = (
+      list: number[],
+      lookup: Int32Array,
+    ): { pairs: number[]; adjacency: number[][] } => {
+      const pairs: number[] = []
+      const adjacency: number[][] = list.map(() => [])
+      for (const l of graph.links) {
+        // A nested-tag hierarchy edge only exists when the option is on.
+        if (l.kind === 'tagParent' && !cfg.linkNestedTags) continue
+        const s = lookup[l.source]
+        const t = lookup[l.target]
+        if (s < 0 || t < 0) continue
+        // Local graph without neighbour links: only edges touching the focus.
+        if (local && localCfg.neighborLinks === false) {
+          const f = lookup[focusIndex]
+          if (s !== f && t !== f) continue
+        }
+        pairs.push(s, t)
+        adjacency[s].push(t)
+        adjacency[t].push(s)
       }
-      pairs.push(s, t)
-      adjacency[s].push(t)
-      adjacency[t].push(s)
+      return { pairs, adjacency }
     }
 
-    return { nodes, reverse, edges: new Int32Array(pairs), adjacency }
-  }, [graph, cfg, local, localCfg.depth, localCfg.incoming, localCfg.outgoing, localCfg.neighborLinks, focusPath, matches])
+    let built = buildEdges(nodes, reverse)
+
+    // Ancestor tag nodes are emitted for every nested tag, so with the
+    // hierarchy edges switched off some of them have nothing attached. A tag
+    // node with no surviving edge isn't a real part of the graph — drop it
+    // rather than leave a stray dot floating (the Orphans filter is about
+    // notes, not tags).
+    const strandedTag = (i: number): boolean =>
+      graph.nodes[nodes[i]].kind === 'tag' && built.adjacency[i].length === 0
+    if (nodes.some((_, i) => strandedTag(i))) {
+      const kept = nodes.filter((_, i) => !strandedTag(i))
+      reverse.fill(-1)
+      kept.forEach((full, subIdx) => {
+        reverse[full] = subIdx
+      })
+      nodes.length = 0
+      nodes.push(...kept)
+      built = buildEdges(nodes, reverse)
+    }
+
+    return {
+      nodes,
+      reverse,
+      edges: new Int32Array(built.pairs),
+      adjacency: built.adjacency,
+    }
+  }, [graph, cfg, cfg.linkNestedTags, local, localCfg.depth, localCfg.incoming, localCfg.outgoing, localCfg.neighborLinks, focusPath, matches])
 
   /**
    * Tag color per sub-node, as RGB, or null when the node has no tags or the
@@ -291,9 +339,10 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
   useEffect(() => {
     const worker = new PhysicsWorker()
     workerRef.current = worker
-    worker.onmessage = (e: MessageEvent<{ type: string; positions: Float32Array }>) => {
+    worker.onmessage = (e: MessageEvent<{ type: string; positions: Float32Array; alpha: number }>) => {
       if (e.data.type !== 'positions') return
       const incoming = e.data.positions
+      alphaRef.current = e.data.alpha ?? 0
       const prev = posRef.current
       posRef.current = incoming
       // Hand the old buffer back so the worker can refill it next tick.
@@ -348,16 +397,23 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
         centerForce: cfg.centerForce,
         repelForce: cfg.repelForce,
         linkForce: cfg.linkForce,
-        linkDistance: cfg.linkDistance,
-        alive: true,
+        linkDistance: cfg.linkDistance * (compact ? COMPACT_DISTANCE_SCALE : 1),
+        // The docked pane freezes once it settles instead of drifting forever
+        // — a background sim over a thousand nodes isn't worth the CPU.
+        alive: !compact,
       },
     })
     // A layout built from scratch gets framed automatically; one that carried
     // positions over (a filter toggle) keeps the camera where the user left it.
-    if (carried === 0) autoFitUntilRef.current = performance.now() + 3000
+    if (carried === 0) {
+      autoFitRef.current = true
+      alphaRef.current = 1
+      lastExtentRef.current = 0
+      steadyFramesRef.current = 0
+    }
 
     frameRef.current = makeFrameData(ids.length, sub.edges.length / 2)
-  }, [sub, graph, local, focusPath])
+  }, [sub, graph, local, focusPath, compact])
 
   // Force sliders push through without rebuilding the graph.
   useEffect(() => {
@@ -367,8 +423,10 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
         centerForce: cfg.centerForce,
         repelForce: cfg.repelForce,
         linkForce: cfg.linkForce,
-        linkDistance: cfg.linkDistance,
-        alive: true,
+        linkDistance: cfg.linkDistance * (compact ? COMPACT_DISTANCE_SCALE : 1),
+        // The docked pane freezes once it settles instead of drifting forever
+        // — a background sim over a thousand nodes isn't worth the CPU.
+        alive: !compact,
       },
     })
   }, [cfg.centerForce, cfg.repelForce, cfg.linkForce, cfg.linkDistance])
@@ -392,8 +450,12 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
   }, [])
 
   const nodeRadius = useCallback(
-    (degree: number) => 10 * (cfg.nodeSize || 1) * (0.7 + 0.3 * Math.sqrt(1 + degree)),
-    [cfg.nodeSize],
+    (degree: number) =>
+      10 *
+      (cfg.nodeSize || 1) *
+      (compact ? COMPACT_DISTANCE_SCALE : 1) *
+      (0.7 + 0.3 * Math.sqrt(1 + degree)),
+    [cfg.nodeSize, compact],
   )
 
   useEffect(() => {
@@ -431,8 +493,20 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
 
       // Track the layout while it settles, easing so the camera glides rather
       // than snapping, then leave the view where the user put it.
-      if (n > 0 && performance.now() < autoFitUntilRef.current) {
-        fitToContent(pos, n, width / dpr, height / dpr, cameraRef.current, 0.12)
+      if (n > 0 && autoFitRef.current) {
+        // "Settled" can't come from `alpha`: the sim keeps a floor so the graph
+        // stays gently alive, and alpha crosses any sensible threshold within a
+        // second — long before a 1500-node layout has finished expanding. Watch
+        // the bounding box instead and stop once it holds still.
+        const extent = fitToContent(pos, n, width / dpr, height / dpr, cameraRef.current, 0.1)
+        const previous = lastExtentRef.current
+        const change = previous > 0 ? Math.abs(extent - previous) / previous : 1
+        steadyFramesRef.current = change < 0.002 ? steadyFramesRef.current + 1 : 0
+        lastExtentRef.current = extent
+        if (steadyFramesRef.current > 45) {
+          fitToContent(pos, n, width / dpr, height / dpr, cameraRef.current, 1)
+          autoFitRef.current = false
+        }
       }
 
       const cam = cameraRef.current
@@ -575,7 +649,7 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
 
   const onPointerDown = (e: React.PointerEvent): void => {
     setMenu(null)
-    autoFitUntilRef.current = 0 // the user is driving now
+    autoFitRef.current = false // the user is driving now
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
     const hit = pickNode(e.clientX, e.clientY)
     if (e.button === 2) return
@@ -652,12 +726,12 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
   }
 
   const onWheel = (e: React.WheelEvent): void => {
-    autoFitUntilRef.current = 0
+    autoFitRef.current = false
     const cam = cameraRef.current
     const rect = hostRef.current!.getBoundingClientRect()
     const [wx, wy] = toWorld(e.clientX, e.clientY)
     const factor = Math.exp(-e.deltaY * 0.0016)
-    const next = Math.max(0.02, Math.min(12, cam.scale * factor))
+    const next = Math.max(0.0008, Math.min(12, cam.scale * factor))
     // Keep the world point under the cursor pinned while zooming.
     cam.x = wx - (e.clientX - rect.left - rect.width / 2) / next
     cam.y = wy - (e.clientY - rect.top - rect.height / 2) / next
@@ -666,7 +740,7 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
 
   const zoomBy = (factor: number): void => {
     const cam = cameraRef.current
-    cam.scale = Math.max(0.02, Math.min(12, cam.scale * factor))
+    cam.scale = Math.max(0.0008, Math.min(12, cam.scale * factor))
   }
 
   const resetView = (): void => {
@@ -796,7 +870,10 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
         <button
           className="icon-btn"
           onClick={() => {
-            autoFitUntilRef.current = performance.now() + 3000
+            autoFitRef.current = true
+            alphaRef.current = 1
+            lastExtentRef.current = 0
+            steadyFramesRef.current = 0
             workerRef.current?.postMessage({ type: 'reheat', alpha: 1 })
           }}
           title="Re-run layout"
@@ -938,6 +1015,13 @@ function GraphControls({
             onChange={(e) => patch({ searchQuery: e.target.value })}
           />
           <Toggle label="Tags" on={cfg.showTags} onChange={(v) => patch({ showTags: v })} />
+          {cfg.showTags && (
+            <Toggle
+              label="Link nested tags"
+              on={cfg.linkNestedTags === true}
+              onChange={(v) => patch({ linkNestedTags: v })}
+            />
+          )}
           <Toggle
             label="Attachments"
             on={cfg.showAttachments}
@@ -1197,8 +1281,8 @@ function fitToContent(
   height: number,
   cam: Camera,
   ease = 1,
-): void {
-  if (!n || pos.length < n * 2) return
+): number {
+  if (!n || pos.length < n * 2) return 0
   let minX = Infinity
   let maxX = -Infinity
   let minY = Infinity
@@ -1212,17 +1296,20 @@ function fitToContent(
     if (y < minY) minY = y
     if (y > maxY) maxY = y
   }
-  if (!Number.isFinite(minX)) return
+  if (!Number.isFinite(minX)) return 0
   const w = Math.max(maxX - minX, 1)
   const h = Math.max(maxY - minY, 1)
   const targetX = (minX + maxX) / 2
   const targetY = (minY + maxY) / 2
+  // The floor has to be low enough to frame a whole large vault: a 1500-node
+  // graph at the default link distance spans tens of thousands of world units.
   const targetScale = Math.max(
-    0.02,
+    0.0008,
     Math.min(4, Math.min((width * 0.82) / w, (height * 0.82) / h)),
   )
   cam.x += (targetX - cam.x) * ease
   cam.y += (targetY - cam.y) * ease
   // Ease the zoom geometrically so the motion reads as constant-speed.
   cam.scale *= Math.pow(targetScale / cam.scale, ease)
+  return Math.max(w, h)
 }

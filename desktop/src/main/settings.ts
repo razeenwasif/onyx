@@ -30,6 +30,7 @@ export function settingsPath(): string {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   lastVault: null,
+  window: { width: 1440, height: 900, maximized: false },
   recentVaults: [],
   theme: 'onyx-dark',
   layout: {

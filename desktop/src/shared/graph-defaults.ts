@@ -11,7 +11,8 @@ import type { GraphSettings, LocalGraphSettings } from './types.js'
 
 export const DEFAULT_GRAPH: GraphSettings = {
   searchQuery: '',
-  showTags: false,
+  showTags: true,
+  linkNestedTags: false,
   showAttachments: false,
   existingOnly: false,
   showOrphans: true,

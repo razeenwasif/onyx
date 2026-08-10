@@ -178,6 +178,38 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ## Done
 
+### Desktop: tag-first graph, docked full graph, window state  (2026-08-10)
+
+- **Tags on by default in the graph.** This vault has wikilinks in 9% of notes but
+  tags in 52% (309 distinct), so a link-only graph was mostly orphan dots.
+  Obsidian's Tags filter — a node per tag that notes link to — is the right
+  mechanism and was already implemented; it just shipped off, copying Obsidian's
+  default. Added **Link nested tags** (join `a/b` to `a`) as an opt-in beyond
+  Obsidian, since these tags are deeply hierarchical. Tag nodes left with no
+  surviving edge are pruned rather than floating.
+- **The right-hand pane is the full graph now**, not a local neighbourhood: same
+  view and settings as the tab, run as a minimap (shorter springs, no panel) and
+  frozen once settled, so a background sim over 1500 nodes doesn't burn CPU.
+- **Force retune.** Charge was `0.11 x L²`, from balancing one spring against one
+  charge — right for two nodes, far too strong for a thousand, which inflated a
+  1544-node graph into a sparse haze. Now `0.0033 x L²`, d3's own ratio and so
+  Obsidian's proportions, plus a cutoff at 12x link distance. Auto-fit stops when
+  the bounding box stops changing rather than on a timer or on `alpha` (which hits
+  its floor within a second), and the zoom floor dropped far enough to frame a
+  whole large vault.
+- **Window geometry is remembered** — size, position, maximized — validated against
+  the displays that currently exist so an unplugged monitor can't strand the window
+  off-screen.
+
+**A one-character bug worth remembering:** `frontmatterLength` stripped a UTF-8 BOM
+before matching but returned an offset into the *stripped* string. Every
+BOM-prefixed note (Notion writes them, so much of this vault) was off by one, which
+left the cursor on the closing `---` and made Live Preview show raw YAML instead of
+the properties table. Related process lesson: a `python - <<PY` patch script printed
+"fix applied" unconditionally while matching nothing, so the first attempt at that
+fix silently did nothing — verify the edit landed, not the script's own success
+message.
+
 ### Desktop: Google Drive browser  (2026-08-10)
 
 Port of `src/integrations/gdrive.rs`, sharing the OAuth client and token already

@@ -76,7 +76,10 @@ at the bottom of the ribbon (or `Ctrl+Shift+O`) to switch.
 
 ## What's in it
 
-**Workspace** — ribbon, editor tabs (drag to reorder or move between panes),
+**Workspace** — the window remembers its size, position and maximized state and
+restores them next launch (checked against the displays that currently exist, so a
+window saved on a monitor you've since unplugged still opens somewhere visible).
+Plus a ribbon, editor tabs (drag to reorder or move between panes),
 horizontal splits, per-pane back/forward history, full-screen focus (`Ctrl+F`),
 status bar, and five themes ported from the TUI's `theme.rs`.
 
@@ -87,6 +90,12 @@ vertical stack of panes, not one visible tab at a time.
 |---|---|
 | Left | Files · Quicknote · Todo |
 | Right | Backlinks · Graph · Calendar |
+
+The docked Graph is the **whole vault graph** — the same view as the Graph tab,
+sharing its settings, with the note you're reading highlighted. It runs as a
+minimap: shorter springs so a large vault stays legible in a narrow pane, no
+control panel, and the simulation freezes once it settles rather than drifting in
+the background. The maximize button in its header opens the full tab.
 
 Click a header to collapse a pane, drag the divider below it to resize (double-click
 to make it flexible again), and right-click the sidebar background to show or hide
@@ -167,7 +176,11 @@ browser's font rasterizer beats anything an SDF atlas would produce.
 
 **Layout.** d3-force's model — Barnes-Hut many-body charge, link springs, a weak pull
 toward the origin, Verlet integration with a cooling `alpha` — running in a Web
-Worker. Positions ping-pong back on a transferable `Float32Array`, so a large vault
+Worker. Charge is `0.0033 × linkDistance²` per unit of Repel force, d3's own
+charge-to-distance ratio and therefore the proportions Obsidian shows, with a cutoff
+at 12× the link distance so distant clusters stop inflating each other. The camera
+frames the layout while it grows and stops once the bounding box holds still — not
+on a timer, since a 46-node graph settles in a second and a 1500-node one doesn't. Positions ping-pong back on a transferable `Float32Array`, so a large vault
 costs no per-frame allocation and never blocks the UI.
 
 Repulsion is scaled as `0.011 × linkDistance²`, which is the equilibrium of one
@@ -179,12 +192,22 @@ collapse or explode.
 
 | Panel | Controls |
 |---|---|
-| Filters | Search files · Tags · Attachments · Existing files only · Orphans |
+| Filters | Search files · Tags · Link nested tags · Attachments · Existing files only · Orphans |
 | Groups | **Color by tag** + legend · any number of search-query → color groups |
 | Display | Arrows · Text fade threshold · Node size · Link thickness |
 | Forces | Center force · Repel force · Link force · Link distance |
 
-**Color by tag** (on by default, and the one place this goes beyond Obsidian)
+**Tags are on by default.** Obsidian ships this filter off, but it's the mechanism
+that makes a tag-organised vault legible: each tag becomes its own node and notes
+link to it, so notes sharing a tag cluster together. (Obsidian never joins two notes
+directly because they share a tag, and neither does this.) A vault where 9% of notes
+have wikilinks but half have tags is nearly empty with the filter off.
+
+**Link nested tags** goes one step beyond Obsidian: it joins `a/b` to `a`, so a
+hierarchy like `Electromagnetism/Optics/waveOptics` reads as one tree rather than
+unrelated islands. Off by default.
+
+**Color by tag** (on by default, and the other place this goes beyond Obsidian)
 colors every node by its tag, with a legend under Groups showing each tag, its
 color and how many nodes carry it — click a row to filter the graph to that tag.
 

@@ -67,7 +67,7 @@ export interface GraphNode {
 export interface GraphLink {
   source: number
   target: number
-  kind: 'link' | 'tag' | 'attachment'
+  kind: 'link' | 'tag' | 'attachment' | 'tagParent'
 }
 
 export interface GraphData {
@@ -101,6 +101,11 @@ export interface GraphSettings {
   // Filters
   searchQuery: string
   showTags: boolean
+  /**
+   * Link `a/b` to `a` so a nested-tag hierarchy shows as one tree instead of
+   * unrelated islands. Beyond Obsidian, which treats every tag as its own node.
+   */
+  linkNestedTags: boolean
   showAttachments: boolean
   existingOnly: boolean
   showOrphans: boolean
@@ -220,8 +225,19 @@ export interface LayoutSettings {
   right: SectionState[]
 }
 
+/** Window geometry, restored on the next launch. */
+export interface WindowState {
+  width: number
+  height: number
+  /** Undefined until the window has been moved; Electron centers it then. */
+  x?: number
+  y?: number
+  maximized: boolean
+}
+
 export interface AppSettings {
   lastVault: string | null
+  window: WindowState
   recentVaults: string[]
   theme: string
   layout: LayoutSettings

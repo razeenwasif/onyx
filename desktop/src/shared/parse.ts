@@ -212,13 +212,25 @@ function frontmatterLines(source: string): string[] | null {
   return null // unterminated
 }
 
-/** Character length of the frontmatter block including both fences, or 0. */
+/** A leading UTF-8 BOM, which Notion exports (and Windows editors) write. */
+const BOM = '﻿'
+
+/**
+ * Character length of the frontmatter block including both fences, or 0.
+ *
+ * The result is an offset into `source` exactly as passed in, so the BOM has to
+ * be added back on: the match runs against the stripped string, and returning
+ * an offset into *that* is one character short on every BOM-prefixed note —
+ * enough to leave the caller pointing at the closing `---` instead of the body,
+ * which makes Live Preview show raw YAML instead of the properties table.
+ */
 export function frontmatterLength(source: string): number {
-  const src = source.startsWith('﻿') ? source.slice(1) : source
+  const bom = source.startsWith(BOM) ? BOM.length : 0
+  const src = bom ? source.slice(bom) : source
   if (!/^---\r?\n/.test(src)) return 0
   const m = /\r?\n(?:---|\.\.\.)[ \t]*(\r?\n|$)/.exec(src)
   if (!m) return 0
-  return m.index + m[0].length
+  return bom + m.index + m[0].length
 }
 
 /** Body with any leading frontmatter block removed. */
