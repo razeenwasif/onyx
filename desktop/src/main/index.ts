@@ -124,7 +124,10 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     backgroundColor: '#1e1e24',
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    // macOS: no title bar and no traffic lights — the window is moved by
+    // dragging the tab bar or ribbon (`-webkit-app-region` in app.css), and
+    // closed / minimized / zoomed from the menu and its shortcuts.
+    titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
     webPreferences: {
       // ESM preload (`.mjs`) — the package is `"type": "module"`, so
       // electron-vite emits the preload bundle with that extension.
@@ -136,6 +139,11 @@ function createWindow(): void {
     },
   })
 
+  if (process.platform === 'darwin') {
+    win.setWindowButtonVisibility(false)
+    // AppKit puts the buttons back when the window leaves full screen.
+    win.on('leave-full-screen', () => win?.setWindowButtonVisibility(false))
+  }
   if (settings.get().window.maximized) win.maximize()
   trackWindowState(win)
 

@@ -481,6 +481,20 @@ textarea {
   display: none;
 }
 
+/* With no native title bar (macOS), the tab bar's empty space and the ribbon
+   are what move the window. Anything clickable inside them opts back out. */
+.tabbar,
+.ribbon {
+  -webkit-app-region: drag;
+}
+
+.tabbar .tab,
+.tabbar button,
+.tabbar .context-menu,
+.ribbon button {
+  -webkit-app-region: no-drag;
+}
+
 .tab {
   display: flex;
   align-items: center;
@@ -1559,10 +1573,12 @@ textarea {
   pointer-events: none;
 }
 
+/* Settings sit top-right behind a cog, as in Obsidian, so the graph itself
+   gets the whole view. */
 .graph-controls {
   position: absolute;
   top: 10px;
-  left: 10px;
+  right: 10px;
   width: 260px;
   max-height: calc(100% - 20px);
   overflow-y: auto;
@@ -1575,23 +1591,34 @@ textarea {
   font-size: 12px;
 }
 
-.graph-controls.is-collapsed {
-  width: auto;
-  padding: 0;
+.graph-controls-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px 4px;
+  border-bottom: 1px solid var(--divider);
 }
 
-.graph-toolbar {
+.graph-controls-head .icon-btn {
+  width: 24px;
+  height: 24px;
+}
+
+.graph-controls-spacer {
+  flex: 1;
+}
+
+.graph-controls-toggle {
   position: absolute;
   top: 10px;
   right: 10px;
-  display: flex;
-  gap: 4px;
   z-index: 3;
-  background: var(--bg-modal);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 2px;
-  box-shadow: var(--shadow);
+  opacity: 0.55;
+  transition: opacity 120ms ease;
+}
+
+.graph-controls-toggle:hover {
+  opacity: 1;
 }
 
 .graph-section {
@@ -1793,20 +1820,6 @@ textarea {
 .toggle.is-on::after {
   transform: translateX(14px);
   background: #fff;
-}
-
-.graph-tooltip {
-  position: absolute;
-  pointer-events: none;
-  background: var(--bg-modal);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 3px 8px;
-  font-size: 12px;
-  color: var(--fg);
-  box-shadow: var(--shadow);
-  z-index: 4;
-  white-space: nowrap;
 }
 
 /* ----------------------------------------------------------------- canvas */

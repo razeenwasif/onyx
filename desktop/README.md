@@ -229,13 +229,23 @@ Local graph adds Depth (1–5), Incoming links, Outgoing links and Neighbor link
 The filter and group queries run through the same full-text search as the search
 pane, so `tag:project`, `path:Notes/`, and plain content terms all work.
 
-**Interaction** — hover highlights a node and its neighbours and dims everything
-else; click opens the note (`Ctrl`/`Cmd`-click for a new tab); drag pins a node while
-you hold it; the wheel zooms about the pointer; `+`/`-` zoom and the arrow keys pan
-(hold Shift to move faster); right-click gives Open / Open in new tab / Open local
-graph / Filter to this folder. Labels fade out as nodes get small on screen, with the
+**Interaction** — as in Obsidian, the graph gets the whole view and the control
+panel hides behind a cog in the top-right corner (its header holds zoom-to-fit,
+re-run layout and open local graph). Hovering fills a node with the accent colour,
+lights its links, shows its name and its neighbours' (unless it has more than 40),
+and fades everything else — all eased in and out rather than snapped. Click opens
+the note (`Ctrl`/`Cmd`-click for a new tab); drag pins a node while you hold it; the
+wheel glides the zoom about the pointer; double-click empty space to fit the graph;
+`+`/`-` zoom and the arrow keys pan (hold Shift to move faster); right-click gives
+Open / Open in new tab / Open local graph / Filter to this folder. Nodes share one
+base size and only hubs grow (with the square root of their links, capped), which
+is Obsidian's sizing. Labels fade out as nodes get small on screen, with the
 threshold slider shifting when that happens. The camera frames the layout while it
 settles, then hands control over the moment you touch it.
+
+**Window** — on macOS there's no title bar and no traffic lights; drag the tab bar's
+empty space or the ribbon to move the window, and use the Window menu (`Cmd+M`,
+full screen) or `Cmd+Q` for the rest.
 
 ## Tests
 

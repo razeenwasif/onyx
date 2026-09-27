@@ -76,6 +76,29 @@ function bfsDepths(
  */
 const COMPACT_DISTANCE_SCALE = 0.35
 
+/** Node radius bounds in world units, before the Node size slider. */
+const NODE_BASE = 8
+const NODE_MAX = 30
+
+/**
+ * Time constants (ms) for the eased parts of the view: hover highlight fading
+ * in and out, and wheel / button zoom gliding to its target. Obsidian animates
+ * both; snapping reads as a different, cheaper widget.
+ */
+const HIGHLIGHT_TAU = 90
+const ZOOM_TAU = 65
+
+const MIN_SCALE = 0.0008
+const MAX_SCALE = 12
+
+/** A hover reveals its neighbours' labels too, unless it's a hub with a crowd. */
+const NEIGHBOUR_LABEL_LIMIT = 40
+
+const LABEL_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+
+/** The control panel's open state outlives the tab, like Obsidian's. */
+let panelRemembered = false
+
 export function GraphView({ focusPath, local, compact = false }: Props): JSX.Element {
   const graph = useStore((s) => s.graph)
   const settingsAll = useStore((s) => s.settings)
@@ -114,9 +137,28 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
   const lastExtentRef = useRef(0)
   const steadyFramesRef = useRef(0)
   const rafRef = useRef(0)
+  /**
+   * Eased highlight state, per sub-node / sub-link, stepped every frame
+   * toward what the hover asks for. `emph` 1 = full strength, 0 = faded into
+   * the background; `hot` 1 = the hovered node itself; `linkHot` 1 = a link
+   * touching it, drawn in the accent colour.
+   */
+  const emphRef = useRef<Float32Array>(new Float32Array(0))
+  const hotRef = useRef<Float32Array>(new Float32Array(0))
+  const linkEmphRef = useRef<Float32Array>(new Float32Array(0))
+  const linkHotRef = useRef<Float32Array>(new Float32Array(0))
+  /** 1 = a neighbour of the hovered node whose label is being shown. */
+  const revealRef = useRef<Float32Array>(new Float32Array(0))
+  /** A zoom in flight: target scale, anchored at a point relative to the view centre (CSS px). */
+  const zoomAnimRef = useRef<{ target: number; ax: number; ay: number } | null>(null)
+  /** Frames left of an eased "zoom to fit". */
+  const fitAnimRef = useRef(0)
 
-  const [hoverLabel, setHoverLabel] = useState<{ x: number; y: number; text: string } | null>(null)
-  const [panelOpen, setPanelOpen] = useState(!compact)
+  const [panelOpen, setPanelOpenState] = useState(!compact && panelRemembered)
+  const setPanelOpen = (open: boolean): void => {
+    panelRemembered = open
+    setPanelOpenState(open)
+  }
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null)
   /** Paths matched by the filter query and by each group query (content search). */
   const [queryHits, setQueryHits] = useState<Map<string, Set<string>>>(new Map())
@@ -449,12 +491,14 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
     }
   }, [])
 
+  // Obsidian's sizing: every node starts at the same size and only real hubs
+  // grow (with the square root of their link count), up to a cap — so a
+  // 500-link tag reads as a hub without swallowing its neighbourhood.
   const nodeRadius = useCallback(
     (degree: number) =>
-      10 *
       (cfg.nodeSize || 1) *
       (compact ? COMPACT_DISTANCE_SCALE : 1) *
-      (0.7 + 0.3 * Math.sqrt(1 + degree)),
+      Math.max(NODE_BASE, Math.min(3 * Math.sqrt(degree + 1), NODE_MAX)),
     [cfg.nodeSize, compact],
   )
 
@@ -473,9 +517,14 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
     const nodeFocus = hexToRgb(palette.accent)
     const linkBase = hexToRgb(palette.border)
     const labelColor = palette.fgDim
+    let lastTime = performance.now()
 
-    const loop = (): void => {
+    const loop = (now: number): void => {
       rafRef.current = requestAnimationFrame(loop)
+      // Clamp so a tab that was in the background doesn't jump a whole second.
+      const dt = Math.min(64, Math.max(0, now - lastTime))
+      lastTime = now
+      const ease = (tau: number): number => 1 - Math.exp(-dt / tau)
       const { width, height, dpr } = renderer.resize()
       if (labelCanvas.width !== width || labelCanvas.height !== height) {
         labelCanvas.width = width
@@ -507,31 +556,73 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
           fitToContent(pos, n, width / dpr, height / dpr, cameraRef.current, 1)
           autoFitRef.current = false
         }
+      } else if (fitAnimRef.current > 0) {
+        fitAnimRef.current--
+        fitToContent(pos, n, width / dpr, height / dpr, cameraRef.current, ease(ZOOM_TAU * 1.6))
       }
 
       const cam = cameraRef.current
+
+      // Glide toward the wheel's target zoom, keeping the anchor point still.
+      const zoom = zoomAnimRef.current
+      if (zoom) {
+        const wx = zoom.ax / cam.scale + cam.x
+        const wy = zoom.ay / cam.scale + cam.y
+        let next = cam.scale * Math.pow(zoom.target / cam.scale, ease(ZOOM_TAU))
+        if (Math.abs(Math.log(zoom.target / next)) < 0.002) {
+          next = zoom.target
+          zoomAnimRef.current = null
+        }
+        cam.x = wx - zoom.ax / next
+        cam.y = wy - zoom.ay / next
+        cam.scale = next
+      }
+
       const hover = hoverRef.current
       const neighbours = hover >= 0 ? new Set(sub.adjacency[hover] ?? []) : null
       const dimming = hover >= 0
+
+      // ---- eased highlight state
+      const m = sub.edges.length / 2
+      if (emphRef.current.length !== n) {
+        emphRef.current = new Float32Array(n).fill(1)
+        hotRef.current = new Float32Array(n)
+      }
+      if (linkEmphRef.current.length !== m) {
+        linkEmphRef.current = new Float32Array(m).fill(1)
+        linkHotRef.current = new Float32Array(m)
+      }
+      const emph = emphRef.current
+      const hot = hotRef.current
+      const linkEmph = linkEmphRef.current
+      const linkHot = linkHotRef.current
+      const k = ease(HIGHLIGHT_TAU)
+      for (let i = 0; i < n; i++) {
+        const active = !dimming || i === hover || neighbours!.has(i)
+        emph[i] += ((active ? 1 : 0) - emph[i]) * k
+        hot[i] += ((i === hover ? 1 : 0) - hot[i]) * k
+      }
 
       // ---- links
       let lc = 0
       const edges = sub.edges
       const thickness = (cfg.linkThickness || 1) * 1.4
-      for (let k = 0; k < edges.length; k += 2) {
-        const s = edges[k]
-        const t = edges[k + 1]
-        const active = !dimming || s === hover || t === hover
-        const alpha = active ? (dimming ? 0.85 : 0.42) : 0.06
+      for (let e = 0; e < edges.length; e += 2) {
+        const s = edges[e]
+        const t = edges[e + 1]
+        const touches = s === hover || t === hover
+        linkEmph[lc] += ((!dimming || touches ? 1 : 0) - linkEmph[lc]) * k
+        linkHot[lc] += ((dimming && touches ? 1 : 0) - linkHot[lc]) * k
+        const h = linkHot[lc]
+        const alpha = 0.06 + (0.42 + 0.43 * h - 0.06) * linkEmph[lc]
         frame.linkFrom[lc * 2] = pos[s * 2]
         frame.linkFrom[lc * 2 + 1] = pos[s * 2 + 1]
         frame.linkTo[lc * 2] = pos[t * 2]
         frame.linkTo[lc * 2 + 1] = pos[t * 2 + 1]
-        frame.linkWidth[lc] = thickness * dpr
-        const c = active && dimming ? nodeFocus : linkBase
-        frame.linkColor[lc * 4] = c[0] / 255
-        frame.linkColor[lc * 4 + 1] = c[1] / 255
-        frame.linkColor[lc * 4 + 2] = c[2] / 255
+        frame.linkWidth[lc] = thickness * dpr * (1 + 0.4 * h)
+        frame.linkColor[lc * 4] = mix(linkBase[0], nodeFocus[0], h) / 255
+        frame.linkColor[lc * 4 + 1] = mix(linkBase[1], nodeFocus[1], h) / 255
+        frame.linkColor[lc * 4 + 2] = mix(linkBase[2], nodeFocus[2], h) / 255
         frame.linkColor[lc * 4 + 3] = alpha
         frame.linkInset[lc] =
           nodeRadius(graph.nodes[sub.nodes[t]].degree) * cam.scale * dpr + 2 * dpr
@@ -562,12 +653,16 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
         else if (node.kind === 'unresolved') rgb = nodeUnresolved
         else rgb = nodeBase
 
-        const active = !dimming || i === hover || neighbours!.has(i)
-        frame.nodeColor[i * 4] = rgb[0] / 255
-        frame.nodeColor[i * 4 + 1] = rgb[1] / 255
-        frame.nodeColor[i * 4 + 2] = rgb[2] / 255
-        frame.nodeColor[i * 4 + 3] = node.kind === 'unresolved' ? (active ? 0.55 : 0.1) : active ? 1 : 0.12
-        frame.nodeRing[i] = i === hover ? 2.5 * dpr : 0
+        // The hovered node fills with the accent colour, as in Obsidian.
+        const h = hot[i]
+        frame.nodeColor[i * 4] = mix(rgb[0], nodeFocus[0], h) / 255
+        frame.nodeColor[i * 4 + 1] = mix(rgb[1], nodeFocus[1], h) / 255
+        frame.nodeColor[i * 4 + 2] = mix(rgb[2], nodeFocus[2], h) / 255
+        frame.nodeColor[i * 4 + 3] = Math.max(
+          h,
+          node.kind === 'unresolved' ? mix(0.1, 0.55, emph[i]) : mix(0.12, 1, emph[i]),
+        )
+        frame.nodeRing[i] = 0
       }
       frame.nodeCount = n
 
@@ -582,28 +677,42 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
       // The docked minimap packs nodes far closer together, so labels need a
       // higher bar before they're worth drawing — otherwise they overlap into
       // an unreadable smear.
+      //
+      // Hovering overrides the fade: the hovered node's name always shows,
+      // a little larger, and so do its neighbours' unless there's a crowd.
       const fade = Math.max(0.05, (cfg.textFadeThreshold ?? 1.1) * (compact ? 3 : 1))
-      const onScreen = cam.scale * 10 * (cfg.nodeSize || 1)
+      const onScreen = cam.scale * NODE_BASE * (cfg.nodeSize || 1)
       const labelAlpha = Math.max(0, Math.min(1, onScreen / (fade * 4) - 0.25))
-      if (labelAlpha > 0.01) {
-        const fontPx = 12 * dpr
-        ctx.font = `${fontPx}px -apple-system, "Segoe UI", Roboto, sans-serif`
+      if (revealRef.current.length !== n) revealRef.current = new Float32Array(n)
+      const reveal = revealRef.current
+      const revealNeighbours = dimming && neighbours!.size <= NEIGHBOUR_LABEL_LIMIT
+      let revealing = false
+      for (let i = 0; i < n; i++) {
+        const target = revealNeighbours && neighbours!.has(i) ? 1 : 0
+        reveal[i] += (target - reveal[i]) * k
+        if (reveal[i] > 0.01 || hot[i] > 0.01) revealing = true
+      }
+      if (labelAlpha > 0.01 || revealing) {
+        const font = (px: number): string => `${px * dpr}px ${LABEL_FONT}`
+        ctx.font = font(12)
         ctx.textAlign = 'center'
         ctx.textBaseline = 'top'
         const halfW = width / 2
         const halfH = height / 2
         for (let i = 0; i < n; i++) {
+          const h = hot[i]
+          const a = Math.max(labelAlpha * mix(0.12, 1, emph[i]) * 0.9, h, reveal[i] * 0.85)
+          if (a < 0.02) continue
           const sx = (pos[i * 2] - cam.x) * cam.scale * dpr + halfW
           const sy = (pos[i * 2 + 1] - cam.y) * cam.scale * dpr + halfH
           if (sx < -140 || sx > width + 140 || sy < -40 || sy > height + 40) continue
           const node = graph.nodes[sub.nodes[i]]
-          const active = !dimming || i === hover || neighbours!.has(i)
-          const a = labelAlpha * (active ? 1 : 0.12) * (i === hover ? 1 : 0.9)
-          if (a < 0.02) continue
           ctx.globalAlpha = a
-          ctx.fillStyle = i === hover ? palette.fg : labelColor
+          ctx.fillStyle = h > 0.5 ? palette.fg : labelColor
+          if (h > 0.01) ctx.font = font(12 + 2 * h)
           const r = nodeRadius(node.degree) * cam.scale * dpr
-          ctx.fillText(truncate(node.title, 28), sx, sy + r + 3 * dpr)
+          ctx.fillText(truncate(node.title, h > 0.5 ? 60 : 28), sx, sy + r + (3 + 2 * h) * dpr)
+          if (h > 0.01) ctx.font = font(12)
         }
         ctx.globalAlpha = 1
       }
@@ -650,9 +759,15 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
     ]
   }, [])
 
+  /** Events over the settings panel or a menu belong to them, not the graph. */
+  const onCanvas = (e: React.SyntheticEvent): boolean => e.target instanceof HTMLCanvasElement
+
   const onPointerDown = (e: React.PointerEvent): void => {
     setMenu(null)
+    if (!onCanvas(e)) return
     autoFitRef.current = false // the user is driving now
+    zoomAnimRef.current = null
+    fitAnimRef.current = 0
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
     const hit = pickNode(e.clientX, e.clientY)
     if (e.button === 2) return
@@ -681,23 +796,12 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
       cam.y = pan.camY - (e.clientY - pan.y) / cam.scale
       return
     }
-    const hit = pickNode(e.clientX, e.clientY)
+    // The hovered node's name is drawn on the canvas under it (see the render
+    // loop), so there's no tooltip to position — just the highlight to set.
+    const hit = onCanvas(e) ? pickNode(e.clientX, e.clientY) : -1
     if (hit !== hoverRef.current) {
       hoverRef.current = hit
-      if (hit >= 0 && graph) {
-        const node = graph.nodes[sub.nodes[hit]]
-        const rect = hostRef.current!.getBoundingClientRect()
-        setHoverLabel({
-          x: e.clientX - rect.left + 12,
-          y: e.clientY - rect.top + 14,
-          text: node.kind === 'note' ? node.id : node.title,
-        })
-      } else {
-        setHoverLabel(null)
-      }
-    } else if (hit >= 0) {
-      const rect = hostRef.current!.getBoundingClientRect()
-      setHoverLabel((h) => (h ? { ...h, x: e.clientX - rect.left + 12, y: e.clientY - rect.top + 14 } : h))
+      hostRef.current!.style.cursor = hit >= 0 ? 'pointer' : ''
     }
   }
 
@@ -728,28 +832,41 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
     setMenu({ x: e.clientX - rect.left, y: e.clientY - rect.top, id: graph.nodes[sub.nodes[hit]].id })
   }
 
-  const onWheel = (e: React.WheelEvent): void => {
+  /**
+   * Zoom toward a target scale, anchored at a point given relative to the view
+   * centre. The render loop glides there; repeated wheel ticks compound on the
+   * target rather than the current scale, so a fast flick still lands where
+   * the ticks add up to.
+   */
+  const zoomTo = (factor: number, ax: number, ay: number): void => {
     autoFitRef.current = false
-    const cam = cameraRef.current
-    const rect = hostRef.current!.getBoundingClientRect()
-    const [wx, wy] = toWorld(e.clientX, e.clientY)
-    const factor = Math.exp(-e.deltaY * 0.0016)
-    const next = Math.max(0.0008, Math.min(12, cam.scale * factor))
-    // Keep the world point under the cursor pinned while zooming.
-    cam.x = wx - (e.clientX - rect.left - rect.width / 2) / next
-    cam.y = wy - (e.clientY - rect.top - rect.height / 2) / next
-    cam.scale = next
+    fitAnimRef.current = 0
+    const from = zoomAnimRef.current?.target ?? cameraRef.current.scale
+    const target = Math.max(MIN_SCALE, Math.min(MAX_SCALE, from * factor))
+    zoomAnimRef.current = { target, ax, ay }
   }
 
-  const zoomBy = (factor: number): void => {
-    const cam = cameraRef.current
-    cam.scale = Math.max(0.0008, Math.min(12, cam.scale * factor))
+  const onWheel = (e: React.WheelEvent): void => {
+    if (!onCanvas(e)) return
+    const rect = hostRef.current!.getBoundingClientRect()
+    // Keep the world point under the cursor pinned while zooming.
+    zoomTo(
+      Math.exp(-e.deltaY * 0.0016),
+      e.clientX - rect.left - rect.width / 2,
+      e.clientY - rect.top - rect.height / 2,
+    )
   }
+
+  const zoomBy = (factor: number): void => zoomTo(factor, 0, 0)
 
   const resetView = (): void => {
-    const host = hostRef.current
-    if (!host) return
-    fitToContent(posRef.current, sub.nodes.length, host.clientWidth, host.clientHeight, cameraRef.current)
+    autoFitRef.current = false
+    zoomAnimRef.current = null
+    fitAnimRef.current = 40
+  }
+
+  const onDoubleClick = (e: React.MouseEvent): void => {
+    if (onCanvas(e) && pickNode(e.clientX, e.clientY) < 0) resetView()
   }
 
   // Keyboard: +/- zoom, arrows pan (shift = faster), like Obsidian.
@@ -800,10 +917,10 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
       onPointerUp={onPointerUp}
       onPointerLeave={() => {
         hoverRef.current = -1
-        setHoverLabel(null)
       }}
       onContextMenu={onContextMenu}
       onWheel={onWheel}
+      onDoubleClick={onDoubleClick}
     >
       <canvas className="graph-canvas" ref={glCanvasRef} />
       <canvas className="graph-canvas graph-overlay" ref={labelCanvasRef} />
@@ -832,73 +949,49 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
         </div>
       )}
 
-      {panelOpen ? (
-        <GraphControls
-          cfg={cfg}
-          local={local}
-          patch={patch}
-          legend={tagLegend}
-          onClose={() => setPanelOpen(false)}
-          onReset={() =>
-            patch(
+      {/* Obsidian's arrangement: the canvas gets the whole view, and the
+          settings live behind a cog in the top-right corner. Zooming is the
+          wheel, +/- or a double-click on empty space to fit. */}
+      {!compact &&
+        (panelOpen ? (
+          <GraphControls
+            cfg={cfg}
+            local={local}
+            patch={patch}
+            legend={tagLegend}
+            onClose={() => setPanelOpen(false)}
+            onFit={resetView}
+            onRelayout={() => {
+              autoFitRef.current = true
+              zoomAnimRef.current = null
+              alphaRef.current = 1
+              lastExtentRef.current = 0
+              steadyFramesRef.current = 0
+              workerRef.current?.postMessage({ type: 'reheat', alpha: 1 })
+            }}
+            onOpenLocal={
               local
-                ? { ...DEFAULT_LOCAL_GRAPH }
-                : ({ ...DEFAULT_GRAPH } as Partial<LocalGraphSettings>),
-            )
-          }
-        />
-      ) : (
-        !compact && (
+                ? undefined
+                : () =>
+                    openView('localgraph', { path: useStore.getState().activeTab()?.path ?? null })
+            }
+            onReset={() =>
+              patch(
+                local
+                  ? { ...DEFAULT_LOCAL_GRAPH }
+                  : ({ ...DEFAULT_GRAPH } as Partial<LocalGraphSettings>),
+              )
+            }
+          />
+        ) : (
           <button
-            className="graph-toolbar icon-btn"
-            style={{ left: 10, right: 'auto' }}
+            className="graph-controls-toggle icon-btn"
             onClick={() => setPanelOpen(true)}
-            title="Show settings"
+            title="Open graph settings"
           >
             <Icon name="settings" />
           </button>
-        )
-      )}
-
-      <div className="graph-toolbar">
-        <button className="icon-btn" onClick={() => zoomBy(1.25)} title="Zoom in">
-          <Icon name="zoomIn" />
-        </button>
-        <button className="icon-btn" onClick={() => zoomBy(0.8)} title="Zoom out">
-          <Icon name="zoomOut" />
-        </button>
-        <button className="icon-btn" onClick={resetView} title="Restore default view">
-          <Icon name="target" />
-        </button>
-        <button
-          className="icon-btn"
-          onClick={() => {
-            autoFitRef.current = true
-            alphaRef.current = 1
-            lastExtentRef.current = 0
-            steadyFramesRef.current = 0
-            workerRef.current?.postMessage({ type: 'reheat', alpha: 1 })
-          }}
-          title="Re-run layout"
-        >
-          <Icon name="history" />
-        </button>
-        {!local && (
-          <button
-            className="icon-btn"
-            onClick={() => openView('localgraph', { path: useStore.getState().activeTab()?.path ?? null })}
-            title="Open local graph"
-          >
-            <Icon name="target" />
-          </button>
-        )}
-      </div>
-
-      {hoverLabel && (
-        <div className="graph-tooltip" style={{ left: hoverLabel.x, top: hoverLabel.y }}>
-          {hoverLabel.text}
-        </div>
-      )}
+        ))}
 
       {menu && (
         <div
@@ -969,6 +1062,9 @@ function GraphControls({
   patch,
   legend,
   onClose,
+  onFit,
+  onRelayout,
+  onOpenLocal,
   onReset,
 }: {
   cfg: GraphSettings | LocalGraphSettings
@@ -976,6 +1072,9 @@ function GraphControls({
   patch: (p: Partial<LocalGraphSettings>) => void
   legend: Array<{ tag: string; count: number; color: string }>
   onClose: () => void
+  onFit: () => void
+  onRelayout: () => void
+  onOpenLocal?: () => void
   onReset: () => void
 }): JSX.Element {
   const [open, setOpen] = useState<Record<string, boolean>>({
@@ -998,11 +1097,20 @@ function GraphControls({
 
   return (
     <div className="graph-controls">
-      <div className="graph-section-head" style={{ justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 11, letterSpacing: '.05em', textTransform: 'uppercase' }}>
-          {local ? 'Local graph' : 'Graph'}
-        </span>
-        <button className="icon-btn" style={{ width: 20, height: 20 }} onClick={onClose} title="Hide">
+      <div className="graph-controls-head">
+        <button className="icon-btn" onClick={onFit} title="Zoom to fit (double-click the graph)">
+          <Icon name="maximize" size={13} />
+        </button>
+        <button className="icon-btn" onClick={onRelayout} title="Re-run layout">
+          <Icon name="history" size={13} />
+        </button>
+        {onOpenLocal && (
+          <button className="icon-btn" onClick={onOpenLocal} title="Open local graph">
+            <Icon name="target" size={13} />
+          </button>
+        )}
+        <span className="graph-controls-spacer" />
+        <button className="icon-btn" onClick={onClose} title="Close">
           <Icon name="close" size={13} />
         </button>
       </div>
@@ -1267,6 +1375,10 @@ function Slider({
 }
 
 // ------------------------------------------------------------------ utils
+
+function mix(a: number, b: number, t: number): number {
+  return a + (b - a) * t
+}
 
 function truncate(s: string, n: number): string {
   return s.length > n ? `${s.slice(0, n - 1)}…` : s
