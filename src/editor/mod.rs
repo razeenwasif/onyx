@@ -26,7 +26,7 @@ pub struct Document {
     /// Last search query (used for n/N).
     pub last_search: Option<String>,
     /// On-disk modification time when this document was last read or written by
-    /// Onyx. Used to detect external edits (conflict guard / live reload).
+    /// Electron. Used to detect external edits (conflict guard / live reload).
     pub disk_mtime: Option<SystemTime>,
     /// When set, this buffer is a Google Drive file (its id + display name);
     /// saving uploads back to Drive instead of writing to the vault.

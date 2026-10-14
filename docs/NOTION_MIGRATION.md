@@ -1,4 +1,4 @@
-# Notion → Onyx migration spec
+# Notion → Electron migration spec
 
 > **STATUS: ✅ MIGRATION COMPLETE + REORGANIZED (2026-06-13).** All 394 files
 > were migrated to a temporary `~/OnyxVault/Notion/<Domain>/` staging subtree,
@@ -35,7 +35,7 @@
 >   done; Statistical Machine Learning DB confirmed zero rows. Signed S3 image
 >   links dropped (they expire) in this run's files. Do not re-run.
 
-Conventions for migrating the user's Notion workspace into the Onyx vault.
+Conventions for migrating the user's Notion workspace into the Electron vault.
 Written 2026-06-11; used by the migration agents. Keep this in sync if rules change.
 
 ## Destination & safety
@@ -51,7 +51,7 @@ Written 2026-06-11; used by the migration agents. Keep this in sync if rules cha
 
 ## Structure mapping
 
-| Notion | Onyx |
+| Notion | Electron |
 |---|---|
 | Page (leaf) | `<Title>.md` |
 | Page with sub-pages | folder `<Title>/` + the page's own content as `<Title>/<Title>.md` |

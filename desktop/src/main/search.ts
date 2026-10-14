@@ -1,5 +1,5 @@
 /**
- * Full-vault content search with Obsidian/Onyx operators.
+ * Full-vault content search with Obsidian/Electron operators.
  *
  * Supported: bare terms (all must match), `"quoted phrase"`, `tag:foo`,
  * `path:sub/dir`, `file:name`, `line:N`, `-term` to exclude. Terms are

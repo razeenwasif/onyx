@@ -1,4 +1,4 @@
-//! Onyx error types.
+//! Electron error types.
 
 use std::path::PathBuf;
 use thiserror::Error;

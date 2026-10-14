@@ -24,7 +24,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
     let mut lines: Vec<Line<'static>> = vec![
         Line::raw(""),
         Line::styled(
-            "   ◆ Onyx",
+            "   ◆ Electron",
             theme.s_accent().add_modifier(Modifier::BOLD),
         ),
         Line::styled("   a premium markdown vault", theme.s_subtle()),

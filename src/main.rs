@@ -1,4 +1,4 @@
-//! Onyx — a premium markdown notes TUI.
+//! Electron — a premium markdown notes TUI.
 
 mod app;
 mod config;
@@ -45,7 +45,7 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
     if cli.version {
-        println!("onyx {}", env!("CARGO_PKG_VERSION"));
+        println!("electron {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
 
@@ -65,7 +65,7 @@ fn main() -> anyhow::Result<()> {
             .with_context(|| format!("creating vault at {}", vault_path.display()))?
     };
 
-    // Onyx opens on the Home start page (App::new sets Focus::Home with no doc),
+    // Electron opens on the Home start page (App::new sets Focus::Home with no doc),
     // so the user lands on a menu of actions + recent notes rather than whatever
     // note happened to be open last.
     let mut app = App::new(vault, config);
@@ -103,10 +103,10 @@ fn parse_args(args: &[String]) -> Cli {
 
 fn print_help() {
     println!(
-        "Onyx — a premium markdown notes TUI\n\
+        "Electron — a premium markdown notes TUI\n\
 \n\
 USAGE:\n\
-    onyx [VAULT]\n\
+    electron [VAULT]\n\
 \n\
 ARGS:\n\
     VAULT    Path to a vault folder. Will be created if missing.\n\
@@ -180,7 +180,7 @@ fn event_loop(
     // edits are picked up promptly (crossterm's poll only watches stdin, not the
     // watcher channel). Still ~no CPU: a per-second empty channel drain.
     let watch_poll = Duration::from_millis(1000);
-    // Truly idle (no watcher): block on input so Onyx uses ~no CPU.
+    // Truly idle (no watcher): block on input so Electron uses ~no CPU.
     let idle_poll = Duration::from_secs(3600);
 
     let mut status_was_visible = false;

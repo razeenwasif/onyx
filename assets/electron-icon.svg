@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Electron</title>
+  <!-- Dark tile -->
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="#1f1f23"/>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="none" stroke="#2e2e38" stroke-width="4"/>
+
+  <!-- Open shells: three 270° orbit trails, each capped by its electrons -->
+  <!-- Trail colour is #a78bfa at 50% over the tile, and arcs written as Béziers, so ImageMagick's renderer agrees with browsers -->
+  <path d="M256 184 C295.8 184 328 216.2 328 256 C328 295.8 295.8 328 256 328 C216.2 328 184 295.8 184 256" fill="none" stroke="#63558f" stroke-width="14" stroke-linecap="round"/>
+  <path d="M382 256 C382 325.6 325.6 382 256 382 C186.4 382 130 325.6 130 256 C130 186.4 186.4 130 256 130" fill="none" stroke="#63558f" stroke-width="14" stroke-linecap="round"/>
+  <path d="M256 436 C156.6 436 76 355.4 76 256 C76 156.6 156.6 76 256 76 C355.4 76 436 156.6 436 256" fill="none" stroke="#63558f" stroke-width="14" stroke-linecap="round"/>
+
+  <!-- Nucleus -->
+  <circle cx="256" cy="256" r="30" fill="#a78bfa"/>
+
+  <!-- Electrons, in the tag-color palette -->
+  <circle cx="256" cy="184" r="18" fill="#7aa2f7"/>
+  <circle cx="382" cy="256" r="18" fill="#34d399"/>
+  <circle cx="256" cy="130" r="18" fill="#f59e0b"/>
+  <circle cx="256" cy="436" r="18" fill="#e0c889"/>
+  <circle cx="436" cy="256" r="18" fill="#f7768e"/>
+</svg>

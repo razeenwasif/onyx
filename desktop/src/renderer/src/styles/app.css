@@ -1,4 +1,4 @@
-/* Onyx Desktop — Obsidian-shaped chrome.
+/* Electron Desktop — Obsidian-shaped chrome.
    Colors all come from CSS variables set by themes.ts; nothing here hardcodes
    a palette, so a theme switch is one style write on :root. */
 
@@ -911,7 +911,7 @@ textarea {
   margin-bottom: 0;
 }
 
-/* Columns block (Onyx `::: columns`) --------------------------------------- */
+/* Columns block (Electron `::: columns`) --------------------------------------- */
 
 .columns-block {
   display: grid;

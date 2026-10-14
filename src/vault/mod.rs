@@ -44,7 +44,7 @@ impl Vault {
         if !welcome.exists() {
             fs::write(
                 &welcome,
-                "# Welcome to your Onyx vault\n\n\
+                "# Welcome to your Electron vault\n\n\
                 This is a fresh markdown vault. A few things to try:\n\n\
                 - Press `Ctrl-N` to make a new note.\n\
                 - Type a [[Wikilink]] to connect notes.\n\

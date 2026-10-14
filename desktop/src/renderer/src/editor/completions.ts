@@ -109,7 +109,7 @@ const SLASH_ITEMS: SlashItem[] = [
   { label: 'Frontmatter', detail: 'meta', insert: '---\ntags: []\n---\n|' },
 ]
 
-/** `/` at the start of a line — Onyx's slash menu. */
+/** `/` at the start of a line — Electron's slash menu. */
 export function slashCompletion(context: CompletionContext): CompletionResult | null {
   const before = context.matchBefore(/^\s*\/[\w ]*/)
   if (!before) return null

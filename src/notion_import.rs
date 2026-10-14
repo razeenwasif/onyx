@@ -5,12 +5,12 @@
 //! folder of per-row `.md` pages, internal links are percent-encoded references
 //! to those hash-suffixed filenames, and attachments live in per-page folders.
 //!
-//! This module cleans all of that into a tidy Obsidian/Onyx vault:
+//! This module cleans all of that into a tidy Obsidian/Electron vault:
 //! - strips the hash suffixes from every path component,
 //! - rewrites internal `.md` links to `[[wikilinks]]` (attachment links keep a
 //!   cleaned relative path),
 //! - turns each CSV database into a folder with a `_schema.md` and injects the
-//!   row's columns as YAML frontmatter on the matching row note (so Onyx's
+//!   row's columns as YAML frontmatter on the matching row note (so Electron's
 //!   database views + properties block light up),
 //! - copies attachments through with cleaned paths.
 //!

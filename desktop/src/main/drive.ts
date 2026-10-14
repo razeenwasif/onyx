@@ -3,11 +3,11 @@
  * upload a note. Port of `src/integrations/gdrive.rs`.
  *
  * Shares the OAuth client and token with `google.ts` (and therefore with the
- * TUI): the Drive scope is already part of the single consent Onyx asks for.
+ * TUI): the Drive scope is already part of the single consent Electron asks for.
  *
  * Google-native docs (Docs/Sheets/Slides) are listed but can't be opened — they
  * need an export conversion rather than a download, and round-tripping an edit
- * back into one isn't something Onyx should pretend to do.
+ * back into one isn't something Electron should pretend to do.
  */
 
 import { promises as fs } from 'node:fs'
@@ -27,7 +27,7 @@ export interface DriveFile {
   name: string
   mimeType: string
   isFolder: boolean
-  /** Onyx can open this as editable text. */
+  /** Electron can open this as editable text. */
   isText: boolean
   /** A Google-native doc: needs export, not download. */
   isGoogleDoc: boolean

@@ -1,6 +1,6 @@
-# Onyx Desktop
+# Electron Desktop
 
-An Obsidian-style desktop app for the same vault the Onyx TUI edits. Same folder,
+An Obsidian-style desktop app for the same vault the Electron TUI edits. Same folder,
 same plain `.md` files, same `.onyx/` sidecar — you can leave both running at once
 and each picks up the other's changes.
 
@@ -21,29 +21,41 @@ npm run build        # build only, into desktop/out
 Packaging is electron-builder; artifacts land in `desktop/release`.
 
 ```bash
-npm run pack:linux       # AppImage + deb
-npm run pack:win         # NSIS installer + portable zip  (needs Wine on Linux)
-npm run pack:win:docker  # …or build it from Linux with no Wine installed
-npm run pack:mac         # dmg
+npm run pack:linux          # AppImage + deb
+npm run pack:win            # NSIS installer + portable zip  (needs Wine on Linux)
+npm run pack:win:docker     # …or build it from Linux with no Wine installed
+npm run pack:mac            # dmg + zip for current Mac architecture
+npm run pack:mac:arm64      # Apple Silicon (M1/M2/M3/M4)
+npm run pack:mac:x64        # Intel Mac
+npm run pack:mac:universal  # Universal macOS binary
 ```
+
+On macOS, you can package a drag-and-drop `.dmg` and `.zip` with `npm run pack:mac`, or install directly to `/Applications` with one command:
+
+```bash
+npm run install:mac         # or: ./scripts/install-mac.sh
+```
+
+This installs `Electron.app` into `/Applications` (falling back to `~/Applications` if permissions require), clears quarantine attributes so macOS Gatekeeper allows running local builds, and creates a command-line launcher symlink (`electron-desktop`) in `~/.local/bin` or `/usr/local/bin`. To uninstall, run `./scripts/install-mac.sh --uninstall`.
+
 
 `pack:win` from Linux needs Wine, because electron-builder patches the .exe's icon
 and version info with rcedit. `pack:win:docker` avoids installing it by running the
 same build inside electron-builder's own image (which ships Wine), as your own user
 so nothing in the tree ends up owned by root. Artifacts land in `release/` either way:
-`Onyx-<version>-x64.exe` (NSIS, per-user, installable to a chosen directory) and
-`Onyx-<version>-x64.zip` (portable).
+`Electron-<version>-x64.exe` (NSIS, per-user, installable to a chosen directory) and
+`Electron-<version>-x64.zip` (portable).
 
-On Linux, the `.deb` installs to `/opt/Onyx`, registers `onyx-desktop.desktop`
-and drops the icon into `hicolor` at every size, so Onyx shows up in the
+On Linux, the `.deb` installs to `/opt/Electron`, registers `electron-desktop.desktop`
+and drops the icon into `hicolor` at every size, so Electron shows up in the
 application menu like any other app:
 
 ```bash
-sudo dpkg -i release/onyx-desktop_0.1.0_amd64.deb
+sudo dpkg -i release/electron-desktop_0.1.0_amd64.deb
 ```
 
 No root? `scripts/install-linux.sh` does the same thing under `~/.local` — copies
-the unpacked build to `~/.local/lib/Onyx`, symlinks `~/.local/bin/onyx-desktop`,
+the unpacked build to `~/.local/lib/Electron`, symlinks `~/.local/bin/electron-desktop`,
 and writes a desktop entry with the icon set. `--uninstall` reverses it. This is
 also the way to go on **WSL**, where the AppImage can't self-mount (no FUSE):
 
@@ -55,16 +67,13 @@ npm run pack:linux
 The AppImage is self-contained where FUSE exists — `chmod +x` it and run.
 Elsewhere use `--appimage-extract-and-run`.
 
-The icon lives in `assets/onyx-icon.svg`; `build/icon.png` and `build/icons/*` are
+The icon lives in `assets/electron-icon.svg`; `build/icon.png`, `build/icon.icns`, and `build/icons/*` are
 generated from it:
 
 ```bash
-mkdir -p build/icons
-convert -background none -density 384 ../assets/onyx-icon.svg -resize 512x512 build/icon.png
-for s in 16 24 32 48 64 128 256 512; do
-  convert -background none -density 384 ../assets/onyx-icon.svg -resize ${s}x${s} build/icons/${s}x${s}.png
-done
+npm run generate-icons      # or: ./scripts/generate-icons.sh
 ```
+
 
 On first launch it opens the vault from `~/.config/onyx/desktop.json`, falling back
 to `last_vault` in the TUI's `config.toml`, then to `~/OnyxVault`. Use the vault icon
@@ -133,7 +142,7 @@ connect by dragging a side handle.
 operators and `-exclusions`, fuzzy quick switcher (`Ctrl+O`), command palette
 (`Ctrl+P`), backlinks with unlinked mentions, outline, properties, and a tag index.
 
-**Onyx extras** — the Quicknote scratchpad and Todo checklist (same `.onyx/*.md`
+**Electron extras** — the Quicknote scratchpad and Todo checklist (same `.onyx/*.md`
 files as the TUI, including the `<!--done:YYYY-MM-DD-->` markers and the one-week
 sweep), a daily-notes calendar, and database views that render any folder as a
 Notion-style table or kanban board keyed by frontmatter.
@@ -160,7 +169,7 @@ back to Drive rather than writing to the vault. PDFs and images are downloaded t
 temp file and handed to the system viewer. You can also upload the note you're
 reading, copy a Drive file into the vault as a note, create folders, and move files
 to the Drive trash. Google-native Docs/Sheets/Slides are listed but greyed out —
-they need an export conversion, and Onyx shouldn't pretend it can round-trip an edit
+they need an export conversion, and Electron shouldn't pretend it can round-trip an edit
 back into one.
 
 **AI** — the local-LLM assistant over Ollama: streaming chat with the open note as
@@ -264,7 +273,7 @@ That's deliberately where the coverage is: every bug that has actually shipped i
 this app came from that layer, and each one now has a regression test named after
 it — the settings merge that dropped writes to a `null` default, the `\Z` that
 truncated a client secret at the first capital Z, the BOM that shifted every
-frontmatter offset by one, and a rename that rewrote `[[Onyx Desktop]]` as
+frontmatter offset by one, and a rename that rewrote `[[Electron Desktop]]` as
 `[[onyx desktop]]`.
 
 ## Vaults on slow or remote filesystems
@@ -322,7 +331,7 @@ apps agree on what counts as a link, a tag, or a property.
 ## Known gaps
 
 - No plugin API, no sync, no publish, no mobile — those are Obsidian features with no
-  Onyx equivalent yet.
+  Electron equivalent yet.
 - Google-native Docs/Sheets/Slides can be browsed but not opened (they need an
   export conversion rather than a download).
 - Canvas supports the JSON Canvas spec's node and edge kinds, but not portal/embedded

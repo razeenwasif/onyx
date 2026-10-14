@@ -1,4 +1,4 @@
-//! Run external terminal programs (fzf, yazi) with the Onyx TUI suspended.
+//! Run external terminal programs (fzf, yazi) with the Electron TUI suspended.
 //!
 //! The event loop owns the terminal, so this is the only place that tears the
 //! alternate screen down and brings it back. `dispatch` merely sets
@@ -112,7 +112,7 @@ fn is_note(path: &Path) -> bool {
     )
 }
 
-/// Plain-text formats Onyx can show in the editor (read-only-ish; the buffer
+/// Plain-text formats Electron can show in the editor (read-only-ish; the buffer
 /// is markdown-oriented but holds any UTF-8 lines fine).
 fn is_text(path: &Path) -> bool {
     matches!(
@@ -145,7 +145,7 @@ fn is_wsl() -> bool {
 }
 
 /// Launch a file in the system's default app, fully detached so its output can
-/// never touch the Onyx alternate screen. Returns the opener used.
+/// never touch the Electron alternate screen. Returns the opener used.
 /// Detached (no wait, no terminal handoff), so callers can invoke it inline
 /// without the suspend/resume dance — e.g. opening a downloaded Drive PDF.
 pub fn open_external(path: &Path) -> io::Result<&'static str> {
@@ -163,7 +163,7 @@ pub fn open_external(path: &Path) -> io::Result<&'static str> {
             // A non-empty title is required, else `start` treats the quoted path
             // as the window title and opens nothing. Run from a Windows-reachable
             // cwd to avoid the "UNC paths are not supported" warning.
-            if spawn_detached("cmd.exe", &["/C", "start", "onyx", win.as_str()], Some("/mnt/c")) {
+            if spawn_detached("cmd.exe", &["/C", "start", "electron", win.as_str()], Some("/mnt/c")) {
                 return Ok("cmd start");
             }
             // explorer.exe opens a *file* (vs a folder) with its default app too.
@@ -232,10 +232,10 @@ fn run_fzf(app: &App) -> io::Result<Option<PathBuf>> {
         "cat {} 2>/dev/null | head -400"
     };
     // No --height: fzf takes its own fullscreen alternate screen, so it renders
-    // cleanly instead of inline over the suspended Onyx terminal.
+    // cleanly instead of inline over the suspended Electron terminal.
     let script = format!(
         "cd {root} && ({lister}) | fzf \
-         --prompt='onyx ❯ ' --border=rounded \
+         --prompt='electron ❯ ' --border=rounded \
          --preview {preview:?} --preview-window=right,60%",
         root = shell_quote(&root.to_string_lossy()),
     );
@@ -300,7 +300,7 @@ fn run_yazi(app: &App) -> io::Result<Option<PathBuf>> {
 /// Run a shell pipeline whose stdout is the selection, redirecting that stdout
 /// to a temp file so we can inherit the real terminal for the child.
 ///
-/// This mirrors the yazi approach: `Command::status()` inherits Onyx's stdin/
+/// This mirrors the yazi approach: `Command::status()` inherits Electron's stdin/
 /// stdout/stderr (the actual terminal), which fzf needs to render and read keys.
 /// `Command::output()` would pipe stdout and null stdin, leaving fzf without a
 /// usable terminal — it then fails to draw (you just see the bare shell). The

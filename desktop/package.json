@@ -1,7 +1,7 @@
 {
-  "name": "onyx-desktop",
+  "name": "electron-desktop",
   "version": "0.1.0",
-  "description": "Onyx Desktop \u2014 an Obsidian-style markdown vault app for the Onyx vault format.",
+  "description": "Electron Desktop \u2014 an Obsidian-style markdown vault app for the Electron vault format.",
   "main": "./out/main/index.js",
   "author": {
     "name": "Razeen Wasif",
@@ -24,6 +24,11 @@
     "pack:win": "electron-vite build && electron-builder --win",
     "pack:win:docker": "bash scripts/pack-win-docker.sh",
     "pack:mac": "electron-vite build && electron-builder --mac",
+    "pack:mac:arm64": "electron-vite build && electron-builder --mac --arm64",
+    "pack:mac:x64": "electron-vite build && electron-builder --mac --x64",
+    "pack:mac:universal": "electron-vite build && electron-builder --mac --universal",
+    "install:mac": "bash scripts/install-mac.sh",
+    "generate-icons": "bash scripts/generate-icons.sh",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -64,7 +69,7 @@
   },
   "build": {
     "appId": "md.onyx.desktop",
-    "productName": "Onyx",
+    "productName": "Electron",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -88,13 +93,13 @@
       "synopsis": "Obsidian-style markdown vault",
       "description": "A markdown vault app with live preview, a WebGL graph view, canvas boards and a local AI assistant.",
       "desktop": {
-        "Name": "Onyx",
+        "Name": "Electron",
         "GenericName": "Markdown vault",
         "Comment": "Obsidian-style markdown vault",
         "Categories": "Office;TextEditor;",
         "Keywords": "notes;markdown;vault;graph;obsidian;",
         "MimeType": "text/markdown;",
-        "StartupWMClass": "Onyx"
+        "StartupWMClass": "Electron"
       }
     },
     "win": {
@@ -121,16 +126,41 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Onyx",
+      "shortcutName": "Electron",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico"
     },
     "mac": {
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ],
-      "icon": "build/icon.png",
-      "category": "public.app-category.productivity"
+      "icon": "build/icon.icns",
+      "category": "public.app-category.productivity",
+      "minimumSystemVersion": "10.15.0",
+      "darkModeSupport": true,
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist"
+    },
+    "dmg": {
+      "title": "${productName} ${version}",
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 380
+      }
     }
   }
 }

@@ -1,6 +1,6 @@
 # Local AI assistant (Ollama) — setup
 
-Onyx can talk to a **local LLM** served by [Ollama](https://ollama.com) — no
+Electron can talk to a **local LLM** served by [Ollama](https://ollama.com) — no
 cloud, no API keys, your notes never leave the machine. It lives behind the
 **`ai`** cargo feature so the default build pulls no HTTP stack.
 
@@ -26,7 +26,7 @@ ollama pull gemma3:4b        # or any model; the examples used gemma4:e4b-it-qat
 ollama list                  # see what you have
 ```
 
-## 3. Point Onyx at your model
+## 3. Point Electron at your model
 
 Defaults live in `~/.config/onyx/config.toml` (created on first run):
 
@@ -93,14 +93,14 @@ instruction it does a clarity/grammar cleanup.
 
 ### Inline autocomplete (ghost text)
 
-While typing in **insert mode**, after a short pause Onyx asks the model for a
+While typing in **insert mode**, after a short pause Electron asks the model for a
 continuation and shows it **dimmed after the cursor**. Press **`Tab`** to accept
 it; just keep typing to ignore it.
 
 - Uses a **fast model** (`[ai] completion_model`, default `gemma4:e2b-it-qat`).
 - Toggle it: **`:ai complete on`** / **`:ai complete off`** (or `[ai] autocomplete`).
 - Only triggers at the end of a non-empty line, and never while another popup
-  (`[[`, `/`, `#`) is open. The first suggestion after Onyx starts may lag while
+  (`[[`, `/`, `#`) is open. The first suggestion after Electron starts may lag while
   the model loads; after that it's quick.
 
 ```toml
@@ -112,7 +112,7 @@ autocomplete = true
 These Gemma builds emit a short **reasoning trace** before the answer; it's shown
 dimmed/italic above the reply.
 
-The assistant also knows **Onyx's own keybindings** (the full glossary is fed to
+The assistant also knows **Electron's own keybindings** (the full glossary is fed to
 it as context), so you can ask things like "what's the shortcut to open the
 graph?" or "how do I rewrite a paragraph?" and get the exact keys/commands.
 

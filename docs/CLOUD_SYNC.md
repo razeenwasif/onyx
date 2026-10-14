@@ -1,6 +1,6 @@
 # Cloud sync (Google) — setup
 
-Onyx's cloud integrations live behind the **`cloud`** cargo feature so the
+Electron's cloud integrations live behind the **`cloud`** cargo feature so the
 default build pulls no network/TLS stack. Currently shipped (all two-way):
 **Google Tasks**, **Google Calendar**, and **Google Drive** (browse + edit text
 files in place). OneDrive is planned and will reuse the same OAuth foundation.
@@ -18,7 +18,7 @@ cargo install --path . --force --features cloud
 
 ## 2. Create Google OAuth credentials (one-time)
 
-Onyx talks to Google with *your* OAuth client — Onyx ships none.
+Electron talks to Google with *your* OAuth client — Electron ships none.
 
 1. Go to <https://console.cloud.google.com/> and create (or pick) a project.
 2. **APIs & Services → Enabled APIs → Enable APIs** → enable the APIs you'll use:
@@ -40,7 +40,7 @@ client_secret = "xxxxxxxxxxxxxxxxxxxx"
 
 ## 4. Authorize and use
 
-- `:google auth` — Onyx opens your browser to Google's consent screen, catches
+- `:google auth` — Electron opens your browser to Google's consent screen, catches
   the redirect on a localhost loopback port, and saves the token to
   `~/.config/onyx/google.json` (mode 600). The refresh token is reused, so you
   only do this once.
@@ -73,7 +73,7 @@ sync_tasks = true
 ## Google Calendar
 
 > **Enable it first:** in your Google Cloud project, **enable the Google
-> Calendar API**, then **re-run `:google auth`** — Onyx now requests the Calendar
+> Calendar API**, then **re-run `:google auth`** — Electron now requests the Calendar
 > scope too, so the old (Tasks-only) token must be refreshed with the broader
 > consent.
 
@@ -94,9 +94,9 @@ sync_calendar = true
 ## Google Drive
 
 > **Enable it first:** in your Google Cloud project, **enable the Google Drive
-> API**, then **re-run `:google auth`** — Onyx now requests the Drive scope too,
+> API**, then **re-run `:google auth`** — Electron now requests the Drive scope too,
 > so an older (Tasks/Calendar-only) token must be refreshed with the broader
-> consent. The Drive scope is `drive` (full file access) so Onyx can open *and*
+> consent. The Drive scope is `drive` (full file access) so Electron can open *and*
 > upload your text notes.
 
 - **`:drive`** opens the Drive browser, starting at **My Drive**.
@@ -104,7 +104,7 @@ sync_calendar = true
   text file in the editor, **`Backspace`** (or `-`) goes up a folder, `Esc`
   closes. The title bar shows the current folder path.
 - Folders sort first; a `▸` marks folders, `󰈙` marks editable text files, `◑`
-  marks Google-native docs (not editable in Onyx yet).
+  marks Google-native docs (not editable in Electron yet).
 - **Editable files** are plain-text types — `.md`, `.txt`, source files, JSON/
   YAML/XML, and anything with a `text/*` MIME type. Opening one downloads it into
   a normal editor buffer titled `⇪ <name>`.
@@ -120,8 +120,8 @@ sync_calendar = true
 - **PDFs, images, and other binaries.** Pressing `Enter` on a non-text file
   downloads it to a temp file (`$TMPDIR/onyx-drive/<name>`) and hands it to your
   system's default app, so a PDF opens in your real PDF reader for full-screen
-  reading. Onyx stays on screen (the viewer launches detached). The temp copy is
-  read-only as far as Onyx is concerned — edits there are *not* synced back.
+  reading. Electron stays on screen (the viewer launches detached). The temp copy is
+  read-only as far as Electron is concerned — edits there are *not* synced back.
   - **Under WSL:** the Linux temp path is translated with `wslpath -w` and opened
     via `wslview` (if installed) or `cmd /c start` / `explorer.exe`. Handing a
     raw `/tmp/...` path to a Windows opener just pops a blank Explorer window, so

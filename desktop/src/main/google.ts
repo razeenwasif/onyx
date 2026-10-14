@@ -189,7 +189,7 @@ export async function runConsentFlow(creds: GoogleCredentials): Promise<OAuthTok
         const error = url.searchParams.get('error')
         const body = error
           ? `<html><body style="font-family:sans-serif">Authorization failed: ${error}. You can close this tab.</body></html>`
-          : '<html><body style="font-family:sans-serif">Onyx is authorized — you can close this tab.</body></html>'
+          : '<html><body style="font-family:sans-serif">Electron is authorized — you can close this tab.</body></html>'
         res.writeHead(200, { 'Content-Type': 'text/html' })
         res.end(body)
         server.close()

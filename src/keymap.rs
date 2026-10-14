@@ -32,7 +32,7 @@ pub const GLOSSARY: &[KeyHelp] = &[
     KeyHelp { keys: "Ctrl-W",      action: "Close current tab",        group: "Global" },
     KeyHelp { keys: "Ctrl-PgUp/PgDn", action: "Prev / next tab",       group: "Global" },
     KeyHelp { keys: ":tabn :tabp :bd", action: "Next / prev / close tab", group: "Global" },
-    KeyHelp { keys: "Ctrl-Q",      action: "Quit Onyx",                group: "Global" },
+    KeyHelp { keys: "Ctrl-Q",      action: "Quit Electron",                group: "Global" },
     KeyHelp { keys: "Ctrl-,",      action: "Settings",                 group: "Global" },
     KeyHelp { keys: "Ctrl-/",      action: "Help overlay",             group: "Global" },
     KeyHelp { keys: "F1",          action: "Help overlay",             group: "Global" },

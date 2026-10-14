@@ -14,11 +14,11 @@ use super::IntResult;
 const AUTH_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 
-/// OAuth scopes Onyx requests (full Tasks + Calendar + Drive for two-way).
+/// OAuth scopes Electron requests (full Tasks + Calendar + Drive for two-way).
 pub const SCOPE_TASKS: &str = "https://www.googleapis.com/auth/tasks";
 pub const SCOPE_CALENDAR: &str = "https://www.googleapis.com/auth/calendar";
 pub const SCOPE_DRIVE: &str = "https://www.googleapis.com/auth/drive";
-/// All scopes Onyx asks for in one consent (space-separated, per OAuth spec).
+/// All scopes Electron asks for in one consent (space-separated, per OAuth spec).
 pub const SCOPES: &str = "https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive";
 
 /// A cached OAuth token (persisted to `google.json`).
@@ -188,7 +188,7 @@ pub fn run_consent_flow(client_id: &str, client_secret: &str, scope: &str) -> In
     let state = format!("onyx{}", now_unix());
     let url = consent_url(client_id, &redirect_uri, scope, &state);
 
-    println!("\nOpening your browser to authorize Onyx with Google…");
+    println!("\nOpening your browser to authorize Electron with Google…");
     println!("If it doesn't open, visit:\n  {url}\n");
     let _ = super::open_url(&url);
 
@@ -202,7 +202,7 @@ pub fn run_consent_flow(client_id: &str, client_secret: &str, scope: &str) -> In
     let first_line = request.lines().next().unwrap_or("");
     let (code, got_state) =
         parse_redirect_query(first_line).ok_or("no authorization code in redirect")?;
-    let body = "<html><body style='font-family:sans-serif'>Onyx is authorized — you can close this tab.</body></html>";
+    let body = "<html><body style='font-family:sans-serif'>Electron is authorized — you can close this tab.</body></html>";
     let _ = write!(
         stream,
         "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n{}",

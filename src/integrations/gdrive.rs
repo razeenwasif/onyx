@@ -24,7 +24,7 @@ impl DriveFile {
     pub fn is_folder(&self) -> bool {
         self.mime_type == FOLDER_MIME
     }
-    /// Whether Onyx can open this file as editable text.
+    /// Whether Electron can open this file as editable text.
     pub fn is_text(&self) -> bool {
         self.mime_type.starts_with("text/")
             || matches!(

@@ -312,8 +312,8 @@ export class Vault extends EventEmitter {
    *
    * A *path-qualified* target (`Projects/Roadmap`) resolves by exact relative
    * path. A *bare* name resolves to the nearest match: the linking note's own
-   * folder first, then the shallowest path, then an alias — so `[[Onyx]]` from
-   * `Projects/Roadmap.md` finds `Projects/Onyx.md` rather than the one at the
+   * folder first, then the shallowest path, then an alias — so `[[Electron]]` from
+   * `Projects/Roadmap.md` finds `Projects/Electron.md` rather than the one at the
    * vault root. Checking the exact relpath first would always hand back the
    * root note, which is not how Obsidian behaves.
    */
@@ -651,7 +651,7 @@ export class Vault extends EventEmitter {
     }
 
     // `relKey` lowercases for comparison, so the *replacement* text has to come
-    // from the path as written — otherwise renaming to `Onyx Desktop.md`
+    // from the path as written — otherwise renaming to `Electron Desktop.md`
     // rewrites every link as `[[onyx desktop]]`.
     const stripExt = (rel: string): string => {
       const e = extOf(rel)

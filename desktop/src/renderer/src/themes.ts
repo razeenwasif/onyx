@@ -43,7 +43,7 @@ export interface Palette {
 export const THEMES: Palette[] = [
   {
     id: 'onyx-dark',
-    name: 'Onyx Dark',
+    name: 'Electron Dark',
     dark: true,
     bg: '#1e1e24',
     bgAlt: '#262631',
@@ -68,7 +68,7 @@ export const THEMES: Palette[] = [
   },
   {
     id: 'onyx-light',
-    name: 'Onyx Light',
+    name: 'Electron Light',
     dark: false,
     bg: '#faf8f5',
     bgAlt: '#eee9df',

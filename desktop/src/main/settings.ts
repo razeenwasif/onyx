@@ -1,5 +1,5 @@
 /**
- * Desktop settings, stored next to the TUI's config so both halves of Onyx
+ * Desktop settings, stored next to the TUI's config so both halves of Electron
  * share a home. The TUI keeps `~/.config/onyx/config.toml`; the desktop app
  * keeps `~/.config/onyx/desktop.json` and, on first run, seeds `lastVault`
  * from the TUI's `last_vault` so opening either one lands in the same vault.

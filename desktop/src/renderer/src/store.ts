@@ -82,7 +82,7 @@ interface State {
   rightWidth: number
   /** Stacked panes per side, in order. */
   sections: { left: SectionState[]; right: SectionState[] }
-  /** Full-screen focus on one pane (Onyx's Ctrl-F expand). */
+  /** Full-screen focus on one pane (Electron's Ctrl-F expand). */
   zenPaneId: string | null
 
   /** Open buffers keyed by path — survives tab switches. */
@@ -474,7 +474,7 @@ export const useStore = create<State & Actions>((set, get) => ({
     const titles: Record<string, string> = {
       graph: 'Graph view',
       localgraph: 'Local graph',
-      ai: 'Onyx AI',
+      ai: 'Electron AI',
       database: 'Database',
       canvas: 'Canvas',
       empty: 'New tab',

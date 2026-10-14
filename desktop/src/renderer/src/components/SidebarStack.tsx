@@ -1,5 +1,5 @@
 /**
- * A sidebar as a vertical stack of panes, the way the Onyx TUI lays them out —
+ * A sidebar as a vertical stack of panes, the way the Electron TUI lays them out —
  * files/quicknote/todo down the left, backlinks/graph/calendar down the right —
  * rather than Obsidian's one-visible-tab-at-a-time sidebar.
  *

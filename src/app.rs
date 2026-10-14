@@ -699,12 +699,12 @@ pub struct App {
     // Filesystem watcher: notices external edits (Obsidian, git, sync) so the
     // tree/index/open-doc stay in sync. None if the OS watcher couldn't start.
     pub watcher: Option<VaultWatcher>,
-    // Paths Onyx wrote itself, with when — lets `handle_fs_events` ignore the
+    // Paths Electron wrote itself, with when — lets `handle_fs_events` ignore the
     // watcher events caused by our own saves (no self-triggered reindex storm).
     pub recent_self_writes: HashMap<PathBuf, Instant>,
 
     // Set whenever something changed; the event loop redraws only when true
-    // (so an idle Onyx doesn't burn CPU repainting).
+    // (so an idle Electron doesn't burn CPU repainting).
     pub needs_redraw: bool,
     // Bumped on theme change to invalidate the preview cache.
     pub theme_gen: u64,
@@ -1774,7 +1774,7 @@ impl App {
         Ok(())
     }
 
-    /// Record that Onyx just wrote `path`, so the filesystem watcher doesn't
+    /// Record that Electron just wrote `path`, so the filesystem watcher doesn't
     /// mistake our own save for an external change. Entries expire after a few
     /// seconds; we prune stale ones here too.
     fn record_self_write(&mut self, path: &Path) {
@@ -1814,7 +1814,7 @@ impl App {
     }
 
     /// Drain filesystem-watcher events and react to genuinely-external changes:
-    /// refresh the tree/index and reconcile the open document. Onyx's own writes
+    /// refresh the tree/index and reconcile the open document. Electron's own writes
     /// (and anything under a dot-dir like `.git`/`.obsidian`/`.onyx`) are
     /// ignored so we don't reindex in response to ourselves.
     pub fn handle_fs_events(&mut self) {
@@ -2230,7 +2230,7 @@ impl App {
         }
         // While focused/fullscreen, advance one frame per tick → perpetual
         // motion. Passive panes don't step here (they were pre-settled), so an
-        // idle Onyx does no graph work.
+        // idle Electron does no graph work.
         if animating {
             if let Some(sim) = self.graph_sim.as_mut() {
                 sim.step();
@@ -3226,7 +3226,7 @@ impl App {
             }
             self.fetch_drive_folder(&file.id);
         } else if file.is_google_doc() {
-            self.set_status("Google Docs/Sheets aren't editable in Onyx yet");
+            self.set_status("Google Docs/Sheets aren't editable in Electron yet");
         } else if file.is_text() {
             self.open_drive_file(&file.id, &file.name);
         } else {
@@ -3270,7 +3270,7 @@ impl App {
     }
 
     /// Download a non-text Drive file (PDF, image, …) to a temp file and open it
-    /// in the system's default app (detached — Onyx stays on screen).
+    /// in the system's default app (detached — Electron stays on screen).
     fn open_drive_binary(&mut self, file_id: &str, name: &str) {
         let g = self.config.google.clone();
         let path = crate::config::Config::google_token_path();
@@ -3707,10 +3707,10 @@ impl App {
         use crate::integrations::ollama::ChatMessage;
 
         let mut sys = String::from(
-            "You are a helpful assistant embedded in Onyx, a Markdown notes (TUI) app. \
-             Answer concisely and format replies in Markdown. You know Onyx's keybindings \
-             (listed below); when asked about a shortcut or how to do something in Onyx, \
-             answer from this list and give the exact keys.\n\n# Onyx keybindings\n",
+            "You are a helpful assistant embedded in Electron, a Markdown notes (TUI) app. \
+             Answer concisely and format replies in Markdown. You know Electron's keybindings \
+             (listed below); when asked about a shortcut or how to do something in Electron, \
+             answer from this list and give the exact keys.\n\n# Electron keybindings\n",
         );
         sys.push_str(&crate::keymap::cheatsheet());
         if let Some(doc) = self.doc.as_ref() {

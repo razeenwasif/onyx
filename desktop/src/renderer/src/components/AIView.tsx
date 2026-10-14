@@ -223,7 +223,7 @@ export function AIView({ tab }: { tab: Tab }): JSX.Element {
         )}
         {messages.map((m, i) => (
           <div className={`ai-msg ${m.role}`} key={i}>
-            <div className="who">{m.role === 'user' ? 'You' : 'Onyx'}</div>
+            <div className="who">{m.role === 'user' ? 'You' : 'Electron'}</div>
             {m.thinking && <div className="ai-thinking">{m.thinking}</div>}
             {m.role === 'user' ? (
               <div className="bubble">{m.content}</div>
@@ -266,7 +266,7 @@ export function AIView({ tab }: { tab: Tab }): JSX.Element {
         <textarea
           rows={2}
           value={draft}
-          placeholder="Ask Onyx…  (/ask, /summarize, /index)"
+          placeholder="Ask Electron…  (/ask, /summarize, /index)"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {

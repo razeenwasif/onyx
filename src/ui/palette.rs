@@ -51,15 +51,15 @@ pub const COMMANDS: &[Command] = &[
     Command { label: "Toggle preview",          hint: "Ctrl-E",       id: CommandId::TogglePreview },
     Command { label: "Toggle left sidebar",     hint: "Ctrl-B",       id: CommandId::ToggleLeft },
     Command { label: "Toggle right sidebar",    hint: "Ctrl-R",       id: CommandId::ToggleRight },
-    Command { label: "Theme: Onyx Dark",        hint: "",             id: CommandId::ThemeDark },
-    Command { label: "Theme: Onyx Light",       hint: "",             id: CommandId::ThemeLight },
+    Command { label: "Theme: Electron Dark",        hint: "",             id: CommandId::ThemeDark },
+    Command { label: "Theme: Electron Light",       hint: "",             id: CommandId::ThemeLight },
     Command { label: "Theme: Dracula",          hint: "",             id: CommandId::ThemeDracula },
     Command { label: "Theme: Nord",             hint: "",             id: CommandId::ThemeNord },
     Command { label: "Help",                    hint: "Ctrl-/",       id: CommandId::Help },
     Command { label: "Open vault…",             hint: "",             id: CommandId::OpenVault },
     Command { label: "Delete current note",     hint: "",             id: CommandId::DeleteNote },
     Command { label: "Rename current note",     hint: "",             id: CommandId::RenameNote },
-    Command { label: "Quit Onyx",               hint: "Ctrl-Q",       id: CommandId::Quit },
+    Command { label: "Quit Electron",               hint: "Ctrl-Q",       id: CommandId::Quit },
 ];
 
 pub fn filtered(query: &str) -> Vec<(usize, Command)> {

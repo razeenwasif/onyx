@@ -1,6 +1,6 @@
-# Onyx — Architecture Quickguide
+# Electron — Architecture Quickguide
 
-A scannable map of how Onyx is wired. Read top-to-bottom in ~15 minutes and you should know where any given concern lives.
+A scannable map of how Electron is wired. Read top-to-bottom in ~15 minutes and you should know where any given concern lives.
 
 > All path/line references in this guide are relative to the repo root and point at the file as it stands today. They will drift; treat them as starting points, not promises.
 
@@ -8,11 +8,11 @@ A scannable map of how Onyx is wired. Read top-to-bottom in ~15 minutes and you 
 
 ## 1. What it is
 
-Onyx is a single-binary Rust TUI for editing a vault of markdown notes. It is:
+Electron is a single-binary Rust TUI for editing a vault of markdown notes. It is:
 
 - **Single-threaded.** One event loop, one terminal, one frame at a time.
 - **Stateless on disk between sessions** except for `~/.config/onyx/config.toml` and the vault itself.
-- **Immediate-mode, dirty-gated.** The whole screen is rebuilt from `App` state, but only when something changed (`App::needs_redraw`) or the graph is animating — an idle Onyx blocks on input and uses ~no CPU. ratatui still diffs at the cell level. Two render-time caches exist: the preview's rendered markdown (keyed by note/revision/width/theme) and the graph's force-directed layout (persisted in `App::graph_sim`).
+- **Immediate-mode, dirty-gated.** The whole screen is rebuilt from `App` state, but only when something changed (`App::needs_redraw`) or the graph is animating — an idle Electron blocks on input and uses ~no CPU. ratatui still diffs at the cell level. Two render-time caches exist: the preview's rendered markdown (keyed by note/revision/width/theme) and the graph's force-directed layout (persisted in `App::graph_sim`).
 - **Plain-text first.** A note is just a `.md` file on disk. The index is rebuilt from disk; it is never the source of truth.
 
 The stack:
@@ -329,7 +329,7 @@ Two visual conventions every pane shares:
 
 ### 7.1 The Home start page
 
-When no note is open (`app.doc.is_none()`), the center renders the **Home start page** (`src/ui/home.rs`) instead of the editor — an interactive menu of quick actions (New note, New folder, Search vault, Open note…, Today's daily note) followed by the most-recent notes. Onyx launches here (`App::new` sets `Focus::Home`, and `main` no longer auto-opens the last note), and falls back here when the open note is deleted.
+When no note is open (`app.doc.is_none()`), the center renders the **Home start page** (`src/ui/home.rs`) instead of the editor — an interactive menu of quick actions (New note, New folder, Search vault, Open note…, Today's daily note) followed by the most-recent notes. Electron launches here (`App::new` sets `Focus::Home`, and `main` no longer auto-opens the last note), and falls back here when the open note is deleted.
 
 The rows are produced by `App::home_items()` — the single source of truth that both the renderer and the key handler (`dispatch::home_keys`) read, so the displayed list and the Enter action can't drift. `home_selected` tracks the cursor; `j/k` move, `Enter`/`l`/`Space` activate. Actions delegate to existing flows: `App::activate_home` handles Search/Switcher/DailyNote/OpenRecent, while New note / New folder open a prompt via `dispatch::start_prompt` (dispatch owns that helper). Opening any note sets `doc` + `Focus::Editor`, so Home disappears. The `App::center_focus()` helper returns `Editor` when a doc is open else `Home`, and is used everywhere a pane previously hard-coded "focus the editor".
 
@@ -413,7 +413,7 @@ Add a command by appending an arm to the `match cmd { … }` in `run_ex_command`
 
 ### 8.2 Telescope-style aliases
 
-For muscle memory from Neovim's Telescope, `:Telescope <picker> [query]` maps each picker to its Onyx equivalent (`dispatch::run_telescope`):
+For muscle memory from Neovim's Telescope, `:Telescope <picker> [query]` maps each picker to its Electron equivalent (`dispatch::run_telescope`):
 
 | Picker | Maps to |
 |--------|---------|
@@ -429,7 +429,7 @@ Bare `:Telescope` prints the available pickers in the status bar.
 
 ### 8.3 External tools (fzf / yazi)
 
-External terminal programs run with the Onyx TUI suspended. The flow respects the "handlers don't touch the terminal" invariant:
+External terminal programs run with the Electron TUI suspended. The flow respects the "handlers don't touch the terminal" invariant:
 
 1. A handler sets `App::pending_external = Some(PendingExternal::…)` (via `dispatch::request_external`, which first checks the tool is on `$PATH`).
 2. The event loop (`main::event_loop`) drains it after dispatch and calls `external::handle`.
@@ -440,15 +440,15 @@ fzf draws its UI on `/dev/tty`, so its stdout (the selection) is captured cleanl
 
 **Scope & opening rules.** `:fzf` and `:rg`/live_grep are scoped to markdown notes (`rg -t markdown`) — this is a notes app, so use `:yazi` to browse PDFs/images/scripts. When a selection comes back: markdown and other plain-text files open in the editor; anything else (PDF, image) is handed to the system opener via `open_external`, which is fully detached (`Stdio::null()` on stdin/stdout/stderr) so it can never corrupt the alternate screen, and is WSL-aware (`wslview`/`explorer.exe` before `xdg-open`).
 
-**Live-grep is real, not fuzzy-over-everything.** `run_fzf_grep` runs fzf in `--disabled` mode with `start`/`change` reload bindings that re-run `rg -t markdown {q}` on each keystroke (Telescope-style) — ripgrep does the matching, fzf just displays + previews. Neither picker passes `--height`, so fzf takes its own fullscreen alternate screen and renders cleanly above the suspended Onyx instead of inline over the shell.
+**Live-grep is real, not fuzzy-over-everything.** `run_fzf_grep` runs fzf in `--disabled` mode with `start`/`change` reload bindings that re-run `rg -t markdown {q}` on each keystroke (Telescope-style) — ripgrep does the matching, fzf just displays + previews. Neither picker passes `--height`, so fzf takes its own fullscreen alternate screen and renders cleanly above the suspended Electron instead of inline over the shell.
 
 
 ### 8.4 Filesystem sync (watcher, live reload, conflict guard)
 
-Onyx keeps in sync with external editors (Obsidian, VS Code, git, a sync client) instead of going stale. Three cooperating pieces:
+Electron keeps in sync with external editors (Obsidian, VS Code, git, a sync client) instead of going stale. Three cooperating pieces:
 
 - **Watcher** — `vault::VaultWatcher` (`src/vault/watcher.rs`) wraps `notify` (inotify on Linux). It runs on its own thread and pushes each changed *path* over a channel. `drain()` returns the deduped paths.
-- **Reaction** — `App::handle_fs_events` runs each loop tick. Because `crossterm::event::poll` only watches stdin, the event loop caps the idle timeout at `watch_poll` (1 s) whenever a watcher is present, so changes are noticed promptly while idle CPU stays ~0 (a per-second empty channel drain). It ignores events for **dot-paths** (`is_internal_path`: `.git`/`.obsidian`/`.onyx`/`.onyxtmp`) and for **Onyx's own writes** (`recent_self_writes`, a path→`Instant` map with a 5 s TTL) so a save never triggers a self-reindex. Any remaining external change triggers `vault.refresh()` + cache invalidation + `reconcile_open_doc`.
+- **Reaction** — `App::handle_fs_events` runs each loop tick. Because `crossterm::event::poll` only watches stdin, the event loop caps the idle timeout at `watch_poll` (1 s) whenever a watcher is present, so changes are noticed promptly while idle CPU stays ~0 (a per-second empty channel drain). It ignores events for **dot-paths** (`is_internal_path`: `.git`/`.obsidian`/`.onyx`/`.onyxtmp`) and for **Electron's own writes** (`recent_self_writes`, a path→`Instant` map with a 5 s TTL) so a save never triggers a self-reindex. Any remaining external change triggers `vault.refresh()` + cache invalidation + `reconcile_open_doc`.
 - **Reconcile** — `App::reconcile_open_doc` compares the open doc's `disk_mtime` to the file's current mtime. A **clean** buffer reloads seamlessly (`reload_current`); a **dirty** buffer is left untouched with a `⚠ … changed on disk` warning so edits are never lost; a deleted file gets its own warning.
 
 The **conflict guard** lives in `App::save_current_inner(force)`: before writing, if the file's mtime differs from the doc's known `disk_mtime`, it opens a `ConfirmAction::OverwriteNote` dialog instead of clobbering the external version. `:w!`/`:wq!` (and confirming the dialog) call `force_save_current`, which bypasses the check. After any successful write the doc's `disk_mtime` is restamped so the next save doesn't false-positive.
@@ -505,7 +505,7 @@ Wikilinks and tags are not CommonMark constructs. They're extracted by regex in 
 
 ### 9.1 `[[wikilink]]` autocomplete
 
-While the editor is in insert mode and the cursor sits just after an unclosed `[[`, Onyx shows a fuzzy completion popup of note names (`App::link_complete: Option<LinkComplete>`). After every insert-mode edit, `dispatch::editor_insert` calls `App::refresh_link_complete`, which scans the current line's prefix for the last `[[` (rejecting any `[`/`]` after it) and, if open, fuzzy-ranks note basenames via `compute_link_matches` (the same `SkimMatcherV2` the switcher uses; an empty query lists recent notes). The popup is rendered by `draw_link_popup` in `editor_pane.rs`, anchored under the `[[` at the caret (flips above when there's no room below).
+While the editor is in insert mode and the cursor sits just after an unclosed `[[`, Electron shows a fuzzy completion popup of note names (`App::link_complete: Option<LinkComplete>`). After every insert-mode edit, `dispatch::editor_insert` calls `App::refresh_link_complete`, which scans the current line's prefix for the last `[[` (rejecting any `[`/`]` after it) and, if open, fuzzy-ranks note basenames via `compute_link_matches` (the same `SkimMatcherV2` the switcher uses; an empty query lists recent notes). The popup is rendered by `draw_link_popup` in `editor_pane.rs`, anchored under the `[[` at the caret (flips above when there's no room below).
 
 Key handling, while the popup is open: `Up`/`Down` move the selection (intercepted in `editor_insert` before the keystroke types through), `Tab`/`Enter` accept (`accept_link_complete` deletes the typed query and inserts `Name]]`), and `Esc` dismisses it while staying in insert mode — that last one is handled in `global_shortcut` (which sees `Esc` first), so a single `Esc` closes the popup and a second leaves insert mode. Leaving insert mode any other way clears `link_complete` in `App::escape`.
 
@@ -547,7 +547,7 @@ The ingestion entry point is `update_note(root, path, content)` — call it afte
 
 **Page properties (Notion hybrid).** `markdown::parse::extract_frontmatter_properties` parses *every* top-level YAML frontmatter key into an ordered `Vec<(String, Vec<String>)>` (scalars are single-element; `[a, b]` arrays and `- block` lists are multi; scalars are not comma-split). `tags`/`tag` are excluded (they're surfaced as tags). These land on `NoteMeta.properties` and are cached. The preview pane renders them as a clean **Properties** block on top (`ui/preview.rs::build_preview_text`, which also `strip_frontmatter`s the raw YAML out of the body). This is Phase 1 of the Notion-hybrid epic (see `docs/BACKLOG.md`); Phase 2 (the database/table + board views keyed by these properties) shipped too — see §9.2.
 
-**Persistent cache (startup scalability).** The entire index is derived from a handful of per-note facts — `title`, raw link `targets`, `tags`, `properties`, `size`, `word_count`, plus the file's `mtime` (the `ParsedNote` in `index.rs`). Everything else (resolution, backlinks, `by_tag`, interners) is recomputed in memory, which is cheap; the expensive part was always *reading and regex-parsing every file*. So those facts are cached to `<vault>/.onyx/index-cache.json` (`src/vault/index_cache.rs`). On launch, `NoteIndex::build_with_cache` stats each note and reuses the cached `ParsedNote` for any whose mtime is unchanged — only changed/new notes are read and parsed. Measured **~26× faster** on the 678-note vault (109 ms → 4 ms warm). The flow is centralized in `vault::build_index` (used by both `Vault::open` and `refresh`), which loads the cache, builds, then writes the refreshed cache (best-effort). The cache is **purely an optimization**: missing/stale/corrupt → more re-parsing, never wrong data (validated by `version` + per-note mtime). It lives in `.onyx/` so it's excluded from the scanner and ignored by the watcher (no self-reindex). Notes edited *inside* Onyx go through the incremental `update_note`, not `build_index`, so their cache entry refreshes on the next open (a one-time re-parse of just those notes).
+**Persistent cache (startup scalability).** The entire index is derived from a handful of per-note facts — `title`, raw link `targets`, `tags`, `properties`, `size`, `word_count`, plus the file's `mtime` (the `ParsedNote` in `index.rs`). Everything else (resolution, backlinks, `by_tag`, interners) is recomputed in memory, which is cheap; the expensive part was always *reading and regex-parsing every file*. So those facts are cached to `<vault>/.onyx/index-cache.json` (`src/vault/index_cache.rs`). On launch, `NoteIndex::build_with_cache` stats each note and reuses the cached `ParsedNote` for any whose mtime is unchanged — only changed/new notes are read and parsed. Measured **~26× faster** on the 678-note vault (109 ms → 4 ms warm). The flow is centralized in `vault::build_index` (used by both `Vault::open` and `refresh`), which loads the cache, builds, then writes the refreshed cache (best-effort). The cache is **purely an optimization**: missing/stale/corrupt → more re-parsing, never wrong data (validated by `version` + per-note mtime). It lives in `.onyx/` so it's excluded from the scanner and ignored by the watcher (no self-reindex). Notes edited *inside* Electron go through the incremental `update_note`, not `build_index`, so their cache entry refreshes on the next open (a one-time re-parse of just those notes).
 
 ---
 
@@ -592,7 +592,7 @@ bg = "#1e1e24"
 # ... all ColorSpec fields
 ```
 
-- `Config::load` is infallible — if the file is missing or corrupt it returns `Default::default()`. This means a partially-written or hand-edited config never bricks Onyx; it just falls back.
+- `Config::load` is infallible — if the file is missing or corrupt it returns `Default::default()`. This means a partially-written or hand-edited config never bricks Electron; it just falls back.
 - All fields are `#[serde(default)]` — you can hand-write a 3-line `config.toml` and the rest fills in.
 - `Config::save` is called automatically after: vault switch, theme change, anything that changes a `last_*` field. It's idempotent — overwrites the file each time.
 - Theme resolution: `theme = "custom"` looks at `custom_theme = {...}`; any other value tries to match a built-in preset (case-insensitive).
@@ -734,6 +734,6 @@ See `desktop/README.md` for its own architecture map.
 This is the architecture quickguide — the "where things live" map. Companion docs to write next, in roughly the order they'd be useful:
 
 - **USER_GUIDE.md** — keybindings, vaults, daily notes, themes — for end users.
-- **VAULT_FORMAT.md** — wikilink/tag syntax, daily-notes template variables, what Onyx writes to disk.
+- **VAULT_FORMAT.md** — wikilink/tag syntax, daily-notes template variables, what Electron writes to disk.
 - **EXTENDING.md** — deeper than § 12 here: writing a new pane, custom theme files, configuring the keymap.
 - **INTERNALS.md** — index data structures, rendering invariants, performance notes. For contributors who'll change core data flow.

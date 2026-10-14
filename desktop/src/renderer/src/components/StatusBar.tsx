@@ -30,7 +30,7 @@ export function StatusBar(): JSX.Element {
       {watchMode === 'polling' && (
         <span
           className="item"
-          title="This vault is on a filesystem that doesn't report changes (a WSL or network share), so Onyx polls it. Click to re-scan now."
+          title="This vault is on a filesystem that doesn't report changes (a WSL or network share), so Electron polls it. Click to re-scan now."
           onClick={() => runCommand('vault:reload')}
         >
           polling

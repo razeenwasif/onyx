@@ -90,7 +90,7 @@ fn parse_color(s: &str) -> Option<Color> {
 impl Theme {
     pub fn obsidian_dark() -> Self {
         Self {
-            name: "Onyx Dark".into(),
+            name: "Electron Dark".into(),
             bg: "#1e1e24".into(),
             bg_alt: "#262631".into(),
             bg_sel: "#3a3a4d".into(),
@@ -116,7 +116,7 @@ impl Theme {
 
     pub fn obsidian_light() -> Self {
         Self {
-            name: "Onyx Light".into(),
+            name: "Electron Light".into(),
             bg: "#faf8f5".into(),
             bg_alt: "#eee9df".into(),
             bg_sel: "#d6cfc3".into(),
@@ -194,8 +194,8 @@ impl Theme {
 
     pub fn preset(name: &str) -> Option<Self> {
         match name.to_ascii_lowercase().as_str() {
-            "dark" | "obsidian" | "onyx-dark" => Some(Self::obsidian_dark()),
-            "light" | "onyx-light" => Some(Self::obsidian_light()),
+            "dark" | "obsidian" | "electron-dark" | "onyx-dark" => Some(Self::obsidian_dark()),
+            "light" | "electron-light" | "onyx-light" => Some(Self::obsidian_light()),
             "dracula" => Some(Self::dracula()),
             "nord" => Some(Self::nord()),
             _ => None,

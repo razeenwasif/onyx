@@ -1,4 +1,4 @@
-//! Persistent configuration for Onyx.
+//! Persistent configuration for Electron.
 //!
 //! Loaded from `~/.config/onyx/config.toml` (or `$XDG_CONFIG_HOME/onyx`).
 //! Missing fields fall back to compile-time defaults so the file can be empty

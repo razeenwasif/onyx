@@ -1,4 +1,4 @@
-# Onyx Backlog
+# Electron Backlog
 
 Running list of work to do. Newest items at the top of "Open". Move items to "Done" when shipped (oldest at the bottom).
 
@@ -6,7 +6,7 @@ Running list of work to do. Newest items at the top of "Open". Move items to "Do
 
 ### ⭐ EPIC: Notion + Obsidian hybrid (+ migrate the user's Notion) — ✅ COMPLETE (2026-06-14)
 
-**Direction (2026-06-11).** Evolve Onyx from a pure-Obsidian markdown vault into a
+**Direction (2026-06-11).** Evolve Electron from a pure-Obsidian markdown vault into a
 **Notion/Obsidian hybrid**, and migrate the user's Notion workspace in. The user
 wants all three Notion capabilities: databases+properties, block editing, and
 nested-page structure.
@@ -29,9 +29,9 @@ collision-safe (one clash kept as `… (Notion).md`); vault `.md` count unchange
 `scripts/reorg_notion.py`. Harness lesson: migration/worker agents must run as
 FOREGROUND Agent calls (background agents get auto-denied on every tool).
 
-**Notion → Onyx mapping:**
+**Notion → Electron mapping:**
 
-| Notion | Onyx |
+| Notion | Electron |
 |---|---|
 | Page properties (typed fields) | YAML frontmatter properties (generalize beyond `tags:`) |
 | Database | A folder whose notes share a property schema |
@@ -117,7 +117,7 @@ into a pre-filled note (`:gcal note`) is also unbuilt.
 
 ---
 
-### Google Drive access from within Onyx ✅ DONE (see § Done)
+### Google Drive access from within Electron ✅ DONE (see § Done)
 
 Shipped the native Drive API route: `:drive` opens an in-TUI browser, Enter opens
 a text file in the editor (save uploads back) or downloads a PDF/binary to temp
@@ -198,13 +198,13 @@ Writing them immediately found four more, all in code that looked fine:
   its own success message anyway — so `linkNestedTags` had been a no-op toggle
   since it was added. (Second time an unconditional "done!" print hid a failed
   edit. Patch scripts now assert before writing.)
-- **Link resolution ignored the linking note's own folder.** `[[Onyx]]` from
-  `Projects/Roadmap.md` resolved to the root `Onyx.md` because the exact-relpath
+- **Link resolution ignored the linking note's own folder.** `[[Electron]]` from
+  `Projects/Roadmap.md` resolved to the root `Electron.md` because the exact-relpath
   lookup ran first and a bare name matches it. Obsidian resolves to the nearest
   note; now a path-qualified target uses the relpath and a bare name prefers the
   same folder, then the shallowest path, then an alias.
 - **Rename lowercased its own links.** `relKey()` lowercases for comparison, and
-  the replacement text was taken from it, so renaming to `Onyx Desktop.md` rewrote
+  the replacement text was taken from it, so renaming to `Electron Desktop.md` rewrote
   every link as `[[onyx desktop]]`.
 
 **Session restore.** The workspace is saved as it changes and rebuilt on launch:
@@ -249,7 +249,7 @@ message.
 ### Desktop: Google Drive browser  (2026-08-10)
 
 Port of `src/integrations/gdrive.rs`, sharing the OAuth client and token already
-used by Calendar/Tasks (Drive is part of Onyx's single consent). `main/drive.ts` +
+used by Calendar/Tasks (Drive is part of Electron's single consent). `main/drive.ts` +
 a `drive` view: folder navigation with breadcrumbs, name search, create folder,
 move to Drive trash, and upload the open note.
 
@@ -297,7 +297,7 @@ boundary (see the numbers in `desktop/README.md`):
 Cross-building from Linux needs Wine (electron-builder patches the exe with rcedit);
 `scripts/pack-win-docker.sh` runs the same build inside electron-builder's own image
 instead, as the invoking user so nothing lands root-owned. Both artifacts built and
-verified: `Onyx-0.1.0-x64.exe` (84 MB), `Onyx-0.1.0-x64.zip` (114 MB).
+verified: `Electron-0.1.0-x64.exe` (84 MB), `Electron-0.1.0-x64.zip` (114 MB).
 
 **Google Calendar + Tasks** (`desktop/src/main/google.ts`, ported from
 `integrations/{oauth,gcal,gtasks}.rs`). Deliberately *shares* the TUI's setup rather
@@ -329,7 +329,7 @@ Still open: Google Drive, the third `cloud` integration.
   because side-by-side layout can't be expressed per line; clicking into the block
   reverts it to source, the way Obsidian's block widgets do.
 - `desktop/scripts/install-linux.sh` installs under `~/.local` with no root: unpacked
-  build to `~/.local/lib/Onyx`, symlink on PATH, desktop entry + hicolor icons,
+  build to `~/.local/lib/Electron`, symlink on PATH, desktop entry + hicolor icons,
   `--uninstall` to reverse. Needed on WSL, where the AppImage can't self-mount
   (no FUSE) and `dpkg -i` needs sudo. The entry passes
   `--enable-unsafe-swiftshader`, which only *permits* the software WebGL fallback —
@@ -345,14 +345,14 @@ Still open: Google Drive, the third `cloud` integration.
   tag → per-kind default. A legend under Groups lists each tag with its swatch and
   count; clicking a row filters the graph to `tag:<name>`.
   Code: `desktop/src/renderer/src/graph/tag-colors.ts`.
-- **App icon** — `assets/onyx-icon.svg` (a dark tile with the graph motif), rasterized
+- **App icon** — `assets/electron-icon.svg` (a dark tile with open orbit shells and tag-colored electrons), rasterized
   into `desktop/build/icon.png` and `desktop/build/icons/{16..512}.png`.
 - **Packaging** — electron-builder targets for Linux (AppImage + deb), Windows (NSIS)
-  and macOS (dmg). The deb installs to `/opt/Onyx`, registers a `.desktop` entry with
+  and macOS (dmg). The deb installs to `/opt/Electron`, registers a `.desktop` entry with
   the right categories/keywords/StartupWMClass, and installs hicolor icons at every
   size. Both Linux artifacts were built and the packaged binary was smoke-tested.
 
-### ⭐ EPIC: Onyx Desktop — an Obsidian-shaped Electron app  (2026-08-09)
+### ⭐ EPIC: Electron Desktop — an Obsidian-shaped Electron app  (2026-08-09)
 
 A second front end over the same vault, in `desktop/`: Electron + Vite + React +
 TypeScript, no Rust dependency. Both apps read and write the same `.md` files and the
@@ -382,7 +382,7 @@ Shipped:
 - **Search & navigation** — the TUI's operators (`tag:`/`path:`/`file:`/`line:N`,
   `-exclude`), fuzzy quick switcher, command palette, backlinks + unlinked mentions,
   outline, properties, tag index.
-- **Onyx extras** — Quicknote, Todo (same `<!--done:-->` markers and one-week sweep),
+- **Electron extras** — Quicknote, Todo (same `<!--done:-->` markers and one-week sweep),
   daily-notes calendar, and database table/board views over folder frontmatter.
 - **AI** — streaming Ollama chat with the open note as context, `/summarize`,
   `/index` + `/ask` (RAG with cited sources, int8-quantized cache), rewrite in place,
@@ -739,7 +739,7 @@ A bundle of Obsidian-staple quality-of-life features.
 ### Notion hybrid — Phase 5: `:notion import` export importer  (2026-06-14)
 
 A self-contained importer for a Notion "Export → Markdown & CSV" dump (unzipped).
-Chosen over a live API client because Onyx can't reach the MCP and Notion's
+Chosen over a live API client because Electron can't reach the MCP and Notion's
 static-token auth wouldn't share the OAuth stack Google/OneDrive will need — so
 no network deps were added.
 
@@ -875,7 +875,7 @@ note-name picker that inserts a wikilink.
 
 ### Home start page  (2026-06-09)
 
-Onyx used to auto-open whatever note was most recent on launch. Now it opens on
+Electron used to auto-open whatever note was most recent on launch. Now it opens on
 an interactive **Home** start page in the center pane.
 
 - New `Focus::Home` + `home_selected`; `App::home_items()` builds the rows
@@ -914,7 +914,7 @@ content-derived facts are cached and reused for notes whose mtime is unchanged.
 
 ### Robustness trio: atomic saves + conflict guard + file watcher  (2026-06-08)
 
-Made Onyx trustworthy with a real, externally-edited vault.
+Made Electron trustworthy with a real, externally-edited vault.
 
 - **Atomic saves** — `vault::atomic_write` writes a hidden `.<name>.<pid>.<n>.onyxtmp`
   sibling, flushes + fsyncs, then `rename`s over the target. `write_note` routes
@@ -927,7 +927,7 @@ Made Onyx trustworthy with a real, externally-edited vault.
   instead of clobbering. `:w!` / `:wq!` / confirming → `force_save_current`.
 - **Filesystem watcher** — wired the previously-dead `VaultWatcher` (now reports
   changed *paths*) into `App`/event loop. `handle_fs_events` filters dot-paths
-  (`.git`/`.obsidian`/`.onyx`/`.onyxtmp`) and Onyx's own writes (`recent_self_writes`,
+  (`.git`/`.obsidian`/`.onyx`/`.onyxtmp`) and Electron's own writes (`recent_self_writes`,
   5 s TTL) so saves don't self-trigger a reindex; real external changes refresh
   the tree/index/graph. `reconcile_open_doc` live-reloads a clean buffer
   seamlessly and warns (keeping edits) on a dirty one. Idle poll capped at 1 s
@@ -986,7 +986,7 @@ Made Onyx trustworthy with a real, externally-edited vault.
 
 Driven by debugging the real `~/OnyxVault` (678 notes), where the graph showed a single node:
 
-- **YAML frontmatter tags** — 677/678 notes tag via frontmatter (`tags:\n  - a`), which Onyx ignored. Added `extract_frontmatter_tags` + `extract_all_tags` (`src/markdown/parse.rs`), handling block-list, inline `[a, b]`, single, and quoted forms. The index and preview footer now use `extract_all_tags`. Tag count went 284 → 378.
+- **YAML frontmatter tags** — 677/678 notes tag via frontmatter (`tags:\n  - a`), which Electron ignored. Added `extract_frontmatter_tags` + `extract_all_tags` (`src/markdown/parse.rs`), handling block-list, inline `[a, b]`, single, and quoted forms. The index and preview footer now use `extract_all_tags`. Tag count went 284 → 378.
 - **Markdown-link indexing** — added `extract_md_links` (`[text](note.md)`), URL-decoded, anchor-stripped, web/mailto/non-`.md` skipped, code-fences excluded. Wired into `NoteIndex::ingest` alongside wikilinks; `resolve_internal` now falls back to the last path component so `Sub/Note` / `../Foo/Note` resolve. (NB: this particular vault turned out to link almost entirely via `publish.obsidian.md` URLs, so tags are its real connective tissue — but md-link indexing is correct and helps link-based vaults.)
 - **Tag-aware graph** (`src/ui/graph.rs`) — BFS neighbours and edges now combine links *and* shared-tag adjacency (`NoteIndex::shares_tag` / `shared_tag_notes`). Tag-only edges render in the tag colour; link edges stay subtle. The graph went from 1 node to a real neighbourhood (11 for "Presentation").
 - Tests: 18 total (added frontmatter + md-link cases).

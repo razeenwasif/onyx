@@ -1,5 +1,5 @@
 /**
- * Reading view: markdown → HTML, with the Obsidian/Onyx extensions the plain
+ * Reading view: markdown → HTML, with the Obsidian/Electron extensions the plain
  * CommonMark renderer doesn't know about — `[[wikilinks]]`, `![[embeds]]`,
  * `#tags`, `==highlights==`, `> [!callout]` blocks (collapsible with `-`),
  * `::: columns … +++ … :::`, `$math$`, and task lists.
@@ -171,7 +171,7 @@ function createMd(): MarkdownIt {
 
 const md = createMd()
 
-/** Pre-pass: turn Onyx/Obsidian block syntax into HTML markdown-it passes through. */
+/** Pre-pass: turn Electron/Obsidian block syntax into HTML markdown-it passes through. */
 function preprocessBlocks(source: string): string {
   const lines = source.split('\n')
   const out: string[] = []

@@ -185,7 +185,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: 'ai:open',
-    name: 'Open Onyx AI assistant',
+    name: 'Open Electron AI assistant',
     hotkey: `${mod}+Shift+A`,
     keys: ['mod+shift+a'],
     run: () => s().openView('ai'),

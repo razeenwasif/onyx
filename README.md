@@ -1,11 +1,11 @@
-# Onyx
+# Electron
 
 A modern, premium markdown notes app — an Obsidian-inspired vault that comes in two
 front ends over the same folder of plain `.md` files:
 
-- **`onyx`** — the terminal app (Rust + ratatui). This README.
-- **[Onyx Desktop](desktop/README.md)** — an Electron/TypeScript GUI built to match
-  Obsidian: live-preview editor, WebGL graph view, canvas, and the Onyx extras.
+- **`electron`** — the terminal app (Rust + ratatui). This README.
+- **[Electron Desktop](desktop/README.md)** — a TypeScript GUI (built on the Electron framework) made to match
+  Obsidian: live-preview editor, WebGL graph view, canvas, and the Electron extras.
 
 Both read and write the same vault and the same `.onyx/` sidecar files, so you can
 run them side by side.
@@ -35,12 +35,12 @@ run them side by side.
 - ASCII graph view (`Ctrl-G`) centered on the current note
 - Monthly calendar with daily-notes (`Ctrl-K`), plus optional **Google Calendar** events (`·` marks, `v` day agenda, two-way create/delete)
 - Optional **Google Drive** browser (`:drive`) — open a Drive text file in the editor (save uploads it straight back, two-way), open a PDF/image in your system viewer, or `u` to upload the open note as a new Drive file; plus **Google Tasks** merged into the Todo pane
-- Optional **local AI assistant** (`Ctrl-A` / `:ai`) — a streaming chat over your notes powered by a **local LLM via Ollama** (e.g. Gemma); the open note is sent as context, plus `:summarize`, **`:ask` (semantic RAG over your whole vault, with cited sources)**, **`:rewrite` (AI-rewrite a paragraph/selection/note in place, undoable)**, and **inline autocomplete** (ghost text, Tab to accept). It even knows Onyx's own shortcuts. No cloud, no keys. See `docs/AI.md`
+- Optional **local AI assistant** (`Ctrl-A` / `:ai`) — a streaming chat over your notes powered by a **local LLM via Ollama** (e.g. Gemma); the open note is sent as context, plus `:summarize`, **`:ask` (semantic RAG over your whole vault, with cited sources)**, **`:rewrite` (AI-rewrite a paragraph/selection/note in place, undoable)**, and **inline autocomplete** (ghost text, Tab to accept). It even knows Electron's own shortcuts. No cloud, no keys. See `docs/AI.md`
 - Vim-style modal editing — normal/insert/**visual** (line-wise select → yank `y` / delete `d` / paste `p` / AI-rewrite `r`), with a `:` ex command line (`:w`, `:e`, `:e!`, `:w!`, …)
 - Crash-safe **atomic saves** and an external-change **conflict guard** (prompts before overwriting a note edited elsewhere)
 - **Live filesystem sync** — edits from Obsidian/another editor/git refresh the tree, index, and graph; a clean open note reloads automatically
 - **Fast startup** — a persistent index cache re-parses only the notes that changed since last launch (~26× faster on a 680-note vault)
-- Themes: Onyx Dark · Onyx Light · Dracula · Nord (plus user-defined)
+- Themes: Electron Dark · Electron Light · Dracula · Nord (plus user-defined)
 - Persistent config at `~/.config/onyx/config.toml`
 
 ## Build
@@ -49,7 +49,20 @@ run them side by side.
 cargo build --release
 ```
 
-## Install (run `onyx` from anywhere)
+## Install (run `electron` from anywhere)
+
+### macOS Quick Install
+
+To install Electron on macOS (both Desktop App and CLI, or pick either):
+
+```bash
+./scripts/install-mac.sh             # Installs Desktop app to /Applications + CLI to PATH
+./scripts/install-mac.sh --desktop   # Only install Electron Desktop GUI
+./scripts/install-mac.sh --cli       # Only install Electron Terminal TUI
+./scripts/install-mac.sh --uninstall # Uninstall both
+```
+
+### From Source (Rust Cargo)
 
 **Recommended — everything enabled (Google sync + local AI):**
 
@@ -57,7 +70,7 @@ cargo build --release
 cargo install --path . --force --features full
 ```
 
-This puts `onyx` on your PATH (`~/.cargo/bin/onyx`). `full = ["cloud", "ai"]`.
+This puts `electron` on your PATH (`~/.cargo/bin/electron`). `full = ["cloud", "ai"]`.
 
 Prefer a leaner build? Pick the features you want:
 
@@ -70,23 +83,23 @@ cargo install --path . --force --features full    # + both (recommended)
 
 > **After pulling or making changes, re-run the same install command** (use
 > `--features full` to keep Google sync + AI). `cargo build` only updates
-> `target/release/onyx` — it does **not** update the `onyx` command on your PATH,
+> `target/release/electron` — it does **not** update the `electron` command on your PATH,
 > so the installed binary stays on the old version until you reinstall.
 
 ## Run
 
 ```bash
 # Installed on PATH — open the last vault (or create ~/OnyxVault on first launch).
-onyx
+electron
 
 # Open or create a specific vault.
-onyx /path/to/vault
+electron /path/to/vault
 
 # Or run the build directly without installing.
-./target/release/onyx
+./target/release/electron
 ```
 
-Press `Ctrl-/` or `F1` inside Onyx for the full keybinding glossary.
+Press `Ctrl-/` or `F1` inside Electron for the full keybinding glossary.
 Press `Ctrl-Q` to quit.
 
 ## Desktop app
@@ -97,7 +110,7 @@ npm install
 npm run dev      # or: npm run build && npm start
 ```
 
-Onyx Desktop is an Obsidian-shaped GUI over the same vault: Live Preview / Source /
+Electron Desktop is an Obsidian-shaped GUI over the same vault: Live Preview / Source /
 Reading editor modes, a WebGL graph view with Obsidian's full Filters / Groups /
 Display / Forces panel, local graph, JSON Canvas boards, quick switcher and command
 palette, database views, the Quicknote/Todo panes, and the local-LLM assistant.

@@ -1756,7 +1756,7 @@ fn request_external(app: &mut App, ext: PendingExternal, tool: &str) {
 }
 
 /// Neovim Telescope-style verbs, e.g. `:Telescope find_files`,
-/// `:Telescope live_grep query`. Maps each picker to its Onyx equivalent.
+/// `:Telescope live_grep query`. Maps each picker to its Electron equivalent.
 fn run_telescope(app: &mut App, args: &str) {
     let (picker, query) = args
         .split_once(|c: char| c.is_whitespace())

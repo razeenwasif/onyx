@@ -123,7 +123,7 @@ export function App(): JSX.Element {
     return (
       <div className="vault-picker">
         <div>
-          <h1>Onyx</h1>
+          <h1>Electron</h1>
           <p>Open a folder of markdown notes to use as your vault.</p>
           <button
             className="btn primary"

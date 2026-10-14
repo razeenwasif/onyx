@@ -65,7 +65,7 @@ export function Settings(): JSX.Element {
               </Setting>
               <Toggle
                 name="Vim key bindings"
-                desc="Modal editing, like the Onyx TUI."
+                desc="Modal editing, like the Electron TUI."
                 on={settings.vimMode}
                 onChange={(v) => void set({ vimMode: v })}
               />
@@ -245,8 +245,8 @@ export function Settings(): JSX.Element {
 
           {section === 'About' && (
             <p style={{ color: 'var(--fg-dim)', lineHeight: 1.7 }}>
-              <strong>Onyx Desktop</strong> — an Obsidian-style app over the same plain-markdown
-              vault the Onyx TUI uses. Notes stay ordinary <code>.md</code> files on disk; nothing is
+              <strong>Electron Desktop</strong> — an Obsidian-style app over the same plain-markdown
+              vault the Electron TUI uses. Notes stay ordinary <code>.md</code> files on disk; nothing is
               stored in a proprietary format, and the two apps can be used on the same vault at the
               same time.
             </p>
@@ -372,7 +372,7 @@ function GoogleSection(): JSX.Element {
         </div>
       )}
       <p style={{ color: 'var(--fg-subtle)', fontSize: 12, lineHeight: 1.6, marginTop: 16 }}>
-        Onyx uses the installed-app loopback flow: connecting opens your browser, and the
+        Electron uses the installed-app loopback flow: connecting opens your browser, and the
         redirect comes back to <code>127.0.0.1</code> on a one-off port. The token is stored at{' '}
         <code>~/.config/onyx/google.json</code> (mode 600) — the same file the TUI uses, so you
         only ever authorize once. See <code>docs/CLOUD_SYNC.md</code> for creating the client.

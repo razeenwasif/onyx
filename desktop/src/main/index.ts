@@ -36,6 +36,11 @@ import type { AppSettings } from '../shared/types.js'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isDev = !app.isPackaged
 
+// Pin Chromium's profile (localStorage, caches) to the folder it used before the
+// app was renamed from Onyx, so nothing is lost on upgrade — and so it stays out
+// of the generic `Electron` folder every unnamed Electron app writes to.
+app.setPath('userData', path.join(app.getPath('appData'), 'Onyx'))
+
 let win: BrowserWindow | null = null
 let vault: Vault | null = null
 let rag: RagIndex | null = null
@@ -236,7 +241,7 @@ function buildMenu(): void {
     {
       role: 'help',
       submenu: [
-        { label: 'Onyx help', click: () => void shell.openExternal('https://github.com/') },
+        { label: 'Electron help', click: () => void shell.openExternal('https://github.com/') },
         { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: cmd('settings:open') },
       ],
     },

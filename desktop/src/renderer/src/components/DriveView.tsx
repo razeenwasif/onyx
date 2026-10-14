@@ -88,7 +88,7 @@ export function DriveView({ tab }: { tab: Tab }): JSX.Element {
       return
     }
     if (file.isGoogleDoc) {
-      setStatus(`"${file.name}" is a Google-native doc — Onyx can't edit those yet`)
+      setStatus(`"${file.name}" is a Google-native doc — Electron can't edit those yet`)
       return
     }
     if (file.isText) {
@@ -194,7 +194,7 @@ export function DriveView({ tab }: { tab: Tab }): JSX.Element {
               e.preventDefault()
               setMenu({ x: e.clientX, y: e.clientY, file: f })
             }}
-            title={f.isGoogleDoc ? 'Google-native doc — not editable in Onyx' : f.mimeType}
+            title={f.isGoogleDoc ? 'Google-native doc — not editable in Electron' : f.mimeType}
           >
             <Icon
               name={f.isFolder ? 'files' : f.isText ? 'text' : f.isGoogleDoc ? 'book' : 'link'}
@@ -212,7 +212,7 @@ export function DriveView({ tab }: { tab: Tab }): JSX.Element {
       {menu && (
         <div className="context-menu" style={{ left: menu.x, top: menu.y }}>
           <button onClick={() => void activate(menu.file)}>
-            {menu.file.isFolder ? 'Open folder' : menu.file.isText ? 'Edit in Onyx' : 'Open externally'}
+            {menu.file.isFolder ? 'Open folder' : menu.file.isText ? 'Edit in Electron' : 'Open externally'}
           </button>
           {menu.file.isText && (
             <button

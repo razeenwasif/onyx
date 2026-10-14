@@ -104,7 +104,7 @@ export function Ribbon(): JSX.Element {
     {
       id: 'ai',
       icon: 'bot',
-      title: 'Onyx AI (Ctrl+Shift+A)',
+      title: 'Electron AI (Ctrl+Shift+A)',
       run: () => runCommand('ai:open'),
       active: activeType === 'ai',
     },

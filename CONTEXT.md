@@ -1,4 +1,4 @@
-# Onyx — Working Context (handoff)
+# Electron — Working Context (handoff)
 
 Pick-up notes for resuming work. For deep architecture see **`docs/QUICKGUIDE.md`**;
 for the task queue see **`docs/BACKLOG.md`**. This file is the "where we are right now".
@@ -12,7 +12,7 @@ _Last updated: 2026-06-14._
 > ghost_armed/ghost_pending (fast-poll), set_autocomplete}`; `ghost_worker` +
 > `clean_ghost`; rendered in `ui/editor_pane.rs`; `:ai complete on|off`. Verified
 > live ("…France is" → ghost "Paris", Tab accepts). **This finishes the user's
-> entire planned scope — Onyx is feature-complete.** Only optional bits remain:
+> entire planned scope — Electron is feature-complete.** Only optional bits remain:
 > OneDrive (deferred), conversation persistence, char-wise visual selection.
 >
 > ---
@@ -91,7 +91,7 @@ _Last updated: 2026-06-14._
 > (`help_scroll` + windowed `ui/help.rs`, `j/k`/`d/u`/`g/G`). 79 tests, both
 > configs clippy-clean, pyte-verified. Also earlier today: **Drive note upload**
 > (`u`/`:drive upload` → `gdrive::create_file` multipart). Next planned (user's
-> sequence): **integrate the user's local Gemma model into Onyx** (details TBD).
+> sequence): **integrate the user's local Gemma model into Electron** (details TBD).
 >
 > ---
 >
@@ -166,7 +166,7 @@ _Last updated: 2026-06-14._
 
 ---
 
-## What Onyx is
+## What Electron is
 
 A single-binary **Rust + ratatui TUI** markdown notes app — an Obsidian-inspired
 terminal vault. ~8.5k LOC. Stack: `ratatui` 0.29 + `crossterm` (TUI),
@@ -175,7 +175,7 @@ scan), `serde`+`toml` (config), `chrono` (calendar), `fuzzy-matcher` (palette/sw
 
 **Repo:** https://github.com/razeenwasif/onyx (public, `main`), authed as
 `razeenwasif` over SSH. Installed on PATH via `cargo install --path .` →
-`~/.cargo/bin/onyx`.
+`~/.cargo/bin/electron`.
 
 ---
 
@@ -202,14 +202,14 @@ scan), `serde`+`toml` (config), `chrono` (calendar), `fuzzy-matcher` (palette/sw
 cargo build --release --features full
 cargo clippy --features full -- -D warnings  # MUST stay clean (CI-ready); also plain (no-feature) build
 cargo test --features full                   # all green
-cargo install --path . --force --features full   # reinstall onyx on PATH (Google sync + local AI)
-onyx                                          # opens last_vault (~/OnyxVault)
+cargo install --path . --force --features full   # reinstall electron on PATH (Google sync + local AI)
+electron                                          # opens last_vault (~/OnyxVault)
 ```
 `full = ["cloud", "ai"]`. Use `--features full` for the full build; plain
 `cargo install --path . --force` drops Google sync **and** the AI assistant.
-**Reinstall after every change you want to use from the `onyx` command.**
-`cargo build` only refreshes `target/release/onyx`; the PATH binary at
-`~/.cargo/bin/onyx` is updated *only* by `cargo install --path . --force …`. (This
+**Reinstall after every change you want to use from the `electron` command.**
+`cargo build` only refreshes `target/release/electron`; the PATH binary at
+`~/.cargo/bin/electron` is updated *only* by `cargo install --path . --force …`. (This
 bit us once: a stale installed binary opened on an old build with no Home screen
 even though the source was current.)
 
@@ -250,7 +250,7 @@ by hand — naive stripping mis-reads absolutely-positioned popups. Reuse that.
   fuzzy note-name picker; Up/Down select, Enter/Tab insert `[[Name]]`, Esc
   dismisses (stays in insert). `App::link_complete` + `refresh_link_complete`;
   popup drawn by `editor_pane::draw_link_popup`. See QUICKGUIDE § 9.1.
-- **Home start page:** Onyx opens on an interactive start page (center pane) —
+- **Home start page:** Electron opens on an interactive start page (center pane) —
   New note / New folder / Search / Open note… / Today's daily note, then recent
   notes; `j/k` + Enter. No more auto-opening the last note. Falls back here when
   the open note is deleted. `App::home_items` is the single source of truth; see
@@ -345,7 +345,7 @@ by hand — naive stripping mis-reads absolutely-positioned popups. Reuse that.
 ## What's next (from `docs/BACKLOG.md`)
 
 **Primary direction (2026-06-11): the ⭐ Notion + Obsidian hybrid epic** — make
-Onyx a Notion/Obsidian hybrid and migrate the user's Notion in. Phased:
+Electron a Notion/Obsidian hybrid and migrate the user's Notion in. Phased:
 
 1. **Page properties** ✅ done (Phase 1).
 2. **Database / table + board views** over a folder, keyed by frontmatter props

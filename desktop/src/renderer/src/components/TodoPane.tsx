@@ -1,5 +1,5 @@
 /**
- * Onyx's Todo checklist, persisted to `.onyx/todos.md` as an ordinary markdown
+ * Electron's Todo checklist, persisted to `.onyx/todos.md` as an ordinary markdown
  * checklist so the TUI and the desktop app read and write the same file.
  *
  * Completed items carry a trailing `<!--done:YYYY-MM-DD-->` marker — invisible

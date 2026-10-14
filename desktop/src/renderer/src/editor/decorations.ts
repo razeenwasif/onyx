@@ -254,7 +254,7 @@ class PropertiesWidget extends WidgetType {
 }
 
 /**
- * An Onyx `::: columns … +++ … :::` block, rendered side by side.
+ * An Electron `::: columns … +++ … :::` block, rendered side by side.
  *
  * Unlike callouts (which are line decorations) columns need a real
  * side-by-side layout, so the whole block is replaced with one widget — and,

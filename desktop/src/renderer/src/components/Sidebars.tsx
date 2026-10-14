@@ -1,5 +1,5 @@
 /**
- * The two sidebars, laid out like the Onyx TUI: a vertical stack of panes per
+ * The two sidebars, laid out like the Electron TUI: a vertical stack of panes per
  * side rather than Obsidian's one-tab-at-a-time sidebar.
  *
  *   left   files · quicknote · todo        (+ bookmarks, hidden by default)

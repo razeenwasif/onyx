@@ -1,11 +1,11 @@
 [package]
-name = "onyx"
+name = "electron"
 version = "0.1.0"
 edition = "2021"
-authors = ["Onyx contributors"]
+authors = ["Electron contributors"]
 description = "A modern, premium markdown notes TUI — an Obsidian-inspired terminal vault."
 license = "MIT"
-default-run = "onyx"
+default-run = "electron"
 
 [dependencies]
 ratatui = "0.29"

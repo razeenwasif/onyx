@@ -1,10 +1,10 @@
 //! Filesystem watcher. Notifies the app when external tools (Obsidian, an
-//! editor, git, sync) modify vault files, so Onyx can keep the tree, index, and
+//! editor, git, sync) modify vault files, so Electron can keep the tree, index, and
 //! open document in sync instead of silently going stale.
 //!
 //! The watcher runs on its own thread (inotify on Linux) and pushes the changed
 //! *paths* over a channel; `App::handle_fs_events` drains them each loop tick,
-//! filters out Onyx's own writes, and refreshes what actually changed.
+//! filters out Electron's own writes, and refreshes what actually changed.
 
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;

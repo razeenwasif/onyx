@@ -12,7 +12,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
     let theme = &app.theme;
     let mut spans: Vec<Span<'static>> = Vec::new();
     spans.push(Span::styled(
-        "  ◆ Onyx ",
+        "  ◆ Electron ",
         theme.s_accent().add_modifier(Modifier::BOLD),
     ));
     spans.push(Span::styled(

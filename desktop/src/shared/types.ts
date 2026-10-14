@@ -12,7 +12,7 @@ export interface WikiLink {
 
 /** A note's content-derived facts, extracted once from its text. */
 export interface NoteMeta {
-  /** Vault-relative path with forward slashes, e.g. `Projects/Onyx.md`. */
+  /** Vault-relative path with forward slashes, e.g. `Projects/Electron.md`. */
   path: string
   /** First H1, else the file basename. */
   title: string
@@ -175,7 +175,7 @@ export interface DriveFile {
   name: string
   mimeType: string
   isFolder: boolean
-  /** Onyx can open this as editable text. */
+  /** Electron can open this as editable text. */
   isText: boolean
   /** A Google-native doc — needs export rather than download. */
   isGoogleDoc: boolean
