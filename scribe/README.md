@@ -175,6 +175,16 @@ so the S is a real pressure-varying stroke, heavier on the downstrokes. The
 small sizes get simplified artwork rather than a shrunk copy. `build.sh`
 renders every size macOS needs and packs them into `AppIcon.icns`.
 
+## Inside Electron
+
+Scribe also runs inside the Electron desktop app (`../desktop`) on macOS. The interface
+is the `ScribeUI` library; the standalone app is a thin `@main` around it, and
+`ScribeEmbed` builds it into `libScribeEmbed.dylib` with a small C API: make the view,
+show or hide it, run a menu action by name, and hand over the menu as JSON. Embedded,
+the host draws its app switcher where the window's traffic lights would be (Electron
+hides them), and nothing else about the interface changes. `../desktop/scripts/build-scribe.sh`
+builds and stages it.
+
 ## Layout of the source
 
 | Path | What is in it |
@@ -186,7 +196,9 @@ renders every size macOS needs and packs them into `AppIcon.icns`.
 | `crates/scribe-core/src/table.rs` | HTML / Markdown / TSV / CSV tables in and out |
 | `crates/scribe-core/src/ffi.rs` | The C ABI (header in `crates/scribe-core/include`) |
 | `crates/scribe-icon/` | The icon renderer |
-| `macos/Scribe/App/` | App entry, window state, menus, pasting and inserting |
+| `macos/Scribe/App/` | Window state, the root view, menus and their actions, pasting and inserting |
+| `macos/ScribeApp/` | The standalone app's entry point (`@main`) |
+| `macos/ScribeEmbed/` | C entry points for hosting Scribe in another app's window |
 | `macos/Scribe/Canvas/` | The scroll view, page surface and ink view (pen input) |
 | `macos/Scribe/Objects/` | Text boxes, rich text, images, equations, tables, floating pills |
 | `macos/Scribe/Views/` | Sidebar, page list, rail, dock, pen tray, sheets, control styles |

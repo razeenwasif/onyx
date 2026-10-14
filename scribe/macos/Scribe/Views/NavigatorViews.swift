@@ -9,12 +9,15 @@ struct Sidebar: View {
 
     @State private var collapsed: Set<String> = []
     @FocusState private var searchFocused: Bool
+    @Environment(\.hostAccessory) private var hostAccessory
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             if docked {
-                // The traffic lights sit at the left of this row.
+                // The traffic lights sit at the left of this row (or, when
+                // Scribe is embedded in another app, that app's switcher).
                 HStack(spacing: 2) {
+                    if let hostAccessory { hostAccessory(.horizontal) }
                     Color.clear.contentShape(Rectangle()).windowDraggable()
                     PanelToggle(symbol: "sidebar.squares.left", on: !app.pageListCollapsed,
                                 help: app.pageListCollapsed ? "Show pages (⌃⌘P)" : "Hide pages (⌃⌘P)") {
@@ -376,10 +379,15 @@ struct Rail: View {
     @Bindable var app: AppModel
     /// The window is too narrow to expand into; the library opens in a popover.
     var narrow: Bool
+    @Environment(\.hostAccessory) private var hostAccessory
 
     var body: some View {
         VStack(spacing: 10) {
-            Color.clear.frame(height: 28).contentShape(Rectangle()).windowDraggable()
+            if let hostAccessory {
+                hostAccessory(.vertical).padding(.bottom, 4)
+            } else {
+                Color.clear.frame(height: 28).contentShape(Rectangle()).windowDraggable()
+            }
             Button {
                 if narrow { app.showLibrary.toggle() } else { app.sidebarCollapsed = false }
             } label: { Image(systemName: narrow ? "books.vertical" : "sidebar.left") }

@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Window-level state: the notebook tree, the open page, the active tool.
 @Observable
-final class AppModel {
+public final class AppModel {
     var settings: Settings
     private(set) var root: String
 
@@ -75,7 +75,7 @@ final class AppModel {
     @ObservationIgnored private var autosave: DispatchWorkItem?
     @ObservationIgnored private var searchWork: DispatchWorkItem?
 
-    init() {
+    public init() {
         let loaded = (try? Core.call("load_settings", as: Settings.self)) ?? Settings()
         settings = loaded
         sidebarCollapsed = loaded.sidebarCollapsed
@@ -87,7 +87,7 @@ final class AppModel {
 
     // --------------------------------------------------------------- startup
 
-    func start() {
+    public func start() {
         do {
             _ = try Core.call("ensure_starter", ["root": root], as: String?.self)
         } catch {
@@ -215,7 +215,7 @@ final class AppModel {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
     }
 
-    func save() {
+    public func save() {
         autosave?.cancel()
         guard let page, dirty else { return }
 
@@ -538,7 +538,7 @@ final class AppModel {
         try? Core.run("save_settings", ["settings": (try? Core.json(settings)) ?? [:]])
     }
 
-    func willTerminate() {
+    public func willTerminate() {
         commitOpenPage()
         saveSettings()
     }

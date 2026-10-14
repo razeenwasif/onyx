@@ -6,11 +6,11 @@ import AppKit
 /// pressure), so this sheet is how the engine is checked: pressure response,
 /// tapering, smoothing, the highlighter, dots, and a stroke round-tripped
 /// through the JSON page format.
-enum InkSelfTest {
+public enum InkSelfTest {
     static let width = 900
     static let band = 620
 
-    static func render(to url: URL) throws {
+    public static func render(to url: URL) throws {
         let height = band * 2
         guard let ctx = CGContext(
             data: nil, width: width * 2, height: height * 2, bitsPerComponent: 8, bytesPerRow: 0,

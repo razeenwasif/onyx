@@ -5,7 +5,7 @@ import SwiftUI
 /// Velvet dark: depth from layered surfaces and soft light, never outlines.
 /// Every corner is rounded and every control is a pill or a circle, so the
 /// chrome steps back and the page and the ink lead.
-enum Velvet {
+public enum Velvet {
     // Surfaces, back to front.
     static let ground = Color(hex: 0x0E0C10)
     static let editor = Color(hex: 0x131116)
@@ -52,7 +52,7 @@ enum Velvet {
     // ----------------------------------------------------------------- fonts
 
     /// Registers the bundled Fraunces once, at launch.
-    static func registerFonts() {
+    public static func registerFonts() {
         guard let url = Bundle.module.url(forResource: "Fraunces", withExtension: "ttf", subdirectory: "Fonts") else { return }
         CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
     }

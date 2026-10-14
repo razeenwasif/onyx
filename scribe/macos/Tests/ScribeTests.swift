@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import Scribe
+@testable import ScribeUI
 
 final class CoreBridgeTests: XCTestCase {
     func testColoursCrossTheBoundary() {
