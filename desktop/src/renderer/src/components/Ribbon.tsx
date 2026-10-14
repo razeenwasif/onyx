@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import { useStore } from '../store'
+import scribeIcon from '../assets/scribe-icon.png'
 import { runCommand } from '../commands'
 import { Icon, type IconName } from './Icon'
 
@@ -8,6 +10,52 @@ interface Item {
   title: string
   run: () => void
   active?: boolean
+}
+
+/** Electron's mark: three open orbits capped by tag-coloured electrons. */
+function ElectronMark({ className }: { className?: string }): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 512 512" aria-hidden="true">
+      <g fill="none" stroke="#63558f" strokeWidth="26" strokeLinecap="round">
+        <path d="M256 184 A72 72 0 1 1 184 256" />
+        <path d="M382 256 A126 126 0 1 1 256 130" />
+        <path d="M256 436 A180 180 0 1 1 436 256" />
+      </g>
+      <circle cx="256" cy="256" r="38" fill="#a78bfa" />
+      <circle cx="256" cy="184" r="26" fill="#7aa2f7" />
+      <circle cx="382" cy="256" r="26" fill="#34d399" />
+      <circle cx="256" cy="130" r="26" fill="#f59e0b" />
+      <circle cx="256" cy="436" r="26" fill="#e0c889" />
+      <circle cx="436" cy="256" r="26" fill="#f7768e" />
+    </svg>
+  )
+}
+
+/**
+ * The two notes apps in one window (macOS): Electron, on screen whenever this
+ * ribbon is, and Scribe, whose native view covers it once chosen. Scribe
+ * draws the same pair in its own sidebar to switch back.
+ */
+function AppSwitcher(): JSX.Element | null {
+  const [available, setAvailable] = useState(false)
+  useEffect(() => {
+    void window.onyx.apps.info().then((apps) => setAvailable(apps.available))
+  }, [])
+  if (!available) return null
+  return (
+    <div className="app-switcher">
+      <button className="app-switch is-current" title="Electron" aria-current="true">
+        <ElectronMark />
+      </button>
+      <button
+        className="app-switch"
+        title="Switch to Scribe (Ctrl+Cmd+2)"
+        onClick={() => void window.onyx.apps.switchTo('scribe')}
+      >
+        <img src={scribeIcon} alt="Scribe" draggable={false} />
+      </button>
+    </div>
+  )
 }
 
 export function Ribbon(): JSX.Element {
@@ -126,20 +174,10 @@ export function Ribbon(): JSX.Element {
 
   return (
     <div className="ribbon">
-      {/* The app mark; only the velvet skin shows it (styles/velvet.css). */}
-      <svg className="ribbon-logo" viewBox="0 0 512 512" aria-hidden="true">
-        <g fill="none" stroke="#63558f" strokeWidth="26" strokeLinecap="round">
-          <path d="M256 184 A72 72 0 1 1 184 256" />
-          <path d="M382 256 A126 126 0 1 1 256 130" />
-          <path d="M256 436 A180 180 0 1 1 436 256" />
-        </g>
-        <circle cx="256" cy="256" r="38" fill="#a78bfa" />
-        <circle cx="256" cy="184" r="26" fill="#7aa2f7" />
-        <circle cx="382" cy="256" r="26" fill="#34d399" />
-        <circle cx="256" cy="130" r="26" fill="#f59e0b" />
-        <circle cx="256" cy="436" r="26" fill="#e0c889" />
-        <circle cx="436" cy="256" r="26" fill="#f7768e" />
-      </svg>
+      <AppSwitcher />
+      {/* The app mark; only the velvet skin shows it (styles/velvet.css), and
+          only when there's no app switcher already showing it. */}
+      <ElectronMark className="ribbon-logo" />
       {items.map((i) => (
         <button
           key={i.id}

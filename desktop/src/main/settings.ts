@@ -40,6 +40,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   window: { width: 1440, height: 900, maximized: false },
   recentVaults: [],
   theme: 'electron-velvet',
+  activeApp: 'electron',
   layout: {
     leftOpen: true,
     rightOpen: true,

@@ -6,6 +6,8 @@ front ends over the same folder of plain `.md` files:
 - **`electron`** — the terminal app (Rust + ratatui). This README.
 - **[Electron Desktop](desktop/README.md)** — a TypeScript GUI (built on the Electron framework) made to match
   Obsidian: live-preview editor, WebGL graph view, canvas, and the Electron extras.
+- **[Scribe](scribe/README.md)** — a pen-first notebook for macOS (Rust + SwiftUI). It runs on its
+  own, and inside Electron Desktop on macOS, where an app switcher flips the window between the two.
 
 Both read and write the same vault and the same `.onyx/` sidecar files, so you can
 run them side by side.

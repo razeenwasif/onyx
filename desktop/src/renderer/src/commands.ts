@@ -374,6 +374,17 @@ export const COMMANDS: Command[] = [
     run: () => s().toggleSection('properties'),
   },
   {
+    id: 'app:scribe',
+    name: 'Switch to Scribe',
+    // Scribe is a native macOS app; the main process says whether it's built.
+    enabled: () => mod === 'Cmd',
+    run: async () => {
+      const apps = await window.onyx.apps.info()
+      if (apps.available) await window.onyx.apps.switchTo('scribe')
+      else s().setStatus('Scribe is only available in the macOS app')
+    },
+  },
+  {
     id: 'settings:open',
     name: 'Open settings',
     hotkey: `${mod}+,`,

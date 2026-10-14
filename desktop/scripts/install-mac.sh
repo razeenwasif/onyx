@@ -64,7 +64,7 @@ fi
 # Build if requested or if app doesn't exist
 if [[ "${1:-}" == "--build" ]] || [[ ! -d "$APP_BUILD_DIR" ]]; then
   echo "Building Electron Desktop for macOS..."
-  (cd "$here" && npm run build && npx electron-builder --mac --dir)
+  (cd "$here" && npm run build:scribe && npm run build && npx electron-builder --mac --dir)
   if [[ ! -d "$APP_BUILD_DIR" ]]; then
     if [[ -d "$here/release/mac-arm64/Electron.app" ]]; then
       APP_BUILD_DIR="$here/release/mac-arm64/Electron.app"

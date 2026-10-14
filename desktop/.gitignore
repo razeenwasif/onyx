@@ -4,3 +4,5 @@ dist/
 release/
 *.tsbuildinfo
 .docker-cache/
+scribe-embed/
+native/scribe-bridge/build/

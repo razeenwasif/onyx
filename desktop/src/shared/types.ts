@@ -277,6 +277,8 @@ export interface AppSettings {
   window: WindowState
   recentVaults: string[]
   theme: string
+  /** Which app was on screen last: Electron's notes, or the embedded Scribe (macOS). */
+  activeApp: 'electron' | 'scribe'
   layout: LayoutSettings
   /** The workspace as it was when the app last closed. */
   session: SessionState | null

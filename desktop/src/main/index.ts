@@ -32,6 +32,17 @@ import * as drive from './drive.js'
 import * as google from './google.js'
 import { SCOPES } from './google.js'
 import { isPackaged } from './packaged.js'
+import {
+  applyMenu,
+  attachScribe,
+  currentApp,
+  initScribe,
+  scribeAvailable,
+  snapshotScribe,
+  switchApp,
+  windowMenu,
+  type AppId,
+} from './scribe.js'
 import type { AppSettings } from '../shared/types.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -154,9 +165,12 @@ function createWindow(): void {
   }
   if (settings.get().window.maximized) win.maximize()
   trackWindowState(win)
+  attachScribe(win, iconPath())
 
   win.on('ready-to-show', () => {
     win?.show()
+    // Reopen in whichever app was on screen last.
+    if (settings.get().activeApp === 'scribe') switchApp('scribe')
     // Dev/CI aid: ONYX_CAPTURE=/path/shot.png renders, screenshots, and quits.
     if (process.env.ONYX_CAPTURE) captureAndQuit(process.env.ONYX_CAPTURE)
   })
@@ -189,6 +203,13 @@ function captureAndQuit(target: string): void {
     setTimeout(() => send('menu:command', cmd), Math.min(1200 + i * 800, delay - 400))
   })
   setTimeout(() => {
+    // Scribe's native view sits over the web contents, which is all
+    // capturePage can see, so it renders itself.
+    if (currentApp() === 'scribe') {
+      snapshotScribe(target)
+      app.quit()
+      return
+    }
     void win?.webContents
       .capturePage()
       .then((img) => fs.writeFile(target, img.toPNG()))
@@ -197,8 +218,12 @@ function captureAndQuit(target: string): void {
   }, delay)
 }
 
-/** Menu accelerators just forward a command id; the renderer owns the commands. */
-function buildMenu(): void {
+/**
+ * Electron's menu bar. Accelerators just forward a command id; the renderer
+ * owns the commands. While Scribe is on screen the menu bar is Scribe's
+ * instead (scribe.ts swaps them).
+ */
+function electronMenu(): Electron.Menu {
   const cmd = (id: string) => () => send('menu:command', id)
   const isMac = process.platform === 'darwin'
   const template: Electron.MenuItemConstructorOptions[] = [
@@ -240,7 +265,7 @@ function buildMenu(): void {
         { role: 'togglefullscreen' },
       ],
     },
-    { role: 'windowMenu' },
+    windowMenu(),
     {
       role: 'help',
       submenu: [
@@ -249,7 +274,7 @@ function buildMenu(): void {
       ],
     },
   ]
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+  return Menu.buildFromTemplate(template)
 }
 
 // ----------------------------------------------------------------- vault
@@ -289,6 +314,9 @@ function registerIpc(): void {
     version: app.getVersion(),
     dark: nativeTheme.shouldUseDarkColors,
   }))
+
+  ipcMain.handle('apps:info', () => ({ available: scribeAvailable(), current: currentApp() }))
+  ipcMain.handle('apps:switch', (_e, id: AppId) => switchApp(id))
 
   ipcMain.handle('settings:get', () => settings.get())
   ipcMain.handle('settings:set', (_e, patch: Partial<AppSettings>) => settings.update(patch))
@@ -592,7 +620,15 @@ function registerIpc(): void {
 void app.whenReady().then(async () => {
   await settings.load()
   registerIpc()
-  buildMenu()
+  const scribeProblem = initScribe({
+    electronMenu,
+    onChange: (id) => {
+      send('apps:changed', id)
+      settings.update({ activeApp: id })
+    },
+  })
+  if (scribeProblem && process.platform === 'darwin') console.warn(scribeProblem)
+  applyMenu()
 
   const start = settings.get().lastVault ?? defaultVaultPath()
   try {

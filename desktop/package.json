@@ -24,10 +24,11 @@
     "pack:linux": "electron-vite build && electron-builder --linux",
     "pack:win": "electron-vite build && electron-builder --win",
     "pack:win:docker": "bash scripts/pack-win-docker.sh",
-    "pack:mac": "electron-vite build && electron-builder --mac",
-    "pack:mac:arm64": "electron-vite build && electron-builder --mac --arm64",
-    "pack:mac:x64": "electron-vite build && electron-builder --mac --x64",
-    "pack:mac:universal": "electron-vite build && electron-builder --mac --universal",
+    "build:scribe": "bash scripts/build-scribe.sh",
+    "pack:mac": "npm run build:scribe && electron-vite build && electron-builder --mac",
+    "pack:mac:arm64": "npm run build:scribe && electron-vite build && electron-builder --mac --arm64",
+    "pack:mac:x64": "npm run build:scribe && electron-vite build && electron-builder --mac --x64",
+    "pack:mac:universal": "npm run build:scribe && electron-vite build && electron-builder --mac --universal",
     "install:mac": "bash scripts/install-mac.sh",
     "generate-icons": "bash scripts/generate-icons.sh",
     "test": "vitest run",
@@ -142,7 +143,29 @@
       "darkModeSupport": true,
       "artifactName": "${productName}-${version}-${arch}.${ext}",
       "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.inherit.plist"
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+      "extraResources": [
+        {
+          "from": "build/icon.png",
+          "to": "icon.png"
+        },
+        {
+          "from": "scribe-embed",
+          "to": "scribe",
+          "filter": [
+            "libScribeEmbed.dylib",
+            "scribe_bridge.node",
+            "scribe-icon.png"
+          ]
+        },
+        {
+          "from": "scribe-embed",
+          "to": ".",
+          "filter": [
+            "*.bundle/**/*"
+          ]
+        }
+      ]
     },
     "dmg": {
       "title": "${productName} ${version}",

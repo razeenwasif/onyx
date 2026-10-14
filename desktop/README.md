@@ -16,6 +16,29 @@ npm start            # run the production build
 npm run build        # build only, into desktop/out
 ```
 
+## Scribe, in the same window (macOS)
+
+On macOS the app also carries [Scribe](../scribe/README.md), the pen-first notebook.
+Both live in one window: the two icons at the top of the ribbon (and at the top of
+Scribe's sidebar) switch between them, as do **Window → Electron / Scribe**
+(⌃⌘1 / ⌃⌘2). The menu bar follows whichever app is on screen, and the app reopens in
+the one you used last. Scribe's notebooks stay where they always were
+(`~/Documents/Scribe Notebooks` unless you chose another folder), so the standalone
+Scribe app and this one share them.
+
+Scribe is native SwiftUI, so it's built separately and loaded at runtime:
+
+```bash
+npm run build:scribe   # once, and after changing ../scribe (needs Rust + Xcode 16, macOS 15)
+npm run dev            # dev runs pick it up from desktop/scribe-embed
+```
+
+`build:scribe` builds `libScribeEmbed.dylib` from `../scribe` and the small
+`native/scribe-bridge` addon that places its view over the web contents, and stages both
+in `desktop/scribe-embed/`. The `pack:mac*` scripts and `install-mac.sh --build` run it
+first and ship the result inside the app. It's Apple Silicon only for now. Without it,
+or on Linux and Windows, the switcher just doesn't appear.
+
 ## Install
 
 Packaging is electron-builder; artifacts land in `desktop/release`.

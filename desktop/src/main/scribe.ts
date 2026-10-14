@@ -1,0 +1,171 @@
+/**
+ * Scribe, the pen-first notebook app, inside Electron's window (macOS).
+ *
+ * Scribe's SwiftUI interface is built from ../scribe into libScribeEmbed.dylib
+ * and staged, with the addon that loads it (native/scribe-bridge), by
+ * scripts/build-scribe.sh. The addon lays Scribe's view over the web
+ * contents; switching apps shows or hides that view, moves keyboard focus,
+ * and swaps the menu bar for the app on screen.
+ *
+ * On Linux and Windows, or in a build without Scribe staged, `available` is
+ * false and the app behaves exactly as before.
+ */
+
+import { app, BrowserWindow, Menu } from 'electron'
+import { existsSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import * as path from 'node:path'
+
+import { isPackaged } from './packaged.js'
+
+export type AppId = 'electron' | 'scribe'
+
+interface Bridge {
+  load(dylib: string): void
+  attach(handle: Buffer, hostName: string, hostIcon: string, scribeIcon: string): void
+  setVisible(visible: boolean): void
+  perform(action: string): boolean
+  menu(): string
+  onSwitch(fn: () => void): void
+  snapshot(png: string): boolean
+}
+
+/** One entry of Scribe's menu JSON (see scribe/macos/Scribe/App/ScribeMenu.swift). */
+interface MenuSpec {
+  id?: string
+  label?: string
+  accelerator?: string
+  role?: string
+  type?: string
+  submenu?: MenuSpec[]
+}
+
+/** Where build-scribe.sh staged Scribe: inside the app when packaged, desktop/scribe-embed in dev. */
+function stageDir(): string {
+  return isPackaged
+    ? path.join(process.resourcesPath, 'scribe')
+    : path.join(app.getAppPath(), 'scribe-embed')
+}
+
+let bridge: Bridge | null = null
+let current: AppId = 'electron'
+let host: BrowserWindow | null = null
+let menus: Record<AppId, () => Electron.Menu> | null = null
+let changed: (id: AppId) => void = () => {}
+
+/**
+ * Load Scribe if it's here. `electronMenu` builds Electron's own menu bar;
+ * `onChange` hears every switch (to tell the renderer and remember it).
+ * Returns why Scribe isn't available, or null when it is.
+ */
+export function initScribe(options: {
+  electronMenu: () => Electron.Menu
+  onChange: (id: AppId) => void
+}): string | null {
+  changed = options.onChange
+  menus = { electron: options.electronMenu, scribe: scribeMenu }
+  if (process.platform !== 'darwin') return 'Scribe is macOS-only'
+  const dir = stageDir()
+  const addon = path.join(dir, 'scribe_bridge.node')
+  const dylib = path.join(dir, 'libScribeEmbed.dylib')
+  if (!existsSync(addon) || !existsSync(dylib)) return `Scribe isn't built (run scripts/build-scribe.sh)`
+  try {
+    const loaded = createRequire(import.meta.url)(addon) as Bridge
+    loaded.load(dylib)
+    loaded.onSwitch(() => switchApp('electron'))
+    bridge = loaded
+    return null
+  } catch (err) {
+    return `Scribe failed to load: ${(err as Error).message}`
+  }
+}
+
+export function scribeAvailable(): boolean {
+  return bridge !== null
+}
+
+export function currentApp(): AppId {
+  return current
+}
+
+/**
+ * Put Scribe's view (hidden unless it's the current app) into `window`.
+ * Called for every new window: macOS re-creates it after the last one closes.
+ */
+export function attachScribe(window: BrowserWindow, hostIcon: string): void {
+  host = window
+  if (!bridge) return
+  bridge.attach(window.getNativeWindowHandle(), 'Electron', hostIcon, path.join(stageDir(), 'scribe-icon.png'))
+  // Scribe's layout needs this much room before its panels fold away.
+  window.setMinimumSize(760, 560)
+  if (current === 'scribe') bridge.setVisible(true)
+}
+
+/** Show `id`'s interface, with its menu bar and the keyboard. */
+export function switchApp(id: AppId): void {
+  if (id === current || (id === 'scribe' && !bridge)) return
+  current = id
+  bridge?.setVisible(id === 'scribe')
+  if (id === 'electron' && host && !host.isDestroyed()) host.webContents.focus()
+  applyMenu()
+  changed(id)
+}
+
+/** Rebuild the menu bar for whichever app is on screen. */
+export function applyMenu(): void {
+  if (menus) Menu.setApplicationMenu(menus[current]())
+}
+
+/**
+ * The Window menu both apps share: switch between them (⌃⌘1 / ⌃⌘2), then
+ * the usual window items. Only offered when Scribe is available.
+ */
+export function windowMenu(): Electron.MenuItemConstructorOptions {
+  if (!bridge) return { role: 'windowMenu' }
+  return {
+    label: 'Window',
+    submenu: [
+      { role: 'minimize' },
+      { role: 'zoom' },
+      { type: 'separator' },
+      {
+        label: 'Electron',
+        type: 'checkbox',
+        checked: current === 'electron',
+        accelerator: 'Ctrl+Cmd+1',
+        click: () => switchApp('electron'),
+      },
+      {
+        label: 'Scribe',
+        type: 'checkbox',
+        checked: current === 'scribe',
+        accelerator: 'Ctrl+Cmd+2',
+        click: () => switchApp('scribe'),
+      },
+      { type: 'separator' },
+      { role: 'front' },
+    ],
+  }
+}
+
+/** Scribe's own menus, from its JSON, framed by the app and Window menus. */
+function scribeMenu(): Electron.Menu {
+  const specs = JSON.parse(bridge!.menu()) as MenuSpec[]
+  const toItem = (spec: MenuSpec): Electron.MenuItemConstructorOptions => {
+    if (spec.type === 'separator') return { type: 'separator' }
+    if (spec.role) return { role: spec.role as Electron.MenuItemConstructorOptions['role'] }
+    if (spec.submenu) return { label: spec.label, submenu: spec.submenu.map(toItem) }
+    const action = spec.id!
+    return { label: spec.label, accelerator: spec.accelerator, click: () => bridge?.perform(action) }
+  }
+  const scribeMenus = specs.map(toItem)
+  // Scribe's File menu, like the standalone app's, ends with Close (⌘W).
+  const file = scribeMenus.find((m) => m.label === 'File')
+  if (file && Array.isArray(file.submenu)) file.submenu.push({ type: 'separator' }, { role: 'close' })
+  return Menu.buildFromTemplate([{ role: 'appMenu' }, ...scribeMenus, windowMenu()])
+}
+
+/** Render Scribe's view to a PNG (capturePage only sees the web layer under it). */
+export function snapshotScribe(png: string): boolean {
+  return bridge?.snapshot(png) ?? false
+}

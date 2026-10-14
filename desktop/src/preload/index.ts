@@ -32,6 +32,14 @@ export const api = {
     onMenuCommand: (fn: (id: string) => void): Unsubscribe => on('menu:command', fn),
   },
 
+  /** Electron and the embedded Scribe (macOS), and switching between them. */
+  apps: {
+    info: (): Promise<{ available: boolean; current: 'electron' | 'scribe' }> =>
+      ipcRenderer.invoke('apps:info'),
+    switchTo: (id: 'electron' | 'scribe'): Promise<void> => ipcRenderer.invoke('apps:switch', id),
+    onChanged: (fn: (id: 'electron' | 'scribe') => void): Unsubscribe => on('apps:changed', fn),
+  },
+
   settings: {
     get: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),
     set: (patch: Partial<AppSettings>): Promise<AppSettings> =>

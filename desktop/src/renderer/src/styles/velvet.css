@@ -52,6 +52,20 @@
   gap: 4px;
 }
 
+[data-style='velvet'] .app-switcher {
+  margin-bottom: 14px;
+}
+
+[data-style='velvet'] .app-switch {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+}
+
+[data-style='velvet'] .app-switcher + .ribbon-logo {
+  display: none;
+}
+
 [data-style='velvet'] .ribbon-logo {
   display: block;
   width: 30px;
