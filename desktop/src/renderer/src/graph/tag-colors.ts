@@ -32,10 +32,10 @@ export function tagColor(tag: string, dark: boolean): string {
   // Nudge saturation/lightness by the hash too, so same-hue collisions still
   // differ a little, and keep both inside a range that reads on either theme.
   const jitter = hash(`${tagFamily(tag)}~`) % 100
-  // Vivid, mid-lightness colours: clusters should read as solid blocks of
-  // colour against the dark background, not pastel haze.
-  const sat = (dark ? 72 : 68) + (jitter % 14)
-  const light = dark ? 52 + (jitter % 7) : 40 + (jitter % 7)
+  // Pastels: soft, light colours that still separate cleanly by hue. On the
+  // light theme they're kept darker so they don't wash into the background.
+  const sat = (dark ? 62 : 52) + (jitter % 14)
+  const light = dark ? 76 + (jitter % 6) : 52 + (jitter % 6)
   return hslToHex(hue, sat, light)
 }
 
