@@ -1,11 +1,11 @@
 //! Renders the Scribe app icon.
 //!
-//! The mark is a cursive S written in cream ink straight onto a dark, ruled
-//! slate, with a terracotta margin rule and a drop of ink where the nib
-//! lifted: the app's own dark page. The handwriting is built by the app's ink
-//! engine (`scribe_core::geometry::outline`), with pressure rising on
-//! downstrokes the way a real nib behaves, so the icon is a picture of what
-//! Scribe actually draws.
+//! The mark is a single bold S in cream ink on a velvet-dark tile, with a drop
+//! of terracotta ink where the nib lifted: one stroke, no paper, so it reads
+//! at any size and sits beside Electron's icon in its app switcher. The
+//! stroke is built by the app's ink engine (`scribe_core::geometry::outline`),
+//! with pressure rising on downstrokes the way a real nib behaves, so the
+//! icon is a picture of what Scribe actually draws.
 //!
 //! Usage: scribe-icon <out-dir>
 //! Writes `AppIcon.iconset/` (every size macOS wants) and `AppIcon-preview.png`.
@@ -16,8 +16,8 @@ use std::path::PathBuf;
 
 use scribe_core::geometry::{outline, OutlineOptions};
 use tiny_skia::{
-    Color, FillRule, GradientStop, LinearGradient, Mask, Paint, Path, PathBuilder, Pixmap, Point,
-    SpreadMode, Stroke, Transform,
+    Color, FillRule, GradientStop, LinearGradient, Paint, Path, PathBuilder, Pixmap, Point, SpreadMode,
+    Transform,
 };
 
 /// Design canvas, matching Apple's icon template.
@@ -93,31 +93,25 @@ fn spline(ctrl: &[(f32, f32)], per_segment: usize) -> Vec<(f32, f32)> {
     out
 }
 
-/// The handwriting: a cursive capital S that finishes in an underline swash,
-/// centred on the origin. Pressure follows direction, heavy on the way
-/// down and light on the way up, as with a real nib.
-fn handwriting(scale: f32, bold: bool) -> Vec<f64> {
+/// The handwriting: one S, entering with a hook at the top right and
+/// finishing low on the left, in canvas coordinates. Pressure follows
+/// direction, heavy on the way down and light on the way up, as with a real
+/// nib.
+fn handwriting(bold: bool) -> Vec<f64> {
     let ctrl = [
-        (-205.0, 170.0),
-        (-150.0, 100.0),
-        (-40.0, -60.0),
-        (70.0, -185.0),
-        (125.0, -228.0),
-        (120.0, -258.0),
-        (60.0, -250.0),
-        (-15.0, -205.0),
-        (-45.0, -130.0),
-        (-5.0, -55.0),
-        (75.0, 15.0),
-        (115.0, 100.0),
-        (85.0, 185.0),
-        (0.0, 228.0),
-        (-95.0, 212.0),
-        (-150.0, 160.0),
-        (-120.0, 120.0),
-        (-30.0, 135.0),
-        (110.0, 150.0),
-        (215.0, 120.0),
+        (646.0, 337.0),
+        (564.0, 296.0),
+        (475.0, 296.0),
+        (407.0, 334.0),
+        (388.0, 409.0),
+        (437.0, 472.0),
+        (524.0, 511.0),
+        (604.0, 555.0),
+        (636.0, 636.0),
+        (598.0, 709.0),
+        (520.0, 742.0),
+        (430.0, 736.0),
+        (358.0, 687.0),
     ];
     let pts = spline(&ctrl, 24);
 
@@ -130,11 +124,15 @@ fn handwriting(scale: f32, bold: bool) -> Vec<f64> {
         let len = (dx * dx + dy * dy).sqrt().max(1e-3);
         // Downstrokes (dy > 0) bear down; upstrokes lift.
         let down = (dy / len).max(0.0);
+        // The nib lands and lifts over the first and last stretch of the
+        // stroke. The engine's own taper is sized for strokes on a page, a
+        // few units long, so at icon scale the ease has to come from here.
         let t = i as f32 / (n - 1) as f32;
-        let ends = (PI * t).sin().powf(0.35);
-        let p = (0.22 + 0.78 * down) * (0.55 + 0.45 * ends);
-        let p = if bold { 0.45 + 0.55 * p } else { p };
-        flat.extend_from_slice(&[(x * scale) as f64, (y * scale) as f64, p.clamp(0.02, 1.0) as f64]);
+        let edge = (t.min(1.0 - t) / 0.15).min(1.0);
+        let ends = edge * edge * (3.0 - 2.0 * edge);
+        let p = (0.18 + 0.82 * down) * ends;
+        let p = if bold { 0.35 + 0.65 * p } else { p };
+        flat.extend_from_slice(&[x as f64, y as f64, p.clamp(0.02, 1.0) as f64]);
     }
     flat
 }
@@ -195,8 +193,8 @@ fn shadow_layer(size: u32, path: &Path, transform: Transform, alpha: f32, blur_p
 }
 
 /// Draws the icon at `size` pixels. `target` is the size it is destined for:
-/// small icons drop the fine rules and get a heavier stroke so the mark
-/// survives at 16 px instead of turning to mush.
+/// small icons get a heavier stroke (and the tiniest lose the ink drop) so the
+/// mark survives at 16 px instead of turning to mush.
 fn render(size: u32, target: u32) -> Pixmap {
     let small = target <= 32;
     let tiny = target <= 16;
@@ -209,12 +207,12 @@ fn render(size: u32, target: u32) -> Pixmap {
     let sh = shadow_layer(size, &tile, base, 0.32, (10.0 * s).round() as usize, 12.0 * s);
     pix.draw_pixmap(0, 0, sh.as_ref(), &Default::default(), Transform::identity(), None);
 
-    // Warm slate, the colour of the app's dark page.
+    // Velvet dark, the app's own ground.
     let mut paint = Paint { anti_alias: true, ..Paint::default() };
     paint.shader = LinearGradient::new(
         Point::from_xy(512.0, TILE_ORIGIN),
         Point::from_xy(512.0, TILE_ORIGIN + TILE),
-        vec![GradientStop::new(0.0, rgb(0x34302C)), GradientStop::new(1.0, rgb(0x151413))],
+        vec![GradientStop::new(0.0, rgb(0x2A2530)), GradientStop::new(1.0, rgb(0x141117))],
         SpreadMode::Pad,
         Transform::identity(),
     )
@@ -232,44 +230,18 @@ fn render(size: u32, target: u32) -> Pixmap {
     .unwrap();
     pix.fill_path(&tile, &paint, FillRule::Winding, base, None);
 
-    // ---- rules and the margin line, clipped to the tile
-    let mut clip = Mask::new(size, size).unwrap();
-    clip.fill_path(&tile, FillRule::Winding, true, base);
-
-    if !small {
-        let mut pb = PathBuilder::new();
-        let mut y = 300.0;
-        while y < TILE_ORIGIN + TILE {
-            pb.move_to(TILE_ORIGIN, y);
-            pb.line_to(TILE_ORIGIN + TILE, y);
-            y += 72.0;
-        }
-        let mut line = Paint { anti_alias: true, ..Paint::default() };
-        line.set_color(rgba(0x5A534C, 0.55));
-        pix.stroke_path(&pb.finish().unwrap(), &line, &Stroke { width: 4.0, ..Stroke::default() }, base, Some(&clip));
-    }
-
-    if !tiny {
-        let mut pb = PathBuilder::new();
-        pb.move_to(300.0, TILE_ORIGIN);
-        pb.line_to(300.0, TILE_ORIGIN + TILE);
-        let mut margin = Paint { anti_alias: true, ..Paint::default() };
-        margin.set_color(rgba(0xE08A66, if small { 0.9 } else { 0.7 }));
-        let width = if small { 12.0 } else { 5.0 };
-        pix.stroke_path(&pb.finish().unwrap(), &margin, &Stroke { width, ..Stroke::default() }, base, Some(&clip));
-    }
-
-    // ---- handwriting, through the real ink engine
-    let ink_width = if tiny { 66.0 } else if small { 54.0 } else { 40.0 };
-    let pts = handwriting(1.0, small);
-    let poly = outline(&pts, OutlineOptions { width: ink_width, pressure_sensitive: true, fit: true, taper: true });
-    let place = Transform::from_scale(1.12, 1.12).post_translate(520.0, 500.0).post_concat(base);
+    // ---- the S, through the real ink engine
+    let ink_width = if tiny { 96.0 } else if small { 82.0 } else { 66.0 };
+    let pts = handwriting(small);
+    // The engine's end taper is sized for page strokes; at this scale it
+    // leaves a nub on a blunt end. Round caps on the eased ends read cleaner.
+    let poly = outline(&pts, OutlineOptions { width: ink_width, pressure_sensitive: true, fit: true, taper: false });
     if let Some(ink) = polygon(&poly) {
         let p = Paint {
             anti_alias: true,
             shader: LinearGradient::new(
-                Point::from_xy(0.0, -260.0),
-                Point::from_xy(0.0, 240.0),
+                Point::from_xy(0.0, 290.0),
+                Point::from_xy(0.0, 750.0),
                 vec![GradientStop::new(0.0, rgb(0xFFF4E4)), GradientStop::new(1.0, rgb(0xE9D9C2))],
                 SpreadMode::Pad,
                 Transform::identity(),
@@ -277,15 +249,15 @@ fn render(size: u32, target: u32) -> Pixmap {
             .unwrap(),
             ..Paint::default()
         };
-        pix.fill_path(&ink, &p, FillRule::Winding, place, None);
+        pix.fill_path(&ink, &p, FillRule::Winding, base, None);
     }
 
     // A drop of terracotta ink where the nib lifted.
     if !tiny {
         let mut drop = Paint { anti_alias: true, ..Paint::default() };
-        drop.set_color(rgb(0xE08A66));
-        let r = if small { 24.0 } else { 15.0 };
-        pix.fill_path(&PathBuilder::from_circle(770.0, 610.0, r).unwrap(), &drop, FillRule::Winding, base, None);
+        drop.set_color(rgb(0xE39072));
+        let r = if small { 40.0 } else { 33.0 };
+        pix.fill_path(&PathBuilder::from_circle(306.0, 739.0, r).unwrap(), &drop, FillRule::Winding, base, None);
     }
 
     pix

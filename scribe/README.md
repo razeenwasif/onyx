@@ -168,11 +168,12 @@ and a stroke round-tripped through the JSON format, on both themes.
 
 ## The icon
 
-The app icon is a cursive S written in cream ink on a dark, ruled slate (the
-app's own dark page), with a terracotta margin rule and a drop of ink where the
-nib lifted. It is drawn by `crates/scribe-icon` using the app's own ink engine,
-so the S is a real pressure-varying stroke, heavier on the downstrokes. The
-small sizes get simplified artwork rather than a shrunk copy. `build.sh`
+The app icon is a single bold S in cream ink on a velvet-dark tile, with a drop
+of terracotta ink where the nib lifted: one stroke and no paper, so it holds up
+at 16 px and sits well beside Electron's icon in its app switcher. It is drawn
+by `crates/scribe-icon` using the app's own ink engine, so the S is a real
+pressure-varying stroke, heavier on the downstroke and easing off where the nib
+lands and lifts. The small sizes get a heavier stroke rather than a shrunk copy. `build.sh`
 renders every size macOS needs and packs them into `AppIcon.icns`.
 
 ## Inside Electron
