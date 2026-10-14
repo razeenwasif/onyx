@@ -25,7 +25,6 @@ export interface StackSection {
   body: JSX.Element
 }
 
-const HEADER_H = 26
 const MIN_BODY_H = 60
 
 export function SidebarStack({
@@ -79,8 +78,9 @@ export function SidebarStack({
     >
       {sections.map((section, i) => {
         const isLast = i === sections.length - 1
+        // A collapsed pane is just its header, at whatever height the skin gives it.
         const style = section.collapsed
-          ? { flex: `0 0 ${HEADER_H}px` }
+          ? { flex: '0 0 auto' }
           : section.height > 0
             ? { flex: `0 0 ${section.height}px` }
             : { flex: '1 1 0', minHeight: MIN_BODY_H }

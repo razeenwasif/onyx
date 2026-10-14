@@ -28,11 +28,18 @@ export function settingsPath(): string {
   return path.join(configDir(), 'desktop.json')
 }
 
+/**
+ * v2: Electron Velvet became the default theme. Installs still on the old
+ * default (`onyx-dark`) move to it once; anything chosen afterwards sticks.
+ */
+export const SETTINGS_VERSION = 2
+
 export const DEFAULT_SETTINGS: AppSettings = {
+  settingsVersion: SETTINGS_VERSION,
   lastVault: null,
   window: { width: 1440, height: 900, maximized: false },
   recentVaults: [],
-  theme: 'onyx-dark',
+  theme: 'electron-velvet',
   layout: {
     leftOpen: true,
     rightOpen: true,
@@ -102,6 +109,16 @@ export function merge<T>(base: T, patch: unknown): T {
   return out as T
 }
 
+/** Upgrade a settings file written by an older version, before it's merged over the defaults. */
+export function migrate(stored: unknown): unknown {
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return stored
+  const s = { ...(stored as Record<string, unknown>) }
+  const version = typeof s.settingsVersion === 'number' ? s.settingsVersion : 1
+  if (version < 2 && s.theme === 'onyx-dark') s.theme = 'electron-velvet'
+  s.settingsVersion = SETTINGS_VERSION
+  return s
+}
+
 /** `last_vault = "..."` out of the TUI's config.toml, if present. */
 function tuiLastVault(): string | null {
   try {
@@ -121,7 +138,7 @@ export class SettingsStore {
   async load(): Promise<AppSettings> {
     try {
       const raw = await fs.readFile(settingsPath(), 'utf8')
-      this.data = merge(DEFAULT_SETTINGS, JSON.parse(raw))
+      this.data = merge(DEFAULT_SETTINGS, migrate(JSON.parse(raw)))
     } catch {
       this.data = { ...DEFAULT_SETTINGS }
     }

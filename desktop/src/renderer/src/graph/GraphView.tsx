@@ -111,7 +111,7 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
     ? (settingsAll?.localGraph ?? ({} as LocalGraphSettings))
     : (settingsAll?.graph ?? ({} as GraphSettings))
   const localCfg = cfg as LocalGraphSettings
-  const palette = themeById(settingsAll?.theme ?? 'onyx-dark')
+  const palette = themeById(settingsAll?.theme)
 
   const hostRef = useRef<HTMLDivElement>(null)
   const glCanvasRef = useRef<HTMLCanvasElement>(null)

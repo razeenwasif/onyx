@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_SETTINGS, merge } from './settings'
+import { DEFAULT_SETTINGS, SETTINGS_VERSION, merge, migrate } from './settings'
 
 describe('settings merge', () => {
   it('fills in keys added since the file was written', () => {
@@ -34,5 +34,32 @@ describe('settings merge', () => {
 
   it('ignores undefined', () => {
     expect(merge(DEFAULT_SETTINGS, undefined).theme).toBe(DEFAULT_SETTINGS.theme)
+  })
+})
+
+describe('settings migration', () => {
+  it('moves an install on the old default theme to Electron Velvet', () => {
+    const out = migrate({ theme: 'onyx-dark' }) as Record<string, unknown>
+    expect(out.theme).toBe('electron-velvet')
+    expect(out.settingsVersion).toBe(SETTINGS_VERSION)
+  })
+
+  it('keeps a theme the user picked themselves', () => {
+    expect((migrate({ theme: 'nord' }) as Record<string, unknown>).theme).toBe('nord')
+  })
+
+  it('runs once: choosing Onyx Dark again after the upgrade sticks', () => {
+    const out = migrate({ settingsVersion: SETTINGS_VERSION, theme: 'onyx-dark' })
+    expect((out as Record<string, unknown>).theme).toBe('onyx-dark')
+  })
+
+  it('defaults new installs to Electron Velvet', () => {
+    expect(DEFAULT_SETTINGS.theme).toBe('electron-velvet')
+    expect(merge(DEFAULT_SETTINGS, migrate({})).theme).toBe('electron-velvet')
+  })
+
+  it('passes non-object files through for merge to reject', () => {
+    expect(migrate(null)).toBeNull()
+    expect(migrate([1])).toEqual([1])
   })
 })

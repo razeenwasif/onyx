@@ -1,0 +1,896 @@
+/* Electron Velvet — the structural half of the velvet theme.
+   themes.ts sets the colors; this file turns the flat Obsidian chrome into
+   floating, softly lit cards: no hard dividers, no square corners. Everything
+   is scoped to [data-style='velvet'] (set by applyTheme), so the other themes
+   keep the plain layout from app.css. */
+
+[data-style='velvet'] {
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-card: 18px;
+  --gap: 8px;
+  --ribbon-w: 54px;
+  --header-h: 46px;
+  --status-h: 30px;
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --velvet: var(--grain),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0.008) 40%, rgba(0, 0, 0, 0.04)),
+    var(--bg);
+  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 18px 40px -22px rgba(0, 0, 0, 0.75);
+  --well: rgba(0, 0, 0, 0.22);
+  --well-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(255, 255, 255, 0.03);
+  --focus-ring: 0 0 0 1.5px rgba(167, 139, 250, 0.45);
+  --glow: rgba(167, 139, 250, 0.4);
+  --primary-fill: linear-gradient(180deg, #b9a3fb, #9a7cf6);
+  --primary-ink: #17121f;
+}
+
+/* ----------------------------------------------------------------- shell */
+
+[data-style='velvet'] body,
+[data-style='velvet'] .app {
+  background:
+    radial-gradient(1100px 700px at 0% -10%, rgba(167, 139, 250, 0.1), transparent 60%),
+    radial-gradient(900px 600px at 105% 110%, rgba(122, 162, 247, 0.06), transparent 60%),
+    var(--grain),
+    var(--bg-chrome);
+}
+
+[data-style='velvet'] .app-body {
+  padding: var(--gap) var(--gap) 0 0;
+}
+
+[data-style='velvet'] .app-main {
+  gap: var(--gap);
+}
+
+/* Ribbon: icons float on the backdrop, no strip behind them. */
+[data-style='velvet'] .ribbon {
+  background: transparent;
+  border-right: none;
+  padding: 14px 0 12px;
+  gap: 4px;
+}
+
+[data-style='velvet'] .ribbon-logo {
+  display: block;
+  width: 30px;
+  height: 30px;
+  margin-bottom: 12px;
+  flex: 0 0 auto;
+}
+
+[data-style='velvet'] .ribbon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+/* Several panes are usually open at once, so "active" stays quiet: tint, no glow. */
+[data-style='velvet'] .ribbon-btn.is-active {
+  background: rgba(167, 139, 250, 0.09);
+}
+
+/* ------------------------------------------------------------- sidebars */
+
+/* The sidebar itself goes transparent; each stacked pane becomes a card. */
+[data-style='velvet'] .sidebar {
+  background: transparent;
+}
+
+[data-style='velvet'] .sidebar.left,
+[data-style='velvet'] .sidebar.right {
+  border: none;
+}
+
+[data-style='velvet'] .sidebar-stack {
+  gap: var(--gap);
+  overflow: visible;
+}
+
+[data-style='velvet'] .stack-pane {
+  background: var(--velvet);
+  border: none;
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-shadow);
+}
+
+/* Clip the body, not the pane, so the resize handle can sit in the gap. */
+[data-style='velvet'] .stack-body {
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+}
+
+[data-style='velvet'] .stack-header {
+  height: 38px;
+  flex: 0 0 38px;
+  padding: 0 10px 0 14px;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--fg-dim);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+}
+
+[data-style='velvet'] .stack-header:hover {
+  background: transparent;
+  color: var(--fg);
+}
+
+[data-style='velvet'] .stack-actions {
+  gap: 2px;
+}
+
+[data-style='velvet'] .stack-actions button {
+  width: 26px;
+  height: 26px;
+  border-radius: 9px;
+}
+
+[data-style='velvet'] .stack-actions button:hover {
+  background: var(--bg-hover);
+}
+
+[data-style='velvet'] .stack-resizer {
+  bottom: calc(-1 * var(--gap) + 1px);
+  height: calc(var(--gap) - 2px);
+  border-radius: 999px;
+}
+
+[data-style='velvet'] .resizer {
+  width: calc(var(--gap) - 2px);
+  border-radius: 999px;
+}
+
+[data-style='velvet'] .resizer.right-edge {
+  right: calc(-1 * var(--gap) + 1px);
+}
+
+[data-style='velvet'] .resizer.left-edge {
+  left: calc(-1 * var(--gap) + 1px);
+}
+
+[data-style='velvet'] .sidebar-tabs {
+  border-bottom: none;
+}
+
+[data-style='velvet'] .pane-title,
+[data-style='velvet'] .section-head,
+[data-style='velvet'] .context-label,
+[data-style='velvet'] .agenda-head,
+[data-style='velvet'] .embed-title,
+[data-style='velvet'] .ai-msg .who {
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+/* File tree ------------------------------------------------------------ */
+
+[data-style='velvet'] .tree {
+  padding: 0 8px 40px;
+}
+
+[data-style='velvet'] .tree-item {
+  height: 30px;
+  padding: 0 8px;
+  gap: 6px;
+  border-radius: var(--radius);
+}
+
+[data-style='velvet'] .tree-item.is-active {
+  background: linear-gradient(90deg, rgba(167, 139, 250, 0.16), rgba(167, 139, 250, 0.06));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+[data-style='velvet'] .tree-item input {
+  background: var(--well);
+  border: none;
+  border-radius: 8px;
+  box-shadow: var(--focus-ring);
+  padding: 2px 6px;
+}
+
+[data-style='velvet'] .list-pane {
+  padding: 0 8px 40px;
+}
+
+[data-style='velvet'] .list-row,
+[data-style='velvet'] .search-result-head,
+[data-style='velvet'] .search-match,
+[data-style='velvet'] .drive-row,
+[data-style='velvet'] .agenda-row,
+[data-style='velvet'] .todo-item {
+  border-radius: var(--radius);
+}
+
+/* ------------------------------------------------------- panes and tabs */
+
+[data-style='velvet'] .workspace {
+  background: transparent;
+  gap: var(--gap);
+}
+
+[data-style='velvet'] .pane,
+[data-style='velvet'] .pane:first-child {
+  margin: 0;
+  border: none;
+  border-radius: var(--radius-card);
+  background: var(--velvet);
+  box-shadow: var(--card-shadow);
+}
+
+/* With a split, a faint ring marks which pane has focus. */
+[data-style='velvet'] .workspace:has(.pane + .pane) .pane.is-active {
+  box-shadow: var(--card-shadow), 0 0 0 1px rgba(167, 139, 250, 0.22);
+}
+
+[data-style='velvet'] .pane.is-zen {
+  border-radius: 0;
+}
+
+[data-style='velvet'] .tabbar {
+  background: transparent;
+  border-bottom: none;
+  align-items: center;
+  padding: 8px 8px 0;
+}
+
+[data-style='velvet'] .tabbar-tabs {
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+}
+
+[data-style='velvet'] .tab {
+  height: 32px;
+  min-width: 0;
+  padding: 0 8px 0 14px;
+  border-right: none;
+  border-radius: 999px;
+  font-size: 12.5px;
+  transition: color 120ms ease, background 120ms ease;
+}
+
+[data-style='velvet'] .tab.is-active {
+  background: rgba(255, 255, 255, 0.055);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 6px 16px -8px rgba(0, 0, 0, 0.6);
+}
+
+[data-style='velvet'] .tab.is-active::after {
+  display: none;
+}
+
+[data-style='velvet'] .tab .tab-close {
+  border-radius: 999px;
+}
+
+[data-style='velvet'] .tab .dirty-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--glow);
+}
+
+[data-style='velvet'] .tabbar-actions {
+  gap: 2px;
+  padding: 0 4px;
+}
+
+[data-style='velvet'] .icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius);
+}
+
+[data-style='velvet'] .view-empty .actions button {
+  border-radius: var(--radius);
+}
+
+/* Status bar: plain text on the backdrop. */
+[data-style='velvet'] .statusbar {
+  background: transparent;
+  border-top: none;
+  padding: 0 18px;
+  gap: 16px;
+}
+
+/* ------------------------------------------------------------ markdown */
+
+[data-style='velvet'] .inline-title {
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--heading);
+}
+
+[data-style='velvet'] .rendered h1,
+[data-style='velvet'] .rendered h2,
+[data-style='velvet'] .rendered h3,
+[data-style='velvet'] .rendered h4,
+[data-style='velvet'] .cm-md-heading {
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+[data-style='velvet'] .rendered code,
+[data-style='velvet'] .cm-md-code {
+  background: color-mix(in srgb, var(--code) 10%, transparent);
+  border-radius: 7px;
+  padding: 1px 6px;
+}
+
+[data-style='velvet'] .rendered pre {
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--well);
+  box-shadow: var(--well-shadow);
+  padding: 14px 16px;
+}
+
+[data-style='velvet'] .rendered pre code {
+  background: none;
+  padding: 0;
+}
+
+[data-style='velvet'] .cm-md-codeblock {
+  background: var(--well);
+}
+
+[data-style='velvet'] .cm-md-codeblock-first {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding-top: 10px;
+}
+
+[data-style='velvet'] .cm-md-codeblock-last {
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  padding-bottom: 10px;
+}
+
+[data-style='velvet'] .tag-pill,
+[data-style='velvet'] .cm-md-tag {
+  background: color-mix(in srgb, var(--tag) 11%, transparent);
+  color: color-mix(in srgb, var(--tag) 80%, white);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+[data-style='velvet'] .rendered mark,
+[data-style='velvet'] .cm-md-highlight {
+  border-radius: 5px;
+}
+
+[data-style='velvet'] .rendered img,
+[data-style='velvet'] .cm-md-image {
+  border-radius: var(--radius-lg);
+}
+
+/* Quotes: a rounded tinted block instead of a hard left rule. */
+[data-style='velvet'] .rendered blockquote {
+  border-left: none;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 10px 16px;
+}
+
+/* `cm-md-quote` is a line decoration; app.css makes it inline-block, which
+   would shrink the line (and a callout's tint) to its text. */
+[data-style='velvet'] .cm-editor .cm-line.cm-md-quote {
+  display: block;
+  border-left: none;
+  margin-left: 0;
+  padding-left: 52px;
+  position: relative;
+}
+
+[data-style='velvet'] .cm-line.cm-md-quote::before {
+  content: '';
+  position: absolute;
+  left: 36px;
+  top: 3px;
+  bottom: 3px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+}
+
+/* Callouts: a soft tinted card, no accent bar. */
+[data-style='velvet'] .callout {
+  border-left: none;
+  border-radius: 16px;
+  padding: 14px 18px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--callout-color, var(--accent)) 13%, transparent),
+    color-mix(in srgb, var(--callout-color, var(--accent)) 4%, transparent)
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+[data-style='velvet'] .callout-title {
+  font-weight: 500;
+}
+
+/* Live preview: the tint is a card inset from the line's edges (a pseudo
+   element behind the text), so it doesn't run into the pane's border. */
+[data-style='velvet'] .cm-editor .cm-line.cm-callout {
+  border-left: none;
+  padding-left: 52px;
+  padding-right: 52px;
+  background: none;
+  position: relative;
+  isolation: isolate;
+}
+
+/* Callout lines are quote lines too: this replaces the quote's bar. */
+[data-style='velvet'] .cm-line.cm-callout::before {
+  content: '';
+  position: absolute;
+  inset: 0 34px;
+  width: auto;
+  border-radius: 0;
+  z-index: -1;
+  background: color-mix(in srgb, var(--callout-color, var(--accent)) 11%, transparent);
+}
+
+[data-style='velvet'] .cm-editor .cm-line.cm-callout-first {
+  padding-top: 12px;
+}
+
+[data-style='velvet'] .cm-line.cm-callout-first::before {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+[data-style='velvet'] .cm-editor .cm-line.cm-callout-last {
+  padding-bottom: 12px;
+}
+
+[data-style='velvet'] .cm-line.cm-callout-last::before {
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+[data-style='velvet'] .cm-line.cm-callout-first.cm-callout-last::before {
+  border-radius: var(--radius-lg);
+}
+
+[data-style='velvet'] .cm-callout-title {
+  font-weight: 500;
+}
+
+/* Properties: a recessed well with pill values. */
+[data-style='velvet'] .properties {
+  border: none;
+  border-radius: var(--radius-lg);
+  background: rgba(0, 0, 0, 0.16);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+  padding: 6px 4px;
+}
+
+[data-style='velvet'] .properties-row {
+  border-bottom: none;
+}
+
+[data-style='velvet'] .properties-key {
+  background: transparent;
+  padding: 5px 12px;
+}
+
+[data-style='velvet'] .properties-val {
+  padding: 5px 12px;
+}
+
+[data-style='velvet'] .prop-chip,
+[data-style='velvet'] .chip {
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 10px;
+}
+
+[data-style='velvet'] .chip:hover {
+  background: var(--bg-hover);
+}
+
+[data-style='velvet'] .embed {
+  border: none;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* Tables: a rounded frame with soft row rules. */
+[data-style='velvet'] .rendered table,
+[data-style='velvet'] .cm-md-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--divider);
+}
+
+[data-style='velvet'] .rendered th,
+[data-style='velvet'] .rendered td,
+[data-style='velvet'] .cm-md-table th,
+[data-style='velvet'] .cm-md-table td {
+  border: none;
+  border-bottom: 1px solid var(--divider);
+}
+
+[data-style='velvet'] .rendered tr:last-child td,
+[data-style='velvet'] .cm-md-table tr:last-child td {
+  border-bottom: none;
+}
+
+[data-style='velvet'] .rendered th {
+  background: rgba(255, 255, 255, 0.03);
+  font-weight: 500;
+}
+
+/* Checkboxes: rounded, filled with the accent when done. */
+[data-style='velvet'] .rendered li.task-list-item input[type='checkbox'],
+[data-style='velvet'] .cm-md-checkbox,
+[data-style='velvet'] .todo-item input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin: 0 8px 0 0;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.18);
+  background: transparent center / 12px 12px no-repeat;
+  vertical-align: -2px;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+
+[data-style='velvet'] .todo-item input[type='checkbox'] {
+  margin: 2px 0 0;
+}
+
+[data-style='velvet'] .rendered li.task-list-item input[type='checkbox']:checked,
+[data-style='velvet'] .cm-md-checkbox:checked,
+[data-style='velvet'] .todo-item input[type='checkbox']:checked {
+  background-color: #a78bfa;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2 5 8.5l4.5-5' fill='none' stroke='%2317121f' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  box-shadow: 0 0 12px -3px var(--glow);
+}
+
+/* ------------------------------------------------------------ editor */
+
+/* CodeMirror's base theme (scoped to its generated class) beats app.css's
+   line and content padding; these selectors are specific enough to win, so
+   the text sits clear of the card's rounded edges. */
+[data-style='velvet'] .cm-editor .cm-content {
+  padding: 26px 0 40vh;
+}
+
+[data-style='velvet'] .cm-editor .cm-line {
+  padding: 0 36px;
+}
+
+[data-style='velvet'] .cm-editor .cm-content > .properties {
+  margin-left: 36px;
+  margin-right: 36px;
+}
+
+[data-style='velvet'] .cm-tooltip {
+  border: none;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+[data-style='velvet'] .cm-tooltip.cm-tooltip-autocomplete > ul {
+  padding: 4px;
+}
+
+[data-style='velvet'] .cm-tooltip.cm-tooltip-autocomplete > ul > li {
+  border-radius: 8px;
+}
+
+[data-style='velvet'] .cm-panels {
+  border-color: transparent;
+}
+
+[data-style='velvet'] .cm-panel.cm-search input,
+[data-style='velvet'] .cm-panel.cm-search button {
+  border: none;
+  border-radius: 8px;
+  background: var(--well);
+  box-shadow: var(--well-shadow);
+}
+
+/* ------------------------------------------------------ controls & inputs */
+
+[data-style='velvet'] .btn {
+  border: none;
+  border-radius: 12px;
+  padding: 7px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+[data-style='velvet'] .btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-style='velvet'] .btn.primary {
+  background: var(--primary-fill);
+  color: var(--primary-ink);
+  font-weight: 500;
+  box-shadow: 0 8px 22px -10px var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+[data-style='velvet'] .btn.danger {
+  box-shadow: 0 8px 22px -10px rgba(247, 118, 142, 0.5);
+}
+
+/* Every text field becomes a soft recessed well; focus is a lilac ring. */
+[data-style='velvet'] .search-input-wrap,
+[data-style='velvet'] .todo-add,
+[data-style='velvet'] .ai-input textarea,
+[data-style='velvet'] .graph-row input[type='text'],
+[data-style='velvet'] .graph-search,
+[data-style='velvet'] .db-toolbar input,
+[data-style='velvet'] .db-toolbar select,
+[data-style='velvet'] .setting select,
+[data-style='velvet'] .setting input[type='text'],
+[data-style='velvet'] .setting input[type='number'] {
+  border: none;
+  background: var(--well);
+  box-shadow: var(--well-shadow);
+  border-radius: 12px;
+  transition: box-shadow 120ms ease;
+}
+
+[data-style='velvet'] .search-input-wrap {
+  border-radius: 999px;
+  padding: 7px 12px;
+}
+
+[data-style='velvet'] .todo-add,
+[data-style='velvet'] .setting select,
+[data-style='velvet'] .setting input[type='text'],
+[data-style='velvet'] .setting input[type='number'] {
+  padding: 7px 12px;
+}
+
+[data-style='velvet'] .search-input-wrap:focus-within,
+[data-style='velvet'] .todo-add:focus,
+[data-style='velvet'] .ai-input textarea:focus,
+[data-style='velvet'] .graph-row input[type='text']:focus,
+[data-style='velvet'] .graph-search:focus,
+[data-style='velvet'] .setting select:focus,
+[data-style='velvet'] .setting input:focus {
+  box-shadow: var(--well-shadow), var(--focus-ring);
+}
+
+[data-style='velvet'] .mini-pane textarea {
+  border-top: none;
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+}
+
+[data-style='velvet'] .mini-pane textarea:focus {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+[data-style='velvet'] .toggle {
+  width: 36px;
+  height: 22px;
+  flex: 0 0 36px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+[data-style='velvet'] .toggle::after {
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  background: #8d869c;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+[data-style='velvet'] .toggle.is-on {
+  background: var(--primary-fill);
+  box-shadow: 0 0 14px -4px var(--glow);
+}
+
+[data-style='velvet'] .toggle.is-on::after {
+  transform: translateX(14px);
+  background: #f6f1fb;
+}
+
+/* --------------------------------------------------- floating surfaces */
+
+[data-style='velvet'] .modal-backdrop {
+  background: rgba(8, 6, 12, 0.55);
+  backdrop-filter: blur(6px);
+}
+
+[data-style='velvet'] .modal,
+[data-style='velvet'] .context-menu,
+[data-style='velvet'] .graph-controls,
+[data-style='velvet'] .canvas-toolbar,
+[data-style='velvet'] .notice {
+  border: none;
+  background: var(--grain), linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 50%), var(--bg-modal);
+}
+
+[data-style='velvet'] .modal {
+  border-radius: 20px;
+}
+
+[data-style='velvet'] .context-menu {
+  border-radius: var(--radius-lg);
+  padding: 5px;
+}
+
+[data-style='velvet'] .context-menu button {
+  border-radius: 9px;
+  padding: 6px 10px;
+}
+
+[data-style='velvet'] .graph-controls {
+  border-radius: 16px;
+}
+
+[data-style='velvet'] .canvas-toolbar {
+  border-radius: 12px;
+  padding: 3px;
+}
+
+[data-style='velvet'] .notice {
+  border-radius: var(--radius-lg);
+  padding: 10px 16px;
+}
+
+[data-style='velvet'] .modal-input {
+  padding: 16px 20px;
+}
+
+[data-style='velvet'] .modal-list {
+  padding: 8px;
+}
+
+[data-style='velvet'] .modal-item {
+  border-radius: var(--radius);
+  padding: 8px 12px;
+}
+
+[data-style='velvet'] .modal-item .hotkey {
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 6px;
+}
+
+/* ------------------------------------------------------------ settings */
+
+[data-style='velvet'] .settings-nav {
+  border-right: none;
+  background: rgba(0, 0, 0, 0.14);
+  padding: 12px 8px;
+}
+
+[data-style='velvet'] .settings-nav button {
+  border-radius: var(--radius);
+  padding: 7px 12px;
+}
+
+[data-style='velvet'] .settings-title {
+  letter-spacing: -0.015em;
+}
+
+/* --------------------------------------------- graph, canvas, database */
+
+[data-style='velvet'] .graph-group input[type='color'] {
+  border: none;
+  box-shadow: 0 0 0 1px var(--divider);
+}
+
+[data-style='velvet'] .graph-legend-row {
+  border-radius: 8px;
+}
+
+[data-style='velvet'] .canvas-node {
+  border-radius: var(--radius-lg);
+  border-color: var(--divider);
+  box-shadow: 0 10px 28px -14px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+[data-style='velvet'] .canvas-node.is-selected {
+  border-color: rgba(167, 139, 250, 0.6);
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 10px 28px -14px rgba(0, 0, 0, 0.7);
+}
+
+[data-style='velvet'] .canvas-node-label {
+  border-bottom-color: var(--divider);
+}
+
+[data-style='velvet'] .board-col {
+  border-radius: var(--radius-card);
+  background: rgba(255, 255, 255, 0.025);
+  padding: 10px;
+}
+
+[data-style='velvet'] .board-card {
+  border: none;
+  border-radius: 12px;
+  background: var(--velvet);
+  box-shadow: var(--card-shadow);
+}
+
+[data-style='velvet'] .board-card:hover {
+  box-shadow: var(--card-shadow), 0 0 0 1px rgba(167, 139, 250, 0.35);
+}
+
+[data-style='velvet'] .db-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--divider);
+}
+
+[data-style='velvet'] .db-table th,
+[data-style='velvet'] .db-table td {
+  border: none;
+  border-bottom: 1px solid var(--divider);
+}
+
+[data-style='velvet'] .db-table th {
+  background: var(--bg-alt);
+  font-weight: 500;
+}
+
+/* ------------------------------------------------------------ AI pane */
+
+[data-style='velvet'] .ai-msg.user .bubble {
+  border-radius: 16px 16px 6px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 10px 14px;
+}
+
+[data-style='velvet'] .ai-thinking {
+  border-left: none;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 6px 10px;
+}
+
+[data-style='velvet'] .ai-input,
+[data-style='velvet'] .ai-toolbar {
+  border: none;
+}
+
+[data-style='velvet'] .ai-input {
+  padding: 10px 12px 12px;
+}
+
+/* ------------------------------------------------------------ calendar */
+
+[data-style='velvet'] .calendar-day {
+  border-radius: var(--radius);
+}
+
+[data-style='velvet'] .calendar-day.is-today {
+  font-weight: 600;
+}
+
+[data-style='velvet'] .agenda {
+  border-top: none;
+  margin-top: 12px;
+  padding: 8px 6px 4px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+[data-style='velvet'] .agenda-head button,
+[data-style='velvet'] .pane-title button,
+[data-style='velvet'] .drive-crumbs .crumb {
+  border-radius: 8px;
+}

@@ -267,6 +267,8 @@ export interface SessionState {
 }
 
 export interface AppSettings {
+  /** Bumped when stored settings need a one-off migration (see settings.ts). */
+  settingsVersion: number
   lastVault: string | null
   window: WindowState
   recentVaults: string[]

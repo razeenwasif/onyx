@@ -116,6 +116,10 @@ textarea {
   flex: 1;
 }
 
+.ribbon-logo {
+  display: none;
+}
+
 .ribbon-btn {
   width: 30px;
   height: 30px;

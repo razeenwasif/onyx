@@ -1,6 +1,7 @@
 import { useStore } from '../store'
 import { runCommand } from '../commands'
 import { relativeTime } from '../lib/notes'
+import { themeById } from '../themes'
 
 export function StatusBar(): JSX.Element {
   const tab = useStore((s) => s.activeTab())
@@ -37,7 +38,7 @@ export function StatusBar(): JSX.Element {
         </span>
       )}
       <span className="item" onClick={() => runCommand('theme:cycle')} title="Cycle theme">
-        {settings?.theme}
+        {themeById(settings?.theme).name}
       </span>
       {settings?.vimMode && <span className="item">VIM</span>}
     </div>

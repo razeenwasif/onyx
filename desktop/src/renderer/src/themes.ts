@@ -38,9 +38,59 @@ export interface Palette {
   // Borders
   border: string
   borderFocus: string
+
+  /**
+   * Structural skin. `velvet` floats the sidebars and panes as rounded cards
+   * with soft depth (styles/velvet.css); unset keeps the flat Obsidian chrome.
+   */
+  style?: 'velvet'
+  /** Extra CSS variables, applied after the derived ones so they can override them. */
+  vars?: Record<string, string>
 }
 
+/** New installs start here; `themeById` also falls back to it. */
+export const DEFAULT_THEME_ID = 'electron-velvet'
+
 export const THEMES: Palette[] = [
+  {
+    id: 'electron-velvet',
+    name: 'Electron Velvet',
+    dark: true,
+    style: 'velvet',
+    bg: '#16131c',
+    bgAlt: '#1c1823',
+    bgSel: '#2a2433',
+    fg: '#ebe6f2',
+    fgDim: '#a49eb2',
+    fgSubtle: '#6c657c',
+    accent: '#a78bfa',
+    accentAlt: '#f59e0b',
+    link: '#7aa2f7',
+    wikilink: '#a78bfa',
+    tag: '#34d399',
+    code: '#f9a3b3',
+    heading: '#f3eef9',
+    headingAlt: '#e9e1f5',
+    success: '#34d399',
+    warning: '#f59e0b',
+    error: '#f7768e',
+    info: '#7aa2f7',
+    border: '#322b3d',
+    borderFocus: '#a78bfa',
+    vars: {
+      '--bg-chrome': '#0f0d13',
+      '--bg-ribbon': 'transparent',
+      '--bg-hover': 'rgba(167, 139, 250, 0.07)',
+      '--bg-active': 'rgba(167, 139, 250, 0.14)',
+      '--bg-code': 'rgba(0, 0, 0, 0.24)',
+      '--bg-modal': '#1c1823',
+      '--shadow': '0 30px 80px -24px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+      '--divider': 'rgba(255, 255, 255, 0.05)',
+      '--accent-soft': 'rgba(167, 139, 250, 0.14)',
+      '--selection': 'rgba(167, 139, 250, 0.26)',
+      '--scrollbar': 'rgba(235, 230, 242, 0.12)',
+    },
+  },
   {
     id: 'onyx-dark',
     name: 'Electron Dark',
@@ -168,8 +218,8 @@ export const THEMES: Palette[] = [
   },
 ]
 
-export function themeById(id: string): Palette {
-  return THEMES.find((t) => t.id === id) ?? THEMES[0]
+export function themeById(id: string | undefined): Palette {
+  return THEMES.find((t) => t.id === id) ?? THEMES.find((t) => t.id === DEFAULT_THEME_ID)!
 }
 
 /** Mix two hex colors; `t` = 0 returns `a`, 1 returns `b`. */
@@ -194,10 +244,14 @@ export function rgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
+/** Variables the previous theme's `vars` set, so a switch can clear them. */
+let extraVars: string[] = []
+
 /** Push a palette onto `:root` as CSS variables. */
 export function applyTheme(p: Palette): void {
   const el = document.documentElement
   const set = (k: string, v: string): void => el.style.setProperty(k, v)
+  for (const k of extraVars) el.style.removeProperty(k)
 
   set('--bg', p.bg)
   set('--bg-alt', p.bgAlt)
@@ -234,6 +288,11 @@ export function applyTheme(p: Palette): void {
   set('--selection', rgba(p.accent, p.dark ? 0.28 : 0.22))
   set('--scrollbar', rgba(p.fg, p.dark ? 0.16 : 0.2))
 
+  extraVars = Object.keys(p.vars ?? {})
+  for (const [k, v] of Object.entries(p.vars ?? {})) set(k, v)
+
   el.dataset.theme = p.dark ? 'dark' : 'light'
+  if (p.style) el.dataset.style = p.style
+  else delete el.dataset.style
   el.style.colorScheme = p.dark ? 'dark' : 'light'
 }
