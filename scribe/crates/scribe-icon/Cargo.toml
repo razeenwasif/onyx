@@ -1,0 +1,10 @@
+[package]
+name = "scribe-icon"
+version = "1.0.0"
+edition = "2021"
+publish = false
+description = "Renders the Scribe app icon with the app's own ink engine"
+
+[dependencies]
+scribe-core = { path = "../scribe-core" }
+tiny-skia = "0.11"

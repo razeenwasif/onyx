@@ -1,0 +1,5 @@
+module CScribeCore {
+    header "../../crates/scribe-core/include/scribe_core.h"
+    link "scribe_core"
+    export *
+}
