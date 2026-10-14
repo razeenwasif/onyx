@@ -1,5 +1,6 @@
 {
   "name": "electron-desktop",
+  "productName": "Electron",
   "version": "0.1.0",
   "description": "Electron Desktop \u2014 an Obsidian-style markdown vault app for the Electron vault format.",
   "main": "./out/main/index.js",

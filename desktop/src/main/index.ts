@@ -31,15 +31,18 @@ import {
 import * as drive from './drive.js'
 import * as google from './google.js'
 import { SCOPES } from './google.js'
+import { isPackaged } from './packaged.js'
 import type { AppSettings } from '../shared/types.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const isDev = !app.isPackaged
+const isDev = !isPackaged
 
-// Pin Chromium's profile (localStorage, caches) to the folder it used before the
-// app was renamed from Onyx, so nothing is lost on upgrade — and so it stays out
-// of the generic `Electron` folder every unnamed Electron app writes to.
-app.setPath('userData', path.join(app.getPath('appData'), 'Onyx'))
+// Pin Chromium's profile (caches, web storage) to the folder it used before the
+// app was renamed from Onyx. Electron named that folder after the npm package,
+// `onyx-desktop`; keeping it means nothing moves on upgrade, and the profile
+// stays out of the settings folder (`onyx`, see settings.ts) and out of the
+// generic `Electron` folder unnamed Electron apps share.
+app.setPath('userData', path.join(app.getPath('appData'), 'onyx-desktop'))
 
 let win: BrowserWindow | null = null
 let vault: Vault | null = null
@@ -60,7 +63,7 @@ function send(channel: string, ...args: unknown[]): void {
  * entry, so it's worth setting even though the installers set it too.
  */
 function iconPath(): string {
-  return app.isPackaged
+  return isPackaged
     ? path.join(process.resourcesPath, 'icon.png')
     : path.join(__dirname, '../../build/icon.png')
 }
