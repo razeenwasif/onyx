@@ -124,6 +124,10 @@ export interface GraphSettings {
   repelForce: number
   linkForce: number
   linkDistance: number
+  /** Settle the layout into a round globe (a soft circular boundary). */
+  globe: boolean
+  /** 0–1: how strongly notes sharing a tag family gather into a "continent". */
+  continentForce: number
 }
 
 export interface LocalGraphSettings extends GraphSettings {

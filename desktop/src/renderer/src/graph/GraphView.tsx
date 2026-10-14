@@ -77,8 +77,29 @@ function bfsDepths(
 const COMPACT_DISTANCE_SCALE = 0.35
 
 /** Node radius bounds in world units, before the Node size slider. */
-const NODE_BASE = 8
-const NODE_MAX = 30
+const NODE_BASE = 24
+const NODE_MAX = 72
+/** How fast hubs grow with their link count (× √degree). */
+const NODE_HUB_GROWTH = 6.5
+/**
+ * A plain node is never drawn smaller than this on screen (CSS px), so a
+ * whole vault framed at once still reads as solid dots rather than specks.
+ * Everything scales up together, so hubs keep their size advantage. The
+ * docked minimap is denser, so it gets a smaller floor.
+ */
+const NODE_MIN_PX = 3
+const NODE_MIN_PX_COMPACT = 1.8
+/**
+ * Label fading is tuned against the original node size; keep it there so
+ * thicker nodes don't also bring labels in at overview zoom.
+ */
+const LABEL_FADE_BASE = 8
+
+/** How much to scale every node so a plain one meets the on-screen floor. */
+function sizeBoost(plainRadius: number, scale: number, compact: boolean): number {
+  return Math.max(1, (compact ? NODE_MIN_PX_COMPACT : NODE_MIN_PX) / (plainRadius * scale))
+}
+
 
 /**
  * Time constants (ms) for the eased parts of the view: hover highlight fading
@@ -363,6 +384,29 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
       .map(([tag, count]) => ({ tag, count, color: tagColor(tag, palette.dark) }))
   }, [sub, graph, cfg.colorByTag, palette.dark])
 
+  /**
+   * Continent per sub-node: the index of its tag family (a tag node joins its
+   * own family), or -1 for untagged notes, which stay out in the open sea.
+   */
+  const continents = useMemo(() => {
+    const groups = new Int32Array(sub.nodes.length).fill(-1)
+    if (!graph) return groups
+    const index = new Map<string, number>()
+    sub.nodes.forEach((full, i) => {
+      const node = graph.nodes[full]
+      const tag = node.kind === 'tag' ? node.tags[0] : primaryTag(node.tags)
+      if (!tag) return
+      const family = tagFamily(tag)
+      let g = index.get(family)
+      if (g === undefined) {
+        g = index.size
+        index.set(family, g)
+      }
+      groups[i] = g
+    })
+    return groups
+  }, [sub, graph])
+
   /** Group color per sub-node (index into `sub.nodes`), or null. */
   const groupColors = useMemo(() => {
     const out: Array<string | null> = sub.nodes.map(() => null)
@@ -435,11 +479,14 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
       edges: sub.edges,
       positions: carried > 0 ? seedPositions : undefined,
       pinned: local && focusSub >= 0 ? [focusSub] : [],
+      groups: continents,
       params: {
         centerForce: cfg.centerForce,
         repelForce: cfg.repelForce,
         linkForce: cfg.linkForce,
         linkDistance: cfg.linkDistance * (compact ? COMPACT_DISTANCE_SCALE : 1),
+        globe: cfg.globe !== false,
+        continentForce: cfg.continentForce ?? 0,
         // The docked pane freezes once it settles instead of drifting forever
         // — a background sim over a thousand nodes isn't worth the CPU.
         alive: !compact,
@@ -455,7 +502,7 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
     }
 
     frameRef.current = makeFrameData(ids.length, sub.edges.length / 2)
-  }, [sub, graph, local, focusPath, compact])
+  }, [sub, graph, local, focusPath, compact, continents])
 
   // Force sliders push through without rebuilding the graph.
   useEffect(() => {
@@ -466,12 +513,14 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
         repelForce: cfg.repelForce,
         linkForce: cfg.linkForce,
         linkDistance: cfg.linkDistance * (compact ? COMPACT_DISTANCE_SCALE : 1),
+        globe: cfg.globe !== false,
+        continentForce: cfg.continentForce ?? 0,
         // The docked pane freezes once it settles instead of drifting forever
         // — a background sim over a thousand nodes isn't worth the CPU.
         alive: !compact,
       },
     })
-  }, [cfg.centerForce, cfg.repelForce, cfg.linkForce, cfg.linkDistance])
+  }, [cfg.centerForce, cfg.repelForce, cfg.linkForce, cfg.linkDistance, cfg.globe, cfg.continentForce])
 
   // ----------------------------------------------------------- render loop
 
@@ -498,7 +547,7 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
     (degree: number) =>
       (cfg.nodeSize || 1) *
       (compact ? COMPACT_DISTANCE_SCALE : 1) *
-      Math.max(NODE_BASE, Math.min(3 * Math.sqrt(degree + 1), NODE_MAX)),
+      Math.max(NODE_BASE, Math.min(NODE_HUB_GROWTH * Math.sqrt(degree + 1), NODE_MAX)),
     [cfg.nodeSize, compact],
   )
 
@@ -510,6 +559,9 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
 
     const ctx = labelCanvas.getContext('2d')!
     const bg = hexToRgb(palette.bg).map((c) => c / 255) as [number, number, number]
+    // Untagged notes read white once they're linked into the graph; orphans
+    // stay a dimmer grey out at the rim.
+    const nodeLinked = hexToRgb(palette.fg)
     const nodeBase = hexToRgb(palette.fgDim)
     const nodeUnresolved = hexToRgb(palette.fgSubtle)
     const nodeTag = hexToRgb(palette.tag)
@@ -562,6 +614,8 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
       }
 
       const cam = cameraRef.current
+      const boost = sizeBoost(nodeRadius(0), cam.scale, compact)
+      const drawRadius = (degree: number): number => nodeRadius(degree) * boost
 
       // Glide toward the wheel's target zoom, keeping the anchor point still.
       const zoom = zoomAnimRef.current
@@ -625,7 +679,7 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
         frame.linkColor[lc * 4 + 2] = mix(linkBase[2], nodeFocus[2], h) / 255
         frame.linkColor[lc * 4 + 3] = alpha
         frame.linkInset[lc] =
-          nodeRadius(graph.nodes[sub.nodes[t]].degree) * cam.scale * dpr + 2 * dpr
+          drawRadius(graph.nodes[sub.nodes[t]].degree) * cam.scale * dpr + 2 * dpr
         lc++
       }
       frame.linkCount = lc
@@ -635,7 +689,7 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
       // ---- nodes
       for (let i = 0; i < n; i++) {
         const node = graph.nodes[sub.nodes[i]]
-        const r = nodeRadius(node.degree)
+        const r = drawRadius(node.degree)
         frame.nodeXY[i * 2] = pos[i * 2]
         frame.nodeXY[i * 2 + 1] = pos[i * 2 + 1]
         frame.nodeRadius[i] = r
@@ -651,7 +705,7 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
         else if (node.kind === 'tag') rgb = nodeTag
         else if (node.kind === 'attachment') rgb = nodeAttachment
         else if (node.kind === 'unresolved') rgb = nodeUnresolved
-        else rgb = nodeBase
+        else rgb = node.degree > 0 ? nodeLinked : nodeBase
 
         // The hovered node fills with the accent colour, as in Obsidian.
         const h = hot[i]
@@ -681,7 +735,7 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
       // Hovering overrides the fade: the hovered node's name always shows,
       // a little larger, and so do its neighbours' unless there's a crowd.
       const fade = Math.max(0.05, (cfg.textFadeThreshold ?? 1.1) * (compact ? 3 : 1))
-      const onScreen = cam.scale * NODE_BASE * (cfg.nodeSize || 1)
+      const onScreen = cam.scale * LABEL_FADE_BASE * (cfg.nodeSize || 1)
       const labelAlpha = Math.max(0, Math.min(1, onScreen / (fade * 4) - 0.25))
       if (revealRef.current.length !== n) revealRef.current = new Float32Array(n)
       const reveal = revealRef.current
@@ -710,7 +764,7 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
           ctx.globalAlpha = a
           ctx.fillStyle = h > 0.5 ? palette.fg : labelColor
           if (h > 0.01) ctx.font = font(12 + 2 * h)
-          const r = nodeRadius(node.degree) * cam.scale * dpr
+          const r = drawRadius(node.degree) * cam.scale * dpr
           ctx.fillText(truncate(node.title, h > 0.5 ? 60 : 28), sx, sy + r + (3 + 2 * h) * dpr)
           if (h > 0.01) ctx.font = font(12)
         }
@@ -720,7 +774,7 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
 
     rafRef.current = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [graph, sub, cfg, palette, groupColors, tagRgb, focusPath, nodeRadius])
+  }, [graph, sub, cfg, palette, groupColors, tagRgb, focusPath, nodeRadius, compact])
 
   // ------------------------------------------------------------ interaction
 
@@ -739,7 +793,9 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
         const dx = pos[i * 2] - wx
         const dy = pos[i * 2 + 1] - wy
         const d2 = dx * dx + dy * dy
-        const r = nodeRadius(graph.nodes[sub.nodes[i]].degree) + 4 / cam.scale
+        const r =
+          nodeRadius(graph.nodes[sub.nodes[i]].degree) * sizeBoost(nodeRadius(0), cam.scale, compact) +
+          4 / cam.scale
         if (d2 <= r * r && d2 < bestD) {
           bestD = d2
           best = i
@@ -747,7 +803,7 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
       }
       return best
     },
-    [graph, sub, nodeRadius],
+    [graph, sub, nodeRadius, compact],
   )
 
   const toWorld = useCallback((clientX: number, clientY: number): [number, number] => {
@@ -1316,6 +1372,15 @@ function GraphControls({
             step={5}
             value={cfg.linkDistance}
             onChange={(v) => patch({ linkDistance: v })}
+          />
+          <Toggle label="Globe" on={cfg.globe !== false} onChange={(v) => patch({ globe: v })} />
+          <Slider
+            label="Continents"
+            min={0}
+            max={1}
+            step={0.01}
+            value={cfg.continentForce ?? 0}
+            onChange={(v) => patch({ continentForce: v })}
           />
         </>,
       )}

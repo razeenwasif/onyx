@@ -6,6 +6,12 @@
  * the origin, and Verlet integration with a cooling `alpha`. The four sliders
  * in the Forces panel map one-to-one onto those forces.
  *
+ * Two forces of our own shape it. *Continents* pull every note toward the
+ * centre of its tag family, and each family toward its own anchor, so tagged
+ * notes gather into dense clusters. The *globe* boundary draws in anything
+ * outside a circle sized from the layout itself, so the whole graph settles
+ * round (orphans collect along that rim) instead of into a ragged blob.
+ *
  * Positions ping-pong between here and the renderer on a transferable
  * Float32Array so a 10k-node graph costs no per-frame allocation.
  */
@@ -19,6 +25,8 @@ export interface InitMessage {
   positions?: Float32Array
   /** Indices pinned to the origin (the focused note in a local graph). */
   pinned: number[]
+  /** Per-node continent (tag family) index, or -1 for none. */
+  groups?: Int32Array
   params: Params
 }
 
@@ -27,6 +35,10 @@ export interface Params {
   repelForce: number
   linkForce: number
   linkDistance: number
+  /** Keep the layout inside a round boundary. */
+  globe: boolean
+  /** 0–1: how strongly tag families gather into continents. */
+  continentForce: number
   /** Keep simulating forever with a floor on alpha (Obsidian's gentle drift). */
   alive: boolean
 }
@@ -47,6 +59,18 @@ const VELOCITY_DECAY = 0.4
 /** Scales the Center force slider (0–1) into a per-tick pull toward the origin. */
 const CENTER_GAIN = 0.02
 const THETA2 = 0.81 // Barnes-Hut opening angle squared (θ = 0.9)
+/** Scales the Continent slider into a per-tick pull toward the family's centre. */
+const CONTINENT_GAIN = 0.12
+/** …and the (weaker) pull of each family's centre toward its anchor. */
+const ANCHOR_GAIN = 0.006
+/**
+ * The globe's edge, as a multiple of the layout's RMS radius. A uniformly
+ * filled disc of radius R has an RMS radius of R/√2, so ~1.3 trims the
+ * stragglers without squeezing the body of the graph.
+ */
+const GLOBE_EDGE = 1.3
+const GLOBE_GAIN = 0.12
+const GOLDEN = 2.399963229728653
 const JIGGLE = 1e-6
 
 let n = 0
@@ -61,12 +85,22 @@ let edgeDst = new Int32Array(0)
 /** Per-link bias, d3's `1 / min(deg(source), deg(target))`. */
 let bias = new Float32Array(0)
 let linkStrength = new Float32Array(0)
+/** Continent per node (-1 = none), and per continent: anchor on the unit disc + scratch sums. */
+let group = new Int32Array(0)
+let groupCount = 0
+let anchorU = new Float32Array(0)
+let anchorV = new Float32Array(0)
+let gSumX = new Float64Array(0)
+let gSumY = new Float64Array(0)
+let gSize = new Int32Array(0)
 
 let params: Params = {
   centerForce: 0.3,
   repelForce: 10,
   linkForce: 1,
   linkDistance: 250,
+  globe: true,
+  continentForce: 0.6,
   alive: true,
 }
 
@@ -340,6 +374,99 @@ function applyCenter(a: number): void {
   }
 }
 
+/** Roughly the radius the layout settles at — the scale anchors are laid out on. */
+function layoutRadius(): number {
+  return params.linkDistance * 0.4 * Math.sqrt(Math.max(n, 1))
+}
+
+/**
+ * Gather tag families into continents: each member drifts toward its family's
+ * centre of mass, and each family's centre drifts toward its anchor so the
+ * continents stay apart instead of merging in the middle.
+ */
+function applyContinents(a: number): void {
+  if (params.continentForce <= 0 || groupCount === 0) return
+  gSumX.fill(0)
+  gSumY.fill(0)
+  gSize.fill(0)
+  for (let i = 0; i < n; i++) {
+    const g = group[i]
+    if (g < 0) continue
+    gSumX[g] += x[i]
+    gSumY[g] += y[i]
+    gSize[g]++
+  }
+  const kc = params.continentForce * CONTINENT_GAIN * a
+  const ka = params.continentForce * ANCHOR_GAIN * a
+  const scale = layoutRadius()
+  for (let i = 0; i < n; i++) {
+    const g = group[i]
+    if (g < 0 || fixed[i]) continue
+    const cx = gSumX[g] / gSize[g]
+    const cy = gSumY[g] / gSize[g]
+    vx[i] += (cx - x[i]) * kc + (anchorU[g] * scale - cx) * ka
+    vy[i] += (cy - y[i]) * kc + (anchorV[g] * scale - cy) * ka
+  }
+}
+
+/** Pull in anything outside the globe's edge, measured from the layout's centre. */
+function applyGlobe(a: number): void {
+  if (!params.globe || n < 3) return
+  let mx = 0
+  let my = 0
+  for (let i = 0; i < n; i++) {
+    mx += x[i]
+    my += y[i]
+  }
+  mx /= n
+  my /= n
+  let sum2 = 0
+  for (let i = 0; i < n; i++) {
+    const dx = x[i] - mx
+    const dy = y[i] - my
+    sum2 += dx * dx + dy * dy
+  }
+  const edge = GLOBE_EDGE * Math.sqrt(sum2 / n)
+  const k = GLOBE_GAIN * a
+  for (let i = 0; i < n; i++) {
+    if (fixed[i]) continue
+    const dx = x[i] - mx
+    const dy = y[i] - my
+    const r = Math.sqrt(dx * dx + dy * dy)
+    if (r <= edge || r === 0) continue
+    const pull = ((r - edge) / r) * k
+    vx[i] -= dx * pull
+    vy[i] -= dy * pull
+  }
+}
+
+/**
+ * Lay the continents' anchors out on the unit disc: biggest family in the
+ * middle, the rest on a sunflower spiral. The disc is small on purpose — the
+ * anchors only say which side each family sits on; charge keeps the families
+ * apart, so they pack shoulder to shoulder like Obsidian's clusters.
+ */
+function placeAnchors(groups: Int32Array | undefined): void {
+  group = new Int32Array(n).fill(-1)
+  groupCount = 0
+  if (groups && groups.length === n) {
+    group.set(groups)
+    for (let i = 0; i < n; i++) if (group[i] >= groupCount) groupCount = group[i] + 1
+  }
+  anchorU = new Float32Array(groupCount)
+  anchorV = new Float32Array(groupCount)
+  gSumX = new Float64Array(groupCount)
+  gSumY = new Float64Array(groupCount)
+  gSize = new Int32Array(groupCount)
+  for (let i = 0; i < n; i++) if (group[i] >= 0) gSize[group[i]]++
+  const order = [...Array(groupCount).keys()].sort((p, q) => gSize[q] - gSize[p] || p - q)
+  order.forEach((g, rank) => {
+    const radius = 0.32 * Math.sqrt(rank / Math.max(groupCount, 1))
+    anchorU[g] = radius * Math.cos(rank * GOLDEN)
+    anchorV[g] = radius * Math.sin(rank * GOLDEN)
+  })
+}
+
 /**
  * Charge strength for the current sliders.
  *
@@ -375,6 +502,8 @@ function tick(): void {
   applyCharge(chargeStrength(), alpha)
   applyLinks(alpha)
   applyCenter(alpha)
+  applyContinents(alpha)
+  applyGlobe(alpha)
 
   const decay = 1 - VELOCITY_DECAY
   for (let i = 0; i < n; i++) {
@@ -425,13 +554,20 @@ function stop(): void {
   timer = null
 }
 
-function seed(count: number, existing?: Float32Array): void {
+function seed(count: number, existing?: Float32Array, groups?: Int32Array): void {
   n = count
   x = new Float32Array(n)
   y = new Float32Array(n)
   vx = new Float32Array(n)
   vy = new Float32Array(n)
   fixed = new Uint8Array(n)
+  placeAnchors(groups)
+  // With continents on, new nodes start on their family's anchor so the
+  // landmasses form in place rather than migrating across the whole layout.
+  const continents = params.continentForce > 0 && groupCount > 0
+  const scale = layoutRadius()
+  const placed = new Int32Array(groupCount)
+  let loose = 0
   for (let i = 0; i < n; i++) {
     if (existing && existing.length >= (i + 1) * 2 && Number.isFinite(existing[i * 2])) {
       x[i] = existing[i * 2]
@@ -440,11 +576,13 @@ function seed(count: number, existing?: Float32Array): void {
     }
     // Phyllotaxis seed — spreads the first frame evenly instead of a thin ring,
     // at roughly the scale the link springs will settle at.
-    const t = i
+    const g = group[i]
+    const onContinent = continents && g >= 0
+    const t = onContinent ? placed[g]++ : loose++
     const radius = params.linkDistance * 0.4 * Math.sqrt(t + 0.5)
-    const angle = t * 2.399963229728653
-    x[i] = radius * Math.cos(angle)
-    y[i] = radius * Math.sin(angle)
+    const angle = t * GOLDEN
+    x[i] = radius * Math.cos(angle) + (onContinent ? anchorU[g] * scale : 0)
+    y[i] = radius * Math.sin(angle) + (onContinent ? anchorV[g] * scale : 0)
   }
 }
 
@@ -454,7 +592,7 @@ self.onmessage = (e: MessageEvent<Message>): void => {
     case 'init': {
       stop()
       params = msg.params
-      seed(msg.count, msg.positions)
+      seed(msg.count, msg.positions, msg.groups)
       const m = msg.edges.length / 2
       edgeSrc = new Int32Array(m)
       edgeDst = new Int32Array(m)

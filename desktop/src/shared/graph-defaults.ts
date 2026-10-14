@@ -4,7 +4,8 @@
  *
  * Slider ranges mirror Obsidian's: center force 0–1, repel force 0–20,
  * link force 0–1, link distance 30–500, node size and link thickness 0.1–5,
- * text fade threshold 0–3, local-graph depth 1–5.
+ * text fade threshold 0–3, local-graph depth 1–5. Continent force (ours) is
+ * 0–1, with 0 turning continents off.
  */
 
 import type { GraphSettings, LocalGraphSettings } from './types.js'
@@ -27,6 +28,8 @@ export const DEFAULT_GRAPH: GraphSettings = {
   repelForce: 10,
   linkForce: 1,
   linkDistance: 250,
+  globe: true,
+  continentForce: 0.6,
 }
 
 export const DEFAULT_LOCAL_GRAPH: LocalGraphSettings = {
