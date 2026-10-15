@@ -13,6 +13,7 @@ import type {
   GoogleStatus,
   GraphData,
   NoteMeta,
+  ScribeHit,
   SearchHit,
   VaultSnapshot,
 } from '../shared/types.js'
@@ -38,6 +39,10 @@ export const api = {
       ipcRenderer.invoke('apps:info'),
     switchTo: (id: 'electron' | 'scribe'): Promise<void> => ipcRenderer.invoke('apps:switch', id),
     onChanged: (fn: (id: 'electron' | 'scribe') => void): Unsubscribe => on('apps:changed', fn),
+    /** Scribe pages matching a search (empty when Scribe isn't available). */
+    scribeSearch: (query: string): Promise<ScribeHit[]> => ipcRenderer.invoke('apps:scribe-search', query),
+    /** Open a Scribe page and switch to Scribe. */
+    scribeOpen: (pagePath: string): Promise<void> => ipcRenderer.invoke('apps:scribe-open', pagePath),
   },
 
   settings: {

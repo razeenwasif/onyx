@@ -37,7 +37,9 @@ import {
   attachScribe,
   currentApp,
   initScribe,
+  openScribePage,
   scribeAvailable,
+  searchScribe,
   snapshotScribe,
   switchApp,
   windowMenu,
@@ -317,6 +319,8 @@ function registerIpc(): void {
 
   ipcMain.handle('apps:info', () => ({ available: scribeAvailable(), current: currentApp() }))
   ipcMain.handle('apps:switch', (_e, id: AppId) => switchApp(id))
+  ipcMain.handle('apps:scribe-search', (_e, query: string) => searchScribe(query))
+  ipcMain.handle('apps:scribe-open', (_e, pagePath: string) => openScribePage(pagePath))
 
   ipcMain.handle('settings:get', () => settings.get())
   ipcMain.handle('settings:set', (_e, patch: Partial<AppSettings>) => settings.update(patch))

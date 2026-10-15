@@ -62,6 +62,12 @@ public func scribeEmbedCreateView(
     // Only while Scribe is on screen, so the host's own keys go to the host.
     embedded.keyMonitor = ToolKeys.install { embedded.active ? embedded.app : nil }
 
+    // Read older handwriting in the background so the host's search finds
+    // it, even if Scribe is never shown (showing it starts its own pass).
+    DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+        if !embedded.started { embedded.app.readHandwriting() }
+    }
+
     // Save at the moments the standalone app does.
     let center = NotificationCenter.default
     embedded.observers = [
@@ -81,11 +87,36 @@ public func scribeEmbedCreateView(
 public func scribeEmbedSetActive(_ active: Bool) {
     let embedded = Embedded.shared
     embedded.active = active
-    if active, !embedded.started {
-        embedded.started = true
-        embedded.app.start()
-    }
+    if active { startIfNeeded() }
     if !active, embedded.started { embedded.app.save() }
+}
+
+private func startIfNeeded() {
+    let embedded = Embedded.shared
+    guard !embedded.started else { return }
+    embedded.started = true
+    embedded.app.start()
+}
+
+/// Pages matching `query`, as a JSON array (see HostSearchHit). The caller
+/// frees the string with scribe_embed_free.
+@_cdecl("scribe_embed_search")
+public func scribeEmbedSearch(_ query: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar> {
+    strdup(Embedded.shared.app.searchJSON(String(cString: query)))
+}
+
+/// Frees a string Scribe handed to the host.
+@_cdecl("scribe_embed_free")
+public func scribeEmbedFree(_ pointer: UnsafeMutablePointer<CChar>?) {
+    free(pointer)
+}
+
+/// Opens the page at `path`. Starts Scribe first if it hasn't been shown
+/// yet, so its usual "reopen the last page" doesn't replace this one.
+@_cdecl("scribe_embed_open")
+public func scribeEmbedOpen(_ path: UnsafePointer<CChar>) {
+    startIfNeeded()
+    Embedded.shared.app.showPage(at: String(cString: path))
 }
 
 /// Runs a menu action by name (see ScribeMenu). False for an unknown name.

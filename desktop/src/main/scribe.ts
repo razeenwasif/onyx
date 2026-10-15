@@ -17,6 +17,8 @@ import { createRequire } from 'node:module'
 import * as path from 'node:path'
 
 import { isPackaged } from './packaged.js'
+import { scribeQuery } from '../shared/scribe-query.js'
+import type { ScribeHit } from '../shared/types.js'
 
 export type AppId = 'electron' | 'scribe'
 
@@ -28,6 +30,8 @@ interface Bridge {
   menu(): string
   onSwitch(fn: () => void): void
   snapshot(png: string): boolean
+  search(query: string): string
+  open(pagePath: string): void
 }
 
 /** One entry of Scribe's menu JSON (see scribe/macos/Scribe/App/ScribeMenu.swift). */
@@ -163,6 +167,27 @@ function scribeMenu(): Electron.Menu {
   const file = scribeMenus.find((m) => m.label === 'File')
   if (file && Array.isArray(file.submenu)) file.submenu.push({ type: 'separator' }, { role: 'close' })
   return Menu.buildFromTemplate([{ role: 'appMenu' }, ...scribeMenus, windowMenu()])
+}
+
+/**
+ * Scribe pages matching `query`: titles, typed text, tables and handwriting.
+ * Queries using Electron's search operators skip Scribe (see scribeQuery).
+ */
+export function searchScribe(query: string): ScribeHit[] {
+  const q = scribeQuery(query)
+  if (!bridge || !q) return []
+  try {
+    return JSON.parse(bridge.search(q)) as ScribeHit[]
+  } catch {
+    return []
+  }
+}
+
+/** Open one of Scribe's pages and show Scribe. */
+export function openScribePage(pagePath: string): void {
+  if (!bridge || !host) return
+  bridge.open(pagePath)
+  switchApp('scribe')
 }
 
 /** Render Scribe's view to a PNG (capturePage only sees the web layer under it). */

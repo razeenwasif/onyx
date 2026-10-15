@@ -22,7 +22,9 @@ On macOS the app also carries [Scribe](../scribe/README.md), the pen-first noteb
 Both live in one window: the two icons at the top of the ribbon (and at the top of
 Scribe's sidebar) switch between them, as do **Window → Electron / Scribe**
 (⌃⌘1 / ⌃⌘2). The menu bar follows whichever app is on screen, and the app reopens in
-the one you used last. Scribe's notebooks stay where they always were
+the one you used last. Search in the left sidebar lists matching Scribe pages under
+your notes, handwriting included; click one to jump to it in Scribe. Scribe's notebooks
+stay where they always were
 (`~/Documents/Scribe Notebooks` unless you chose another folder), so the standalone
 Scribe app and this one share them.
 

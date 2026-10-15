@@ -89,6 +89,19 @@ export interface SearchHit {
   score: number
 }
 
+/** A Scribe page matching a search (macOS, when Scribe is embedded). */
+export interface ScribeHit {
+  title: string
+  /** The page file's path; open it with apps.scribeOpen. */
+  path: string
+  notebook: string
+  section: string
+  /** Unix seconds; 0 when unknown. */
+  modified: number
+  /** Typed text, or the handwriting when only that matched. */
+  snippet: string
+}
+
 export interface OutlineItem {
   level: number
   text: string

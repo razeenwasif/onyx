@@ -1540,6 +1540,56 @@ textarea {
   border-radius: 2px;
 }
 
+/* Scribe pages in search (macOS) */
+
+.scribe-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.scribe-head img {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.scribe-hit {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  text-align: left;
+  padding: 5px 8px;
+  border-radius: var(--radius);
+  color: var(--fg-dim);
+}
+
+.scribe-hit:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.scribe-hit-title {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.scribe-hit-where {
+  font-size: 11px;
+  color: var(--fg-subtle);
+}
+
+.scribe-hit-snippet {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
 /* Backlinks / outline / tags ---------------------------------------------- */
 
 .list-pane {

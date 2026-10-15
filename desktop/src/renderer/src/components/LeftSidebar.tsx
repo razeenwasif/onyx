@@ -1,7 +1,8 @@
 /** Left-sidebar panes: the file explorer, bookmarks, and the tag index. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { FileNode, SearchHit } from '@shared/types'
+import type { FileNode, ScribeHit, SearchHit } from '@shared/types'
+import scribeIcon from '../assets/scribe-icon.png'
 import { useStore } from '../store'
 import { Icon, type IconName } from './Icon'
 import { runCommand } from '../commands'
@@ -230,6 +231,8 @@ function ensureExt(name: string, original: string): string {
 export function SearchPane({ initial }: { initial?: string } = {}): JSX.Element {
   const [query, setQuery] = useState(initial ?? '')
   const [hits, setHits] = useState<SearchHit[]>([])
+  /** Scribe pages (macOS, when Scribe is embedded), handwriting included. */
+  const [scribeHits, setScribeHits] = useState<ScribeHit[]>([])
   const [busy, setBusy] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const openFile = useStore((s) => s.openFile)
@@ -242,12 +245,18 @@ export function SearchPane({ initial }: { initial?: string } = {}): JSX.Element 
   useEffect(() => {
     if (!query.trim()) {
       setHits([])
+      setScribeHits([])
       return
     }
     setBusy(true)
     const timer = setTimeout(async () => {
       try {
-        setHits(await window.onyx.search.query(query))
+        const [notes, pages] = await Promise.all([
+          window.onyx.search.query(query),
+          window.onyx.apps.scribeSearch(query).catch(() => []),
+        ])
+        setHits(notes)
+        setScribeHits(pages)
       } finally {
         setBusy(false)
       }
@@ -320,7 +329,31 @@ export function SearchPane({ initial }: { initial?: string } = {}): JSX.Element 
           </div>
         )
       })}
-      {query.trim() && !busy && !hits.length && <div className="modal-empty">No matches</div>}
+      {scribeHits.length > 0 && (
+        <>
+          <div className="section-head scribe-head">
+            <img src={scribeIcon} alt="" />
+            Scribe · {scribeHits.length} page{scribeHits.length === 1 ? '' : 's'}
+          </div>
+          {scribeHits.map((page) => (
+            <button
+              className="scribe-hit"
+              key={page.path}
+              title="Open in Scribe"
+              onClick={() => void window.onyx.apps.scribeOpen(page.path)}
+            >
+              <span className="scribe-hit-title">{page.title}</span>
+              <span className="scribe-hit-where">
+                {page.notebook} › {page.section}
+              </span>
+              {page.snippet && <span className="scribe-hit-snippet">{page.snippet}</span>}
+            </button>
+          ))}
+        </>
+      )}
+      {query.trim() && !busy && !hits.length && !scribeHits.length && (
+        <div className="modal-empty">No matches</div>
+      )}
     </div>
   )
 }

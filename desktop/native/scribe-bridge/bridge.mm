@@ -19,6 +19,9 @@ typedef void (*SetActiveFn)(bool);
 typedef bool (*PerformFn)(const char *);
 typedef const char *(*MenuJsonFn)(void);
 typedef void (*SetSwitchHandlerFn)(void (*)(void));
+typedef char *(*SearchFn)(const char *);
+typedef void (*FreeFn)(char *);
+typedef void (*OpenFn)(const char *);
 
 static void *library = nullptr;
 static CreateViewFn createView = nullptr;
@@ -26,6 +29,9 @@ static SetActiveFn setActive = nullptr;
 static PerformFn performAction = nullptr;
 static MenuJsonFn menuJson = nullptr;
 static SetSwitchHandlerFn setSwitchHandler = nullptr;
+static SearchFn searchPages = nullptr;
+static FreeFn freeString = nullptr;
+static OpenFn openPage = nullptr;
 
 static NSView *scribeView = nil;
 static napi_threadsafe_function switchCallback = nullptr;
@@ -84,7 +90,11 @@ static napi_value Load(napi_env env, napi_callback_info info) {
   performAction = (PerformFn)dlsym(handle, "scribe_embed_perform");
   menuJson = (MenuJsonFn)dlsym(handle, "scribe_embed_menu_json");
   setSwitchHandler = (SetSwitchHandlerFn)dlsym(handle, "scribe_embed_set_switch_handler");
-  if (!createView || !setActive || !performAction || !menuJson || !setSwitchHandler) {
+  searchPages = (SearchFn)dlsym(handle, "scribe_embed_search");
+  freeString = (FreeFn)dlsym(handle, "scribe_embed_free");
+  openPage = (OpenFn)dlsym(handle, "scribe_embed_open");
+  if (!createView || !setActive || !performAction || !menuJson || !setSwitchHandler || !searchPages ||
+      !freeString || !openPage) {
     dlclose(handle);
     return Fail(env, "libScribeEmbed is missing an entry point; rebuild it with scripts/build-scribe.sh");
   }
@@ -164,6 +174,28 @@ static napi_value Perform(napi_env env, napi_callback_info info) {
   return ToJsBool(env, performAction(id.c_str()));
 }
 
+/** search(query): Scribe's pages matching `query`, as a JSON string. */
+static napi_value Search(napi_env env, napi_callback_info info) {
+  napi_value argv[1];
+  if (!Args(env, info, 1, argv)) return nullptr;
+  if (!library) return Fail(env, "call load() first");
+  std::string query = ToStdString(env, argv[0]);
+  char *json = searchPages(query.c_str());
+  napi_value out;
+  napi_create_string_utf8(env, json ? json : "[]", NAPI_AUTO_LENGTH, &out);
+  freeString(json);
+  return out;
+}
+
+/** open(pagePath): open one of Scribe's pages (the caller then shows Scribe). */
+static napi_value Open(napi_env env, napi_callback_info info) {
+  napi_value argv[1];
+  if (!Args(env, info, 1, argv) || !Ready(env)) return nullptr;
+  std::string path = ToStdString(env, argv[0]);
+  openPage(path.c_str());
+  return nullptr;
+}
+
 /** menu(): Scribe's menus as JSON, for the application menu. */
 static napi_value Menu(napi_env env, napi_callback_info info) {
   if (!library) return Fail(env, "call load() first");
@@ -223,6 +255,8 @@ static napi_value Init(napi_env env, napi_value exports) {
       {"setVisible", nullptr, SetVisible, nullptr, nullptr, nullptr, napi_default, nullptr},
       {"perform", nullptr, Perform, nullptr, nullptr, nullptr, napi_default, nullptr},
       {"menu", nullptr, Menu, nullptr, nullptr, nullptr, napi_default, nullptr},
+      {"search", nullptr, Search, nullptr, nullptr, nullptr, napi_default, nullptr},
+      {"open", nullptr, Open, nullptr, nullptr, nullptr, napi_default, nullptr},
       {"onSwitch", nullptr, OnSwitch, nullptr, nullptr, nullptr, napi_default, nullptr},
       {"snapshot", nullptr, Snapshot, nullptr, nullptr, nullptr, napi_default, nullptr},
   };
