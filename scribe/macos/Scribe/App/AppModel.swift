@@ -73,6 +73,8 @@ public final class AppModel {
     @ObservationIgnored weak var canvas: PageScrollView?
 
     @ObservationIgnored private var autosave: DispatchWorkItem?
+    /// Reads handwriting into searchable text.
+    @ObservationIgnored let inkReader = InkReader()
     @ObservationIgnored private var searchWork: DispatchWorkItem?
 
     public init() {
@@ -95,6 +97,12 @@ public final class AppModel {
         }
         reloadTree()
         restoreLastPage()
+        // Catch up on handwriting written before it was searchable, once
+        // the window has settled.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let self else { return }
+            self.inkReader.backfill(root: self.root)
+        }
     }
 
     private func restoreLastPage() {
@@ -225,6 +233,7 @@ public final class AppModel {
         do {
             let doc = page.toDoc()
             let result: WriteResult = try Core.call("write_page", ["path": page.path, "page": try Core.json(doc)])
+            inkReader.pageSaved(doc, modified: result.modifiedUnix, root: root)
             dirty = false
             status = "Saved " + Date().formatted(date: .omitted, time: .shortened)
             if let i = pages.firstIndex(where: { $0.path == page.path }) {

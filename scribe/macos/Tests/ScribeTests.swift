@@ -162,3 +162,48 @@ final class PageModelTests: XCTestCase {
         XCTAssertEqual(page.strokes.count, 1)
     }
 }
+
+final class InkReaderTests: XCTestCase {
+    /// Block capitals drawn as pen strokes, 60 units tall, starting at `x`.
+    private func letters(_ word: String, x: Double = 40, y: Double = 40) -> [StrokeDTO] {
+        let (w, h) = (36.0, 60.0)
+        func line(_ a: (Double, Double), _ b: (Double, Double)) -> StrokeDTO {
+            // Several samples per segment, at an even, firm pressure.
+            let pts = (0...8).flatMap { i -> [Double] in
+                let t = Double(i) / 8
+                return [a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t, 0.7]
+            }
+            return StrokeDTO(width: 6, height: 6, points: pts)
+        }
+        var out: [StrokeDTO] = []
+        for (i, ch) in word.enumerated() {
+            let l = x + Double(i) * (w + 18), r = l + w, t = y, b = y + h, m = y + h / 2
+            switch ch {
+            case "H": out += [line((l, t), (l, b)), line((r, t), (r, b)), line((l, m), (r, m))]
+            case "E": out += [line((l, t), (l, b)), line((l, t), (r, t)), line((l, m), (r - 8, m)), line((l, b), (r, b))]
+            case "L": out += [line((l, t), (l, b)), line((l, b), (r, b))]
+            case "O": out += [line((l, t), (r, t)), line((r, t), (r, b)), line((r, b), (l, b)), line((l, b), (l, t))]
+            default: break
+            }
+        }
+        return out
+    }
+
+    func testReadsWritingFromInk() throws {
+        var doc = PageDoc()
+        doc.strokes = letters("HELLO")
+        let image = try XCTUnwrap(InkReader.render(doc))
+        let text = InkReader.recognize(image)
+        XCTAssertTrue(text.uppercased().contains("HELLO"), "read \"\(text)\"")
+    }
+
+    func testHighlighterAloneGivesNoImage() {
+        var doc = PageDoc()
+        doc.strokes = [StrokeDTO(highlighter: true, points: [0, 0, 0.5, 100, 0, 0.5])]
+        XCTAssertNil(InkReader.render(doc))
+    }
+
+    func testPageWithoutInkGivesNoImage() {
+        XCTAssertNil(InkReader.render(PageDoc()))
+    }
+}

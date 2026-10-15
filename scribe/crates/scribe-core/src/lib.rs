@@ -7,6 +7,7 @@
 pub mod color;
 pub mod ffi;
 pub mod geometry;
+pub mod ink;
 pub mod model;
 pub mod settings;
 pub mod table;

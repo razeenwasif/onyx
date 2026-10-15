@@ -95,6 +95,8 @@ fn snippet_of<'a>(texts: impl Iterator<Item = &'a str>) -> String {
 #[derive(Deserialize)]
 struct PageSearchView {
     #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
     title: Option<String>,
     #[serde(default)]
     modified: Option<String>,
@@ -418,13 +420,15 @@ impl Workspace {
             .collect()
     }
 
-    /// Case-insensitive search over page titles, typed text and table cells,
-    /// across every notebook. Ink is never parsed into memory.
+    /// Case-insensitive search over page titles, typed text, table cells
+    /// and handwriting (the text read out of it, see ink.rs), across every
+    /// notebook. Ink itself is never parsed into memory.
     pub fn search(&self, query: &str) -> Vec<PageInfo> {
         let q = query.trim().to_lowercase();
         if q.is_empty() {
             return Vec::new();
         }
+        let ink = self.ink_index();
 
         let mut results = Vec::new();
         for nb in self.list_notebook_dirs() {
@@ -433,21 +437,31 @@ impl Workspace {
                     let Some(view) = read_json::<PageSearchView>(&file) else { continue };
                     let title = view.title.clone().unwrap_or_else(|| file_stem(&file));
 
-                    let hit = title.to_lowercase().contains(&q)
+                    let typed = title.to_lowercase().contains(&q)
                         || view.text_boxes.iter().any(|t| t.text.to_lowercase().contains(&q))
                         || view
                             .tables
                             .iter()
                             .flat_map(|t| t.rows.iter().flatten())
                             .any(|c| c.to_lowercase().contains(&q));
+                    let written = view
+                        .id
+                        .as_ref()
+                        .and_then(|id| ink.pages.get(id))
+                        .filter(|e| e.text.to_lowercase().contains(&q));
 
-                    if hit {
+                    if typed || written.is_some() {
+                        // A match only in handwriting previews the handwriting.
+                        let snippet = match written {
+                            Some(e) if !typed => snippet_of(std::iter::once(e.text.as_str())),
+                            _ => snippet_of(view.text_boxes.iter().map(|t| t.text.as_str())),
+                        };
                         results.push(PageInfo {
                             title,
                             path: path_str(&file),
                             section_path: path_str(&sec),
                             modified: parse_stamp(view.modified.as_deref()),
-                            snippet: snippet_of(view.text_boxes.iter().map(|t| t.text.as_str())),
+                            snippet,
                         });
                     }
                 }

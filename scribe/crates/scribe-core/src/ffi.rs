@@ -183,6 +183,14 @@ fn dispatch(req: &Value) -> R {
 
         "search" => to_value(ws(req)?.search(&arg::<String>(req, "query")?)),
 
+        "ink_pending" => to_value(ws(req)?.ink_pending()),
+
+        "set_ink_text" => {
+            let modified: f64 = arg(req, "modified")?;
+            ws(req)?.set_ink_text(&arg::<String>(req, "id")?, &arg::<String>(req, "text")?, modified)?;
+            Ok(Value::Null)
+        }
+
         "parse_table" => {
             let html: Option<String> = arg(req, "html")?;
             let text: Option<String> = arg(req, "text")?;

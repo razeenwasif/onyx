@@ -97,7 +97,7 @@ pill above it offers Copy, Duplicate, Recolour and Delete.
 |----------|--------|
 | ⌘N / ⇧⌘N | New page / new notebook |
 | ⌘Z / ⇧⌘Z | Undo / redo, across ink, objects and typing |
-| ⌘F | Search every notebook (titles, typed text, table cells) |
+| ⌘F | Search every notebook (titles, typed text, table cells, handwriting) |
 | ⌘B ⌘I ⌘U ⇧⌘X | Bold, italic, underline, strikethrough |
 | ⌥⌘T ⌥⌘E ⌥⌘I | Insert table, equation, image |
 | ⌥⌘V | Paste onto the page: images, tables (from Numbers, Excel, web pages, Markdown or CSV) or text |
@@ -176,6 +176,16 @@ pressure-varying stroke, heavier on the downstroke and easing off where the nib
 lands and lifts. The small sizes get a heavier stroke rather than a shrunk copy. `build.sh`
 renders every size macOS needs and packs them into `AppIcon.icns`.
 
+## Searching handwriting
+
+Search finds written words as well as typed ones. Scribe reads each page's ink
+with macOS's built-in text recognition a moment after you save, and on start it
+works through older pages in the background, most recently edited first.
+Nothing leaves your Mac. The text it reads is kept in one file,
+`.scribe/ink-text.json` in the notebook folder, and never written into your
+pages; delete it and it is rebuilt. Recognition is best on clear print and
+reasonable on joined-up writing.
+
 ## Inside Electron
 
 Scribe also runs inside the Electron desktop app (`../desktop`) on macOS. The interface
@@ -209,7 +219,6 @@ builds and stages it.
 
 ## Known gaps
 
-- Search covers page titles, typed text and table cells, not handwriting.
 - Importing straight from OneNote needs the Windows version: OneNote for Mac
   has no API that exposes ink. Notebooks imported there open here unchanged.
-- No handwriting-to-text conversion yet.
+- Handwriting is read for search, but there is no "convert to typed text" command yet.

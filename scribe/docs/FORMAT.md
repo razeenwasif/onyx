@@ -202,6 +202,25 @@ Stores mathematical equations formatted in standard LaTeX syntax.
 
 Stores structured data tables with optional header row and custom column widths.
 
+## .scribe/ink-text.json
+
+Optional, derived, and safe to delete: the text Scribe has read out of each
+page's handwriting, for search. It sits in a `.scribe` folder at the workspace
+root (not a notebook, so it never appears as one), keyed by page `id`:
+
+```json
+{
+  "schema": "scribe.inkText/1",
+  "pages": {
+    "46f0387c1e7d42ac9003d97811a708bf": { "text": "Laplace transform\nworked example", "modified": 1792018800.0 }
+  }
+}
+```
+
+`modified` is the page's own `modified` stamp, in Unix seconds, when its ink was
+read; a page whose stamp has moved on is read again. Page files never carry this
+text, so other tools reading the format can ignore the file entirely.
+
 ## Compatibility rules
 
 - `schema` carries a name and a major version. A reader should refuse a major
