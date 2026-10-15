@@ -16,16 +16,13 @@ jobs:
       run:
         working-directory: desktop
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: desktop/package-lock.json
-      # The unit tests don't launch Electron, so skip its 100 MB binary.
       - run: npm ci
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       - run: npm run typecheck
       - run: npm test
 
@@ -33,7 +30,7 @@ jobs:
     name: Terminal app (Rust tests)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --features full
@@ -42,12 +39,12 @@ jobs:
     name: Scribe (Rust, Swift, app, embed, click test)
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: scribe
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm

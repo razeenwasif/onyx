@@ -2,7 +2,7 @@
   "name": "electron-desktop",
   "productName": "Electron",
   "version": "0.1.0",
-  "description": "Electron Desktop \u2014 an Obsidian-style markdown vault app for the Electron vault format.",
+  "description": "Electron Desktop — an Obsidian-style markdown vault app for the Electron vault format.",
   "main": "./out/main/index.js",
   "author": {
     "name": "Razeen Wasif",
@@ -63,6 +63,7 @@
     "highlight.js": "^11.11.0",
     "katex": "^0.16.11",
     "markdown-it": "^14.1.0",
+    "node-gyp": "^11.5.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "typescript": "^5.7.2",
