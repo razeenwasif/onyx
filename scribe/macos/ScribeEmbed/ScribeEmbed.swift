@@ -25,6 +25,12 @@ private final class Embedded {
 /// Builds Scribe's view (once) and returns it retained, as an `NSView *` the
 /// caller takes ownership of. `hostName` and the two icon paths feed the app
 /// switcher drawn where the traffic lights would be.
+///
+/// The returned view is a plain container around SwiftUI's hosting view, and
+/// the host hides that container, never the hosting view itself: NSHostingView
+/// still answers hit tests while hidden, so a hidden Scribe laid over the
+/// host's own view would swallow every click meant for it. AppKit skips a
+/// hidden plain view, and everything inside it, when hit testing.
 @_cdecl("scribe_embed_create_view")
 public func scribeEmbedCreateView(
     _ hostName: UnsafePointer<CChar>?,
@@ -45,9 +51,12 @@ public func scribeEmbedCreateView(
                 embedded.switchHandler?()
             })
         }
-    let view = NSHostingView(rootView: root)
+    let hosting = NSHostingView(rootView: root)
     // Sized by the host's window; don't push SwiftUI's min size onto it.
-    view.sizingOptions = []
+    hosting.sizingOptions = []
+    let view = NSView(frame: hosting.frame)
+    hosting.autoresizingMask = [.width, .height]
+    view.addSubview(hosting)
     embedded.view = view
 
     // Only while Scribe is on screen, so the host's own keys go to the host.

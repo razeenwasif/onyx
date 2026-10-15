@@ -128,7 +128,9 @@ static napi_value Attach(napi_env env, napi_callback_info info) {
 /**
  * setVisible(visible): show Scribe and give it the keyboard, or hide it and
  * hand focus back (the caller then focuses the web contents). Scribe saves
- * whenever it's hidden.
+ * whenever it's hidden. What's hidden is the plain container Scribe returns,
+ * which is what stops a hidden Scribe from catching clicks (see
+ * scribe_embed_create_view).
  */
 static napi_value SetVisible(napi_env env, napi_callback_info info) {
   napi_value argv[1];
@@ -140,7 +142,9 @@ static napi_value SetVisible(napi_env env, napi_callback_info info) {
   if (visible) {
     scribeView.hidden = NO;
     setActive(true);
-    [window makeFirstResponder:scribeView];
+    // scribeView is a plain container; the keyboard goes to the SwiftUI
+    // hosting view inside it.
+    [window makeFirstResponder:scribeView.subviews.firstObject ?: scribeView];
   } else {
     NSResponder *responder = window.firstResponder;
     if ([responder isKindOfClass:NSView.class] && [(NSView *)responder isDescendantOf:scribeView]) {
