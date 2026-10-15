@@ -32,6 +32,7 @@
     "install:mac": "bash scripts/install-mac.sh",
     "generate-icons": "bash scripts/generate-icons.sh",
     "test": "vitest run",
+    "test:clicks": "cd native/click-test && node-gyp rebuild --loglevel=error && node run.cjs",
     "test:watch": "vitest"
   },
   "dependencies": {

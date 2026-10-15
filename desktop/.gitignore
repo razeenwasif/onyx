@@ -7,3 +7,4 @@ release/
 .DS_Store
 scribe-embed/
 native/scribe-bridge/build/
+native/click-test/build/

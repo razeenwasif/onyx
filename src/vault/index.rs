@@ -713,6 +713,9 @@ mod tests {
         let root = std::env::temp_dir().join(format!("onyx-mk-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
+        // The vault canonicalizes its root; on macOS the temp dir is a symlink
+        // (/var -> /private/var), so compare against the resolved path.
+        let root = fs::canonicalize(&root).unwrap();
         let vault = crate::vault::Vault::open(&root).unwrap();
 
         let p = vault.path_for_new_note("Projects/Idea");

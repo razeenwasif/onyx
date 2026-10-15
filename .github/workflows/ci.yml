@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    name: Electron desktop (typecheck, tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      # The unit tests don't launch Electron, so skip its 100 MB binary.
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: npm run typecheck
+      - run: npm test
+
+  tui:
+    name: Terminal app (Rust tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --features full
+
+  scribe:
+    name: Scribe (Rust, Swift, app, embed, click test)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: scribe
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Rust core tests
+        working-directory: scribe
+        run: cargo test -p scribe-core
+
+      - name: Swift tests
+        working-directory: scribe
+        run: |
+          cargo build --release -p scribe-core
+          MACOSX_DEPLOYMENT_TARGET=15.0 swift test
+
+      - name: Standalone app builds
+        working-directory: scribe
+        run: ./build.sh
+
+      - name: Embed Scribe in Electron
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run build:scribe
+
+      # Real mouse events into a window set up like the app's: clicks must
+      # reach Electron while Scribe is hidden, and Scribe while it shows.
+      - name: Click test
+        working-directory: desktop
+        run: npm run test:clicks
