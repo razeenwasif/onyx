@@ -2275,6 +2275,54 @@ textarea {
   cursor: pointer;
 }
 
+/* Drag to reorder: a grip on hover, a line where the item will land. */
+.todo-item {
+  position: relative;
+}
+
+.todo-item .todo-grip {
+  display: grid;
+  place-items: center;
+  margin: 1px -6px 0 -8px;
+  color: var(--fg-subtle);
+  opacity: 0;
+  cursor: grab;
+  transition: opacity 100ms ease;
+}
+
+.todo-item:hover .todo-grip,
+.todo-item:focus-visible .todo-grip {
+  opacity: 1;
+}
+
+.todo-item:focus-visible {
+  outline: 1.5px solid var(--accent-soft);
+  outline-offset: -1px;
+}
+
+.todo-item.is-dragging {
+  opacity: 0.4;
+}
+
+.todo-item.drop-before::before,
+.todo-item.drop-after::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.todo-item.drop-before::before {
+  top: -1px;
+}
+
+.todo-item.drop-after::after {
+  bottom: -1px;
+}
+
 .todo-item.is-done {
   color: var(--fg-subtle);
   text-decoration: line-through;

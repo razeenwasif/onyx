@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseTodos, serializeTodos, sweep } from './todo'
+import { moveTodo, parseTodos, serializeTodos, sweep, type TodoItem } from './todo'
 
 const TODAY = '2026-08-10'
 
@@ -50,5 +50,32 @@ describe('todo checklist', () => {
   it('survives a round trip through sweep unchanged when nothing expired', () => {
     const src = '- [ ] a\n- [x] b <!--done:2026-08-09-->\n'
     expect(serializeTodos(sweep(parseTodos(src, TODAY), TODAY), TODAY)).toBe(src)
+  })
+})
+
+describe('reordering todos', () => {
+  const open = (text: string): TodoItem => ({ text, done: false, doneOn: null })
+  const done = (text: string): TodoItem => ({ text, done: true, doneOn: TODAY })
+  const texts = (items: TodoItem[]): string[] => items.map((i) => i.text)
+  const list = [open('a'), open('b'), open('c'), done('x'), done('y')]
+
+  it('moves an item down and up', () => {
+    expect(texts(moveTodo(list, 0, 2))).toEqual(['b', 'c', 'a', 'x', 'y'])
+    expect(texts(moveTodo(list, 2, 0))).toEqual(['c', 'a', 'b', 'x', 'y'])
+  })
+
+  it('keeps open items above completed ones', () => {
+    expect(texts(moveTodo(list, 1, 4))).toEqual(['a', 'c', 'b', 'x', 'y'])
+    expect(texts(moveTodo(list, 4, 0))).toEqual(['a', 'b', 'c', 'y', 'x'])
+  })
+
+  it('leaves the list alone for a no-op or a bad index', () => {
+    expect(moveTodo(list, 1, 1)).toBe(list)
+    expect(moveTodo(list, 9, 0)).toBe(list)
+  })
+
+  it('writes the new order to the file', () => {
+    const moved = moveTodo(list, 2, 0)
+    expect(serializeTodos(moved, TODAY).split('\n')[0]).toBe('- [ ] c')
   })
 })

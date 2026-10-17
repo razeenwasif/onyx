@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type { GTask } from '@shared/types'
-import { parseTodos, serializeTodos, sweep, today, type TodoItem } from '@shared/todo'
+import { moveTodo, parseTodos, serializeTodos, sweep, today, type TodoItem } from '@shared/todo'
 import { useStore } from '../store'
 import { Icon } from './Icon'
 
@@ -22,6 +22,9 @@ export function TodoPane(): JSX.Element {
   const [gtasks, setGtasks] = useState<GTask[]>([])
   const [gErr, setGErr] = useState<string | null>(null)
   const [gBusy, setGBusy] = useState(false)
+  /** The todo being dragged, and where it would land (a gap index). */
+  const [dragFrom, setDragFrom] = useState<number | null>(null)
+  const [dropAt, setDropAt] = useState<number | null>(null)
   const setStatus = useStore((s) => s.setStatus)
   const syncTasks = useStore((s) => s.settings?.google.syncTasks !== false)
 
@@ -125,6 +128,17 @@ export function TodoPane(): JSX.Element {
     void persist([...open, { text, done: false, doneOn: null }, ...done])
   }
 
+  /** Drop at gap `gap` (0 = above the first item): reorder and save. */
+  const drop = (gap: number): void => {
+    if (dragFrom === null) return
+    // Removing the item first shifts every gap below it up by one.
+    const to = gap > dragFrom ? gap - 1 : gap
+    const next = moveTodo(items, dragFrom, to)
+    if (next !== items) void persist(next)
+    setDragFrom(null)
+    setDropAt(null)
+  }
+
   const remove = (index: number): void => {
     void persist(items.filter((_, i) => i !== index))
   }
@@ -163,7 +177,53 @@ export function TodoPane(): JSX.Element {
       </div>
       {loaded && !items.length && <div className="empty-note">Nothing to do. Enjoy it.</div>}
       {items.map((item, i) => (
-        <div className={`todo-item${item.done ? ' is-done' : ''}`} key={`${item.text}-${i}`}>
+        <div
+          className={[
+            'todo-item',
+            item.done ? 'is-done' : '',
+            dragFrom === i ? 'is-dragging' : '',
+            dropAt === i ? 'drop-before' : '',
+            dropAt === i + 1 && i === items.length - 1 ? 'drop-after' : '',
+          ].join(' ')}
+          key={`${item.text}-${i}`}
+          draggable
+          tabIndex={0}
+          title="Drag to reorder (or Alt+↑/↓)"
+          onDragStart={(e) => {
+            setDragFrom(i)
+            e.dataTransfer.effectAllowed = 'move'
+            e.dataTransfer.setData('text/plain', item.text)
+          }}
+          onDragOver={(e) => {
+            if (dragFrom === null) return
+            e.preventDefault()
+            const box = e.currentTarget.getBoundingClientRect()
+            setDropAt(e.clientY < box.top + box.height / 2 ? i : i + 1)
+          }}
+          onDrop={(e) => {
+            e.preventDefault()
+            if (dropAt !== null) drop(dropAt)
+          }}
+          onDragEnd={() => {
+            setDragFrom(null)
+            setDropAt(null)
+          }}
+          onKeyDown={(e) => {
+            if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return
+            e.preventDefault()
+            const next = moveTodo(items, i, e.key === 'ArrowUp' ? i - 1 : i + 1)
+            if (next === items) return
+            void persist(next)
+            // Keep focus on the item as it moves.
+            const to = next.indexOf(item)
+            requestAnimationFrame(() =>
+              (e.currentTarget.parentElement?.querySelectorAll('.todo-item')[to] as HTMLElement | undefined)?.focus(),
+            )
+          }}
+        >
+          <span className="todo-grip" aria-hidden="true">
+            <Icon name="grip" size={12} />
+          </span>
           <input type="checkbox" checked={item.done} onChange={() => toggle(i)} />
           <span className="text">{item.text}</span>
           <button

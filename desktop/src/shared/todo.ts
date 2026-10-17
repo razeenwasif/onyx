@@ -68,3 +68,20 @@ export function sweep(items: TodoItem[], now = today()): TodoItem[] {
     (i) => !i.done || !i.doneOn || daysBetween(i.doneOn, now) < DONE_RETENTION_DAYS,
   )
 }
+
+/**
+ * Move the item at `from` so it ends up at index `to`, for drag-to-reorder.
+ * Open items stay above completed ones (that's how the file is written), so
+ * the move is clamped to the item's own group.
+ */
+export function moveTodo(items: TodoItem[], from: number, to: number): TodoItem[] {
+  if (from < 0 || from >= items.length) return items
+  const openCount = items.filter((i) => !i.done).length
+  const [lo, hi] = items[from].done ? [openCount, items.length - 1] : [0, openCount - 1]
+  const target = Math.min(hi, Math.max(lo, to))
+  if (target === from) return items
+  const next = items.slice()
+  const [moved] = next.splice(from, 1)
+  next.splice(target, 0, moved)
+  return next
+}
