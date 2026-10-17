@@ -218,8 +218,14 @@ The Apple Pencil writes, and fingers scroll and pinch. Without a Pencil, the han
 in the tool dock lets a finger write (then scrolling takes two fingers). Double-tap the
 Pencil to swap between pen and eraser. Pull past the bottom of a page to turn to the
 next one, or, on the last page of a section, to add a new page; pull past the top to go
-back. The iPad's pen is a little heavier than the Mac's, and its curve lifts the light
-pressure of everyday Pencil writing. You get the pen, the highlighter, the stroke
+back. Pages keep their size while you write, like paper: ink past an edge is cut off
+rather than growing the page (a page only grows to fit what is already on it, such as
+writing from the Mac). The iPad's pen is a little heavier than the Mac's, and its curve
+lifts the light pressure of everyday Pencil writing.
+
+**New Section** at the end of each notebook in the sidebar adds a section, and the **⋯**
+menu adds notebooks. To rename a page, long-press it in the page list, or tap the open
+page's title. You get the pen, the highlighter, the stroke
 eraser, the Mac's ink colours, three nib sizes and undo. Typed text, pictures, tables and
 imported PDFs show as on the Mac; for now they're edited on the Mac, and formulas show
 their LaTeX source.

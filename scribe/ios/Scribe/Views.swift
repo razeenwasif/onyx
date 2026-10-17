@@ -59,6 +59,7 @@ struct LibraryView: View {
     @Bindable var store: Store
     @State private var columns: NavigationSplitViewVisibility
     @State private var picking = false
+    @State private var prompt: NamePrompt?
 
     init(store: Store) {
         self.store = store
@@ -80,6 +81,12 @@ struct LibraryView: View {
                             .badge(section.pageCount)
                             .tag(section.path)
                         }
+                        Button {
+                            prompt = NamePrompt(kind: .section(notebook))
+                        } label: {
+                            Label("New Section", systemImage: "plus")
+                                .foregroundStyle(Color.velvetMuted)
+                        }
                     }
                 }
             }
@@ -96,6 +103,7 @@ struct LibraryView: View {
             }
             .toolbar {
                 Menu {
+                    Button("New Notebook…", systemImage: "book.closed") { prompt = NamePrompt(kind: .notebook) }
                     Button("Change Notebook Folder…", systemImage: "folder") { picking = true }
                     Button("Sync Now", systemImage: "arrow.clockwise") { store.refresh() }
                 } label: {
@@ -103,11 +111,12 @@ struct LibraryView: View {
                 }
             }
         } content: {
-            PageList(store: store, columns: $columns)
+            PageList(store: store, columns: $columns, prompt: $prompt)
         } detail: {
-            WritingView(store: store)
+            WritingView(store: store, prompt: $prompt)
         }
         .navigationSplitViewStyle(.balanced)
+        .namePrompt($prompt, store: store)
         .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result {
                 store.forgetFolder()
@@ -120,6 +129,7 @@ struct LibraryView: View {
 struct PageList: View {
     let store: Store
     @Binding var columns: NavigationSplitViewVisibility
+    @Binding var prompt: NamePrompt?
 
     private var selection: Binding<String?> {
         Binding(get: { store.pagePath }, set: { path in
@@ -141,6 +151,11 @@ struct PageList: View {
                 }
             }
             .tag(page.path)
+            .contextMenu {
+                Button("Rename…", systemImage: "pencil") {
+                    prompt = NamePrompt(kind: .page(page.path), initial: page.title)
+                }
+            }
         }
         .overlay {
             if store.sectionPath != nil, store.pages.isEmpty {
@@ -160,6 +175,7 @@ struct PageList: View {
 
 struct WritingView: View {
     @Bindable var store: Store
+    @Binding var prompt: NamePrompt?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -167,6 +183,9 @@ struct WritingView: View {
             if store.doc != nil {
                 PageCanvas(store: store, pageID: store.doc?.id, fingerDraws: store.fingerDraws)
                     .ignoresSafeArea(edges: .bottom)
+                    // Writing near the screen's edges comes before the
+                    // system's edge swipes.
+                    .defersSystemGestures(on: .all)
                 ToolDock(store: store)
                     .padding(.bottom, 14)
             } else {
@@ -175,6 +194,68 @@ struct WritingView: View {
         }
         .navigationTitle(store.doc?.title ?? "")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarTitleMenu {
+            if let path = store.pagePath {
+                Button("Rename…", systemImage: "pencil") {
+                    prompt = NamePrompt(kind: .page(path), initial: store.doc?.title ?? "")
+                }
+            }
+        }
+    }
+}
+
+/// Asking for a name: a new section or notebook, or a page's new title.
+struct NamePrompt {
+    enum Kind {
+        case section(NotebookInfo)
+        case notebook
+        case page(String)
+    }
+
+    var kind: Kind
+    var initial = ""
+
+    var title: String {
+        switch kind {
+        case .section(let notebook): "New Section in \(notebook.name)"
+        case .notebook: "New Notebook"
+        case .page: "Rename Page"
+        }
+    }
+
+    var action: String {
+        if case .page = kind { "Rename" } else { "Create" }
+    }
+}
+
+private struct NamePromptModifier: ViewModifier {
+    @Binding var prompt: NamePrompt?
+    let store: Store
+    @State private var text = ""
+
+    func body(content: Content) -> some View {
+        content
+            .alert(prompt?.title ?? "", isPresented: Binding(get: { prompt != nil }, set: { if !$0 { prompt = nil } })) {
+                TextField("Name", text: $text)
+                Button("Cancel", role: .cancel) {}
+                Button(prompt?.action ?? "OK") { commit() }
+            }
+            .onChange(of: prompt?.title) { text = prompt?.initial ?? "" }
+    }
+
+    private func commit() {
+        guard let prompt else { return }
+        switch prompt.kind {
+        case .section(let notebook): store.newSection(in: notebook, named: text)
+        case .notebook: store.newNotebook(named: text)
+        case .page(let path): store.renamePage(path, to: text)
+        }
+    }
+}
+
+extension View {
+    func namePrompt(_ prompt: Binding<NamePrompt?>, store: Store) -> some View {
+        modifier(NamePromptModifier(prompt: prompt, store: store))
     }
 }
 
@@ -186,15 +267,31 @@ struct ToolDock: View {
     private static let highlighterSizes: [(String, Double)] = [("Thin", 10), ("Medium", 16), ("Wide", 26)]
 
     var body: some View {
+        // Every colour when there's room; one colour button when the page
+        // column is narrow (sidebar open, or Split View).
+        ViewThatFits(in: .horizontal) {
+            dock(compact: false)
+            dock(compact: true)
+        }
+    }
+
+    private var colors: [InkColor] { store.tool == .highlighter ? InkColor.highlights : InkColor.inks }
+    private var currentColor: String { store.tool == .highlighter ? store.highlighter.color : store.pen.color }
+
+    private func setColor(_ hex: String) {
+        if store.tool == .highlighter { store.highlighter.color = hex } else { store.pen.color = hex }
+    }
+
+    private func dock(compact: Bool) -> some View {
         HStack(spacing: 4) {
             tool(.pen, "pencil.tip")
             tool(.highlighter, "highlighter")
             tool(.strokeEraser, "eraser")
             divider
-            if store.tool == .highlighter {
-                ForEach(InkColor.highlights) { swatch($0, current: store.highlighter.color) { store.highlighter.color = $0 } }
+            if compact {
+                colorMenu
             } else {
-                ForEach(InkColor.inks) { swatch($0, current: store.pen.color) { store.pen.color = $0 } }
+                ForEach(colors) { swatch($0, current: currentColor, set: setColor) }
             }
             sizeMenu
             divider
@@ -210,11 +307,37 @@ struct ToolDock: View {
             }
             .accessibilityLabel(store.fingerDraws ? "Finger drawing on" : "Finger drawing off")
         }
+        .fixedSize()
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(.ultraThinMaterial, in: Capsule())
         .overlay(Capsule().strokeBorder(.white.opacity(0.06)))
         .shadow(color: .black.opacity(0.4), radius: 16, y: 6)
+    }
+
+    private var colorMenu: some View {
+        Menu {
+            ForEach(colors) { color in
+                Button {
+                    setColor(color.hex)
+                    if store.tool.isEraser { store.tool = .pen }
+                } label: {
+                    if color.hex.caseInsensitiveCompare(currentColor) == .orderedSame {
+                        Label(color.name, systemImage: "checkmark")
+                    } else {
+                        Text(color.name)
+                    }
+                }
+            }
+        } label: {
+            Circle()
+                .fill(Color.ink(currentColor))
+                .frame(width: 20, height: 20)
+                .padding(3)
+                .overlay(Circle().strokeBorder(Color.velvetAccent, lineWidth: 2))
+                .frame(width: 30, height: 34)
+        }
+        .accessibilityLabel("Colour")
     }
 
     private var divider: some View {

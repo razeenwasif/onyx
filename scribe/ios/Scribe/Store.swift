@@ -124,6 +124,12 @@ final class Store {
 
     private static let lastPageKey = "lastPage"
 
+    /// Notes `path` as the page to reopen next launch.
+    private func remember(_ path: String) {
+        guard let root, path.hasPrefix(root.path + "/") else { return }
+        UserDefaults.standard.set(String(path.dropFirst(root.path.count + 1)), forKey: Self.lastPageKey)
+    }
+
     /// Picks up changes made on the Mac: downloads new files, rereads the
     /// notebooks, and reloads the open page if it changed and has no unsaved
     /// writing.
@@ -171,11 +177,10 @@ final class Store {
             }
             pagePath = path
             doc = loaded
-            if let root, path.hasPrefix(root.path + "/") {
-                UserDefaults.standard.set(String(path.dropFirst(root.path.count + 1)), forKey: Self.lastPageKey)
-            }
+            remember(path)
             pageStamp = Self.stamp(path)
             ink = loaded.strokes.filter { $0.points.count >= 3 }.map(Ink.init)
+            measurePage()
             inkChanged?(nil)
         } catch {
             problem = error.localizedDescription
@@ -197,6 +202,60 @@ final class Store {
             openPage(path)
         } catch {
             problem = error.localizedDescription
+        }
+    }
+
+    // ------------------------------------------- notebooks, sections, names
+
+    /// A new section (a folder of pages) at the end of `notebook`, opened.
+    func newSection(in notebook: NotebookInfo, named name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        do {
+            let path: String = try Core.call("create_section", ["notebook": notebook.path, "name": name])
+            refresh()
+            sectionPath = path
+        } catch {
+            problem = "Could not create the section: \(error.localizedDescription)"
+        }
+    }
+
+    func newNotebook(named name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let root, !name.isEmpty else { return }
+        do {
+            _ = try Core.call("create_notebook", ["root": root.path, "name": name, "firstSection": "New Section"], as: String.self)
+            refresh()
+            sectionPath = notebooks.first { $0.name == name }?.sections.first?.path ?? sectionPath
+        } catch {
+            problem = "Could not create the notebook: \(error.localizedDescription)"
+        }
+    }
+
+    /// Retitles a page. Its file is renamed to match, as on the Mac.
+    func renamePage(_ path: String, to title: String) {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+        let section = (path as NSString).deletingLastPathComponent
+        do {
+            if path == pagePath {
+                flush()
+            }
+            var page: PageDoc = try Core.call("read_page", ["path": path])
+            guard page.title != title else { return }
+            page.title = title
+            let _: WriteResult = try Core.call("write_page", ["path": path, "page": try Core.json(page)])
+            let moved: String = try Core.call("rename_page", ["section": section, "path": path, "title": title])
+            if path == pagePath {
+                // Same page under its new name; keep its undo history.
+                pagePath = moved
+                doc?.title = title
+                pageStamp = Self.stamp(moved)
+                remember(moved)
+            }
+            reloadPages()
+        } catch {
+            problem = "Could not rename the page: \(error.localizedDescription)"
         }
     }
 
@@ -239,18 +298,24 @@ final class Store {
         pagePath.map { ($0 as NSString).deletingLastPathComponent } ?? ""
     }
 
-    /// The drawable size: the standard page, grown to fit its PDF and
-    /// everything on it, with room below to keep writing.
-    var pageSize: CGSize {
+    /// The page as paper: the standard size (or the PDF's), stretched only
+    /// to fit what is already on it, such as writing that grew the page on
+    /// the Mac. Set when the page opens and fixed while you write, so ink
+    /// near an edge never resizes or re-zooms the page; for more room, pull
+    /// past the end for a new page.
+    private(set) var pageSize = PDFBackground.standardSize
+
+    private func measurePage() {
         var extent = CGRect(origin: .zero, size: PDFBackground.standardSize)
         if let doc, let pdf = PDFBackground.page(for: doc.background, sectionPath: pageSectionPath) {
-            extent = extent.union(CGRect(origin: .zero, size: PDFBackground.size(of: pdf)))
+            extent = CGRect(origin: .zero, size: PDFBackground.size(of: pdf))
         }
-        for s in ink { extent = extent.union(s.bounds.insetBy(dx: -120, dy: -600)) }
+        for s in ink { extent = extent.union(s.bounds.insetBy(dx: -24, dy: -24)) }
         for t in doc?.textBoxes ?? [] {
-            extent = extent.union(CGRect(x: t.x, y: t.y + 600, width: t.width, height: 1))
+            extent = extent.union(CGRect(x: t.x, y: t.y, width: t.width, height: t.height ?? 40))
         }
-        return CGSize(width: max(extent.maxX, PDFBackground.standardSize.width), height: ceil(extent.maxY))
+        for i in doc?.images ?? [] { extent = extent.union(CGRect(x: i.x, y: i.y, width: i.width, height: i.height)) }
+        pageSize = CGSize(width: ceil(extent.maxX), height: ceil(extent.maxY))
     }
 
     // ----------------------------------------------------------------- ink

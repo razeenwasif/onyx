@@ -82,10 +82,9 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
     private func fitZoom() {
         guard bounds.width > 0, page.bounds.width > 0 else { return }
         let fit = (bounds.width - 24) / page.bounds.width
-        let wasFit = abs(scroll.zoomScale - scroll.minimumZoomScale) < 0.001
         scroll.minimumZoomScale = fit
         scroll.maximumZoomScale = fit * 4
-        if wasFit || scroll.zoomScale < fit { scroll.zoomScale = fit }
+        if followsFit || scroll.zoomScale < fit { scroll.zoomScale = fit }
         centre()
     }
 
@@ -154,7 +153,12 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
         bottomHint.show(nil, progress: 0)
     }
 
+    /// Whether the page keeps fitting the width (when the sidebar opens or
+    /// the iPad turns), which stops once you zoom in yourself.
+    private var followsFit = true
+
     func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
+        followsFit = scale <= scroll.minimumZoomScale * 1.01
         wetScale = scale * traitCollection.displayScale
     }
 
@@ -182,27 +186,22 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
         resize()
         page.setNeedsDisplay()
         if first {
+            followsFit = true
             scroll.zoomScale = scroll.minimumZoomScale
             scroll.contentOffset = CGPoint(x: -scroll.contentInset.left, y: -scroll.contentInset.top)
         }
     }
 
-    /// Fits the page view to the page, which grows as you write further down.
+    /// Fits the page view to the page, keeping the zoom: the page view is
+    /// sized in page units and the scroll view's zoom scales it.
     private func resize() {
         let size = store.pageSize
         guard size != page.bounds.size else { return }
         let zoom = scroll.zoomScale
-        let offset = scroll.contentOffset
-        scroll.zoomScale = 1
-        page.frame = CGRect(origin: .zero, size: size)
-        scroll.contentSize = size
-        if scroll.minimumZoomScale == 1 && scroll.maximumZoomScale == 1 {
-            fitZoom()
-        } else {
-            scroll.zoomScale = zoom
-            scroll.contentOffset = offset
-            fitZoom()
-        }
+        page.bounds = CGRect(origin: .zero, size: size)
+        page.center = CGPoint(x: size.width * zoom / 2, y: size.height * zoom / 2)
+        scroll.contentSize = CGSize(width: size.width * zoom, height: size.height * zoom)
+        fitZoom()
     }
 
     // -------------------------------------------------------------- input
