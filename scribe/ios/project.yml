@@ -44,6 +44,8 @@ targets:
         PRODUCT_NAME: Scribe
         TARGETED_DEVICE_FAMILY: "2"
         CODE_SIGN_STYLE: Automatic
+        # Your Apple ID's personal team (Xcode → Settings → Accounts).
+        DEVELOPMENT_TEAM: C63K728GC6
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Scribe
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
