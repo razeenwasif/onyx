@@ -29,6 +29,8 @@ public enum ScribeMenu {
                 item("Open Notebook Folder…", .openFolder, "Cmd+O"),
                 item("Show Notebook Folder in Finder", .revealFolder),
                 separator,
+                item("Import PDF or Goodnotes…", .importPDF, "Cmd+Shift+I"),
+                separator,
                 item("Save", .save, "Cmd+S"),
             ]],
             ["label": "Edit", "submenu": [

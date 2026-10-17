@@ -26,6 +26,10 @@ struct BackgroundDTO: Codable, Equatable {
     var spacing: Double = 32
     /// Light-mode rule colour.
     var color: String = "#E8EEF5"
+    /// kind "pdf": the PDF in the section's assets/ folder, and which of its
+    /// pages (0-based) this page shows. See PDFBackground.
+    var asset: String?
+    var pdfPage: Int?
 }
 
 struct StrokeDTO: Codable, Equatable {

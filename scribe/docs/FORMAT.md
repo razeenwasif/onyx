@@ -89,6 +89,18 @@ pitch in DIPs. `color` describes the **light-mode** rule colour; in dark mode
 the theme supplies its own so the lines do not glare, and this value is left
 untouched.
 
+`kind` can also be `pdf`, for imported PDFs (including Goodnotes exports):
+
+```json
+{ "kind": "pdf", "spacing": 32, "color": "#E8EEF5", "asset": "assets/a1b2c3d4e5f6.pdf", "pdfPage": 0 }
+```
+
+`asset` is the PDF, section-relative like an image's `file` (one copy serves
+every page imported from it), and `pdfPage` is the 0-based page shown. The PDF
+page is the paper: drawn white, scaled to the standard page width, with no
+rules over it, and the page is at least as tall as it. Readers that don't know
+`pdf` should treat it as `blank`.
+
 ### strokes
 
 ```json

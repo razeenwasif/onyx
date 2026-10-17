@@ -358,10 +358,12 @@ impl Workspace {
         let doc = self.read_page_lenient(file);
         let target = unique_file(to_section, &doc.title, ".json");
 
-        // Images live beside the page in assets/, so they travel with it.
-        for img in &doc.images {
-            let src = from_section.join(&img.file);
-            let dst = to_section.join(&img.file);
+        // Images, and a PDF background, live beside the page in assets/, so
+        // they travel with it.
+        let background_asset = doc.background.extra.get("asset").and_then(|v| v.as_str()).map(str::to_string);
+        for file in doc.images.iter().map(|i| i.file.clone()).chain(background_asset) {
+            let src = from_section.join(&file);
+            let dst = to_section.join(&file);
             if src.is_file() && !dst.exists() {
                 if let Some(parent) = dst.parent() {
                     fs::create_dir_all(parent).map_err(|e| io_err("Could not create", parent, e))?;

@@ -176,6 +176,16 @@ pressure-varying stroke, heavier on the downstroke and easing off where the nib
 lands and lifts. The small sizes get a heavier stroke rather than a shrunk copy. `build.sh`
 renders every size macOS needs and packs them into `AppIcon.icns`.
 
+## Importing PDFs and Goodnotes notebooks
+
+**File → Import PDF or Goodnotes…** (⇧⌘I) turns each PDF into a section in the
+current notebook, one page per PDF page, with the PDF as the paper so you can
+write straight onto it. The PDF is copied into the section, so the notebook
+stays self-contained. To bring a notebook over from Goodnotes, export it as a
+PDF first (Share → Export → PDF). Its handwriting arrives as part of the page
+rather than as editable strokes, but Scribe reads it, along with any typed
+text, so search finds it.
+
 ## Searching handwriting
 
 Search finds written words as well as typed ones. Scribe reads each page's ink

@@ -207,3 +207,51 @@ final class InkReaderTests: XCTestCase {
         XCTAssertNil(InkReader.render(PageDoc()))
     }
 }
+
+final class PDFBackgroundTests: XCTestCase {
+    /// A one-page A4 PDF with a line of text on it, in a temp section folder.
+    private func section(with text: String) throws -> (String, BackgroundDTO) {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir.appendingPathComponent("assets"), withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("assets/doc.pdf")
+        var box = CGRect(x: 0, y: 0, width: 595, height: 842)
+        let ctx = try XCTUnwrap(CGContext(url as CFURL, mediaBox: &box, nil))
+        ctx.beginPDFPage(nil)
+        let ns = NSGraphicsContext(cgContext: ctx, flipped: false)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = ns
+        (text as NSString).draw(at: CGPoint(x: 72, y: 700), withAttributes: [.font: NSFont.systemFont(ofSize: 40)])
+        NSGraphicsContext.restoreGraphicsState()
+        ctx.endPDFPage()
+        ctx.closePDF()
+        return (dir.path, BackgroundDTO(kind: "pdf", asset: "assets/doc.pdf", pdfPage: 0))
+    }
+
+    func testPageScalesToTheStandardWidth() throws {
+        let (dir, bg) = try section(with: "Hello")
+        let page = try XCTUnwrap(PDFBackground.page(for: bg, sectionPath: dir))
+        let size = PDFBackground.size(of: page)
+        XCTAssertEqual(size.width, PageModel.defaultSize.width)
+        XCTAssertEqual(size.height, ceil(842 * PageModel.defaultSize.width / 595))
+    }
+
+    func testPagesGrowToFitThePDF() throws {
+        let (dir, bg) = try section(with: "Hello")
+        var doc = PageDoc()
+        doc.background = bg
+        let model = PageModel(path: dir + "/p.json", sectionPath: dir, doc: doc)
+        XCTAssertGreaterThanOrEqual(model.pageSize.height, PDFBackground.size(of: PDFBackground.page(for: bg, sectionPath: dir)!).height)
+    }
+
+    func testTextOnThePDFIsReadable() throws {
+        let (dir, bg) = try section(with: "Thermodynamics")
+        let page = try XCTUnwrap(PDFBackground.page(for: bg, sectionPath: dir))
+        XCTAssertTrue((page.string ?? "").contains("Thermodynamics"))
+        let image = try XCTUnwrap(PDFBackground.image(of: page))
+        XCTAssertTrue(InkReader.recognize(image).localizedCaseInsensitiveContains("thermodynamics"))
+    }
+
+    func testOtherBackgroundsAreNotPDFs() {
+        XCTAssertNil(PDFBackground.page(for: BackgroundDTO(), sectionPath: "/tmp"))
+    }
+}

@@ -233,7 +233,7 @@ public final class AppModel {
         do {
             let doc = page.toDoc()
             let result: WriteResult = try Core.call("write_page", ["path": page.path, "page": try Core.json(doc)])
-            inkReader.pageSaved(doc, modified: result.modifiedUnix, root: root)
+            inkReader.pageSaved(doc, modified: result.modifiedUnix, root: root, sectionPath: page.sectionPath)
             dirty = false
             status = "Saved " + Date().formatted(date: .omitted, time: .shortened)
             if let i = pages.firstIndex(where: { $0.path == page.path }) {

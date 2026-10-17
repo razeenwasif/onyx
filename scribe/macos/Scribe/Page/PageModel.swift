@@ -379,6 +379,9 @@ final class PageModel {
     /// while open, so the view does not jump under the pen.
     func recomputeSize() {
         var extent = CGRect(origin: .zero, size: Self.defaultSize)
+        if let pdf = PDFBackground.page(for: background, sectionPath: sectionPath) {
+            extent = extent.union(CGRect(origin: .zero, size: PDFBackground.size(of: pdf)))
+        }
         for s in strokes { extent = extent.union(s.bounds.insetBy(dx: -Self.sideMargin, dy: -Self.growthMargin)) }
         for o in allObjects { extent = extent.union(o.frame.insetBy(dx: -Self.sideMargin, dy: -Self.growthMargin)) }
 

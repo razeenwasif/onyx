@@ -1,4 +1,5 @@
 import AppKit
+import PDFKit
 import Vision
 
 /// Reads handwriting into text so search can find written words, using macOS's
@@ -18,11 +19,11 @@ final class InkReader {
     private var generation = 0
 
     /// After a save: read the page's ink once editing pauses.
-    func pageSaved(_ doc: PageDoc, modified: Double, root: String) {
+    func pageSaved(_ doc: PageDoc, modified: Double, root: String, sectionPath: String) {
         scheduled[doc.id]?.cancel()
         let work = DispatchWorkItem { [weak self] in
             self?.scheduled[doc.id] = nil
-            self?.read(doc, modified: modified, root: root, then: {})
+            self?.read(doc, sectionPath: sectionPath, modified: modified, root: root, then: {})
         }
         scheduled[doc.id] = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5, execute: work)
@@ -38,7 +39,8 @@ final class InkReader {
         func next() {
             guard mine == generation, let item = remaining.popFirst() else { return }
             guard let doc: PageDoc = try? Core.call("read_page", ["path": item.path]) else { return next() }
-            read(doc, modified: item.modified, root: root) {
+            let section = (item.path as NSString).deletingLastPathComponent
+            read(doc, sectionPath: section, modified: item.modified, root: root) {
                 // Leave the main thread room between pages.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { next() }
             }
@@ -46,12 +48,20 @@ final class InkReader {
         next()
     }
 
-    private func read(_ doc: PageDoc, modified: Double, root: String, then: @escaping () -> Void) {
+    private func read(_ doc: PageDoc, sectionPath: String, modified: Double, root: String, then: @escaping () -> Void) {
         // No ink left (all erased) still records an empty result, which
         // clears any text kept from before.
         let image = Self.render(doc)
+        // An imported PDF page: its own text layer, plus the writing drawn
+        // on it (Goodnotes exports handwriting as shapes, not text).
+        let pdf = PDFBackground.page(for: doc.background, sectionPath: sectionPath)
+        let pdfText = pdf?.string ?? ""
+        let pdfImage = pdf.flatMap { PDFBackground.image(of: $0) }
         queue.async {
-            let text = image.map(Self.recognize) ?? ""
+            let parts = [image.map(Self.recognize), pdfImage.map(Self.recognize), pdfText]
+            let text = parts.compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
             DispatchQueue.main.async {
                 _ = try? Core.call(
                     "set_ink_text",

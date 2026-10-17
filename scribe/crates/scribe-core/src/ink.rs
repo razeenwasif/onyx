@@ -52,6 +52,14 @@ struct InkHeader {
     modified: Option<String>,
     #[serde(default)]
     strokes: Vec<IgnoredAny>,
+    #[serde(default)]
+    background: Option<BackgroundKind>,
+}
+
+#[derive(Deserialize)]
+struct BackgroundKind {
+    #[serde(default)]
+    kind: String,
 }
 
 impl Workspace {
@@ -80,7 +88,11 @@ impl Workspace {
                     let entry = index.pages.get(id.as_str());
                     let stale = match entry {
                         Some(e) => e.modified != modified,
-                        None => !page.strokes.is_empty(),
+                        // Imported PDF pages carry writing in their background.
+                        None => {
+                            !page.strokes.is_empty()
+                                || page.background.as_ref().is_some_and(|b| b.kind.eq_ignore_ascii_case("pdf"))
+                        }
                     };
                     if stale {
                         out.push(PendingInk { id, path: path_str(&file), modified });

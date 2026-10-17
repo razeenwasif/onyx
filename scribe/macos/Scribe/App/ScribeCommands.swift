@@ -23,6 +23,9 @@ public struct ScribeCommands: Commands {
             button("Open Notebook Folder…", .openFolder)
                 .keyboardShortcut("o")
             button("Show Notebook Folder in Finder", .revealFolder)
+            Divider()
+            button("Import PDF or Goodnotes…", .importPDF)
+                .keyboardShortcut("i", modifiers: [.command, .shift])
         }
 
         CommandGroup(replacing: .saveItem) {

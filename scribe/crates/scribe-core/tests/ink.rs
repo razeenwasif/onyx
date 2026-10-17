@@ -87,3 +87,40 @@ fn the_index_lives_outside_the_notebooks() {
     // It doesn't turn up as a notebook, section or page.
     assert_eq!(ws.list_notebook_dirs().len(), 1);
 }
+
+/// A page whose background is a PDF in the section's assets/ folder.
+fn pdf_page(ws: &Workspace) -> (std::path::PathBuf, std::path::PathBuf) {
+    let nb = ws.create_notebook("Imported").unwrap();
+    let sec = ws.create_section(&nb, "Lecture slides").unwrap();
+    std::fs::create_dir_all(sec.join("assets")).unwrap();
+    std::fs::write(sec.join("assets/slides.pdf"), b"%PDF-1.4 stand-in").unwrap();
+    let file = ws.create_page(&sec, "Page 1").unwrap();
+    let mut doc = ws.read_page(&file).unwrap();
+    doc.background.kind = "pdf".into();
+    doc.background.extra.insert("asset".into(), "assets/slides.pdf".into());
+    doc.background.extra.insert("pdfPage".into(), 0.into());
+    ws.write_page(&file, &mut doc).unwrap();
+    (file, sec)
+}
+
+#[test]
+fn pdf_pages_are_read_even_without_ink() {
+    let (_d, ws) = temp_ws();
+    let (file, _) = pdf_page(&ws);
+    let pending = ws.ink_pending();
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].path, path_str(&file));
+}
+
+#[test]
+fn moving_a_pdf_page_brings_its_pdf() {
+    let (_d, ws) = temp_ws();
+    let (file, from) = pdf_page(&ws);
+    let nb = from.parent().unwrap().to_path_buf();
+    let to = ws.create_section(&nb, "Elsewhere").unwrap();
+    let moved = ws.move_page(&file, &to).unwrap();
+    assert!(to.join("assets/slides.pdf").is_file(), "the PDF travels with the page");
+    let doc = ws.read_page(&moved).unwrap();
+    assert_eq!(doc.background.kind, "pdf");
+    assert_eq!(doc.background.extra.get("asset").and_then(|v| v.as_str()), Some("assets/slides.pdf"));
+}

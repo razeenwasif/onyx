@@ -75,6 +75,7 @@ final class PageScrollView: NSScrollView {
         let palette = Palette.of(dark: app.dark)
         backgroundColor = palette.backdrop
         surface.palette = palette
+        surface.sectionPath = page.sectionPath
         surface.background = page.background
 
         let size = page.pageSize
@@ -312,6 +313,9 @@ final class PageSurfaceView: NSView {
         didSet { if background != oldValue { needsDisplay = true } }
     }
 
+    /// Where a PDF background's file is found (the page's section).
+    var sectionPath = ""
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
@@ -337,6 +341,14 @@ final class PageSurfaceView: NSView {
         }
 
         let kind = background.kind.lowercased()
+        if kind == "pdf" {
+            // An imported page: the PDF is the paper, with no rules over it.
+            if let pdf = PDFBackground.page(for: background, sectionPath: sectionPath),
+               let ctx = NSGraphicsContext.current?.cgContext {
+                PDFBackground.draw(pdf, in: ctx)
+            }
+            return
+        }
         guard kind != "blank" else { return }
 
         let spacing = max(background.spacing, 4)
