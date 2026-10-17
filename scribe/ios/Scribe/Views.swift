@@ -182,7 +182,7 @@ struct WritingView: View {
 struct ToolDock: View {
     @Bindable var store: Store
 
-    private static let penSizes: [(String, Double)] = [("Fine", 1.6), ("Medium", 2.4), ("Bold", 4)]
+    static let penSizes: [(String, Double)] = [("Fine", 2.4), ("Medium", 3.4), ("Bold", 5)]
     private static let highlighterSizes: [(String, Double)] = [("Thin", 10), ("Medium", 16), ("Wide", 26)]
 
     var body: some View {

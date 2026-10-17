@@ -42,6 +42,9 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
         scroll.contentInset = UIEdgeInsets(top: 16, left: 0, bottom: 120, right: 0)
         addSubview(scroll)
         scroll.addSubview(page)
+        scroll.alwaysBounceVertical = true
+        addSubview(topHint)
+        addSubview(bottomHint)
 
         page.input = self
         let pencil = UIPencilInteraction(delegate: self)
@@ -68,6 +71,9 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
         super.layoutSubviews()
         let resized = scroll.frame.size != bounds.size
         scroll.frame = bounds
+        topHint.center = CGPoint(x: bounds.midX, y: safeAreaInsets.top + 34)
+        // Above the tool dock.
+        bottomHint.center = CGPoint(x: bounds.midX, y: bounds.maxY - safeAreaInsets.bottom - 110)
         if resized { fitZoom() }
     }
 
@@ -92,6 +98,61 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
     func viewForZooming(in scrollView: UIScrollView) -> UIView? { page }
 
     func scrollViewDidZoom(_ scrollView: UIScrollView) { centre() }
+
+    // ------------------------------------------------------- turning pages
+
+    /// How far past the end of the page a pull must go to turn it.
+    private let turnDistance: CGFloat = 110
+    private let topHint = HintPill()
+    private let bottomHint = HintPill()
+    private var armed: (top: Bool, bottom: Bool) = (false, false)
+
+    /// Past the top of the page (positive), or past the bottom.
+    private var overscroll: (top: CGFloat, bottom: CGFloat) {
+        let y = scroll.contentOffset.y
+        let top = -scroll.contentInset.top - y
+        let maxY = scroll.contentSize.height + scroll.contentInset.bottom - scroll.bounds.height
+        let bottom = y - max(maxY, -scroll.contentInset.top)
+        return (top, bottom)
+    }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        guard scroll.isDragging, store.doc != nil else {
+            if !scroll.isDragging { hideHints() }
+            return
+        }
+        let (top, bottom) = overscroll
+        let back = store.hasPreviousPage
+        let forward = store.canTurnForward
+        topHint.show(back ? (top >= turnDistance ? "Release for previous page" : "Pull for previous page") : nil,
+                     progress: top / turnDistance)
+        let forwardText = store.hasNextPage ? "next page" : "a new page"
+        bottomHint.show(forward ? (bottom >= turnDistance ? "Release for \(forwardText)" : "Pull for \(forwardText)") : nil,
+                        progress: bottom / turnDistance)
+
+        // A tick as the pull passes the point of no return.
+        let nowArmed = (back && top >= turnDistance, forward && bottom >= turnDistance)
+        if (nowArmed.0 && !armed.top) || (nowArmed.1 && !armed.bottom) {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+        armed = nowArmed
+    }
+
+    func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+        let turn = armed
+        armed = (false, false)
+        hideHints()
+        guard turn.top || turn.bottom else { return }
+        // After the gesture lets go, so the new page starts from rest.
+        DispatchQueue.main.async { [store] in
+            if turn.bottom { store.turnForward() } else { store.turnBack() }
+        }
+    }
+
+    private func hideHints() {
+        topHint.show(nil, progress: 0)
+        bottomHint.show(nil, progress: 0)
+    }
 
     func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
         wetScale = scale * traitCollection.displayScale
@@ -212,11 +273,14 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
         CATransaction.commit()
     }
 
-    /// Pencil force as 0…1, eased so a light hand still gets a usable line.
-    /// Fingers have no pressure and write at half.
+    /// Pencil force as 0…1. Everyday handwriting presses at only a fifth to
+    /// a third of the Pencil's range, so the curve lifts it: a normal hand
+    /// lands around 0.75, and pressing harder still swells the line.
+    /// Fingers have no pressure and write at 0.75 too.
     private func pressure(_ t: UITouch) -> Double {
-        guard t.type == .pencil, t.maximumPossibleForce > 0 else { return 0.5 }
-        return pow(min(1, Double(t.force / t.maximumPossibleForce)), 0.75)
+        guard t.type == .pencil, t.maximumPossibleForce > 0 else { return 0.75 }
+        let force = min(1, Double(t.force / t.maximumPossibleForce))
+        return min(1, 0.35 + 0.9 * pow(force, 0.6))
     }
 
     private func finish(commit: Bool) {
@@ -439,6 +503,35 @@ final class PageView: UIView {
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) { input?.penMoved(touches, with: event) }
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) { input?.penEnded(touches, with: event) }
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { input?.penCancelled(touches, with: event) }
+}
+
+/// The small "Pull for a new page" label shown while pulling past an end.
+final class HintPill: UILabel {
+    init() {
+        super.init(frame: CGRect(x: 0, y: 0, width: 240, height: 34))
+        font = .systemFont(ofSize: 14, weight: .medium)
+        textColor = Velvet.text
+        textAlignment = .center
+        backgroundColor = Velvet.control.withAlphaComponent(0.92)
+        layer.cornerRadius = 17
+        layer.cornerCurve = .continuous
+        layer.masksToBounds = true
+        alpha = 0
+        isUserInteractionEnabled = false
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    func show(_ message: String?, progress: CGFloat) {
+        guard let message, progress > 0.15 else {
+            alpha = 0
+            return
+        }
+        text = message
+        alpha = min(1, (progress - 0.15) * 2)
+        textColor = progress >= 1 ? Velvet.accent : Velvet.text
+    }
 }
 
 /// A tiled layer without the fade-in, so new ink appears at once.

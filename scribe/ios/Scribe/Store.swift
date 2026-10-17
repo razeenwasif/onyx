@@ -38,7 +38,9 @@ final class Store {
     var problem: String?
 
     var tool: ToolKind = .pen
-    var pen = Pen.defaultPen
+    /// Bolder than the Mac's default: Pencil handwriting on the small
+    /// screen reads better with a heavier line (ToolDock.penSizes' Medium).
+    var pen = Pen(color: Pen.defaultPen.color, width: 3.4, pressureSensitive: true, highlighter: false)
     var highlighter = Pen.defaultHighlighter
     /// Off once an Apple Pencil is seen: then fingers only scroll and zoom.
     var fingerDraws: Bool = {
@@ -196,6 +198,40 @@ final class Store {
         } catch {
             problem = error.localizedDescription
         }
+    }
+
+    // Pulling past the end of a page turns to the next (see CanvasView).
+
+    private var pageIndex: Int? { pages.firstIndex { $0.path == pagePath } }
+
+    var hasPreviousPage: Bool { (pageIndex ?? 0) > 0 }
+    var hasNextPage: Bool { pageIndex.map { $0 + 1 < pages.count } ?? false }
+
+    /// Nothing written, typed or placed: no point adding another page after it.
+    var pageIsBlank: Bool {
+        guard let doc else { return true }
+        return ink.isEmpty && doc.textBoxes.isEmpty && doc.images.isEmpty && doc.tables.isEmpty
+            && doc.latexBlocks.isEmpty && doc.background.kind.lowercased() != "pdf"
+    }
+
+    /// Whether pulling past the bottom does anything on this page.
+    var canTurnForward: Bool { hasNextPage || !pageIsBlank }
+
+    /// The next page in the section, or a fresh one after the last.
+    func turnForward() {
+        flush()
+        reloadPages()
+        if let i = pageIndex, i + 1 < pages.count {
+            openPage(pages[i + 1].path)
+        } else if !pageIsBlank {
+            newPage()
+        }
+    }
+
+    func turnBack() {
+        flush()
+        reloadPages()
+        if let i = pageIndex, i > 0 { openPage(pages[i - 1].path) }
     }
 
     /// The page's section folder, where its images and PDF live.

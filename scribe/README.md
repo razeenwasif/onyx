@@ -216,7 +216,10 @@ after you stop writing.
 
 The Apple Pencil writes, and fingers scroll and pinch. Without a Pencil, the hand button
 in the tool dock lets a finger write (then scrolling takes two fingers). Double-tap the
-Pencil to swap between pen and eraser. You get the pen, the highlighter, the stroke
+Pencil to swap between pen and eraser. Pull past the bottom of a page to turn to the
+next one, or, on the last page of a section, to add a new page; pull past the top to go
+back. The iPad's pen is a little heavier than the Mac's, and its curve lifts the light
+pressure of everyday Pencil writing. You get the pen, the highlighter, the stroke
 eraser, the Mac's ink colours, three nib sizes and undo. Typed text, pictures, tables and
 imported PDFs show as on the Mac; for now they're edited on the Mac, and formulas show
 their LaTeX source.
