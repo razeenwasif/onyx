@@ -1,0 +1,281 @@
+import SwiftUI
+import UniformTypeIdentifiers
+
+struct RootView: View {
+    @Bindable var store: Store
+
+    var body: some View {
+        Group {
+            if store.root == nil {
+                WelcomeView(store: store)
+            } else {
+                LibraryView(store: store)
+            }
+        }
+        .alert("Scribe", isPresented: Binding(get: { store.problem != nil }, set: { if !$0 { store.problem = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(store.problem ?? "")
+        }
+    }
+}
+
+/// First launch: point Scribe at the notebook folder the Mac uses.
+struct WelcomeView: View {
+    let store: Store
+    @State private var picking = false
+
+    var body: some View {
+        VStack(spacing: 22) {
+            Image(systemName: "pencil.and.scribble")
+                .font(.system(size: 56, weight: .light))
+                .foregroundStyle(Color.velvetAccent)
+            Text("Scribe").font(.largeTitle.weight(.semibold))
+            Text("Choose your notebook folder to start. On the Mac it lives in iCloud Drive as **Scribe Notebooks**, so pick that folder and your notebooks stay in sync both ways.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Color.velvetMuted)
+                .frame(maxWidth: 420)
+            Button {
+                picking = true
+            } label: {
+                Label("Choose Folder", systemImage: "folder")
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 6)
+            }
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.capsule)
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.velvetBackdrop)
+        .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
+            if case .success(let url) = result { store.choose(url) }
+        }
+    }
+}
+
+/// Notebooks and sections, then the section's pages, then the page.
+struct LibraryView: View {
+    @Bindable var store: Store
+    @State private var columns: NavigationSplitViewVisibility
+    @State private var picking = false
+
+    init(store: Store) {
+        self.store = store
+        // Reopening on a page: give it the whole screen.
+        _columns = State(initialValue: store.doc == nil ? .doubleColumn : .detailOnly)
+    }
+
+    var body: some View {
+        NavigationSplitView(columnVisibility: $columns) {
+            List(selection: $store.sectionPath) {
+                ForEach(store.notebooks) { notebook in
+                    Section(notebook.name) {
+                        ForEach(notebook.sections) { section in
+                            Label {
+                                Text(section.name)
+                            } icon: {
+                                Circle().fill(Color(uiColor: UIColor(hex: section.color))).frame(width: 10, height: 10)
+                            }
+                            .badge(section.pageCount)
+                            .tag(section.path)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Notebooks")
+            .scrollContentBackground(.hidden)
+            .background(Color.velvetSidebar)
+            .safeAreaInset(edge: .bottom) {
+                if store.downloading > 0 {
+                    Label("Downloading \(store.downloading) from iCloud…", systemImage: "icloud.and.arrow.down")
+                        .font(.footnote)
+                        .foregroundStyle(Color.velvetMuted)
+                        .padding(10)
+                }
+            }
+            .toolbar {
+                Menu {
+                    Button("Change Notebook Folder…", systemImage: "folder") { picking = true }
+                    Button("Sync Now", systemImage: "arrow.clockwise") { store.refresh() }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+            }
+        } content: {
+            PageList(store: store, columns: $columns)
+        } detail: {
+            WritingView(store: store)
+        }
+        .navigationSplitViewStyle(.balanced)
+        .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
+            if case .success(let url) = result {
+                store.forgetFolder()
+                store.choose(url)
+            }
+        }
+    }
+}
+
+struct PageList: View {
+    let store: Store
+    @Binding var columns: NavigationSplitViewVisibility
+
+    private var selection: Binding<String?> {
+        Binding(get: { store.pagePath }, set: { path in
+            guard let path else { return }
+            store.openPage(path)
+            // On the iPad mini the page wants the whole screen.
+            columns = .detailOnly
+        })
+    }
+
+    var body: some View {
+        List(store.pages, selection: selection) { page in
+            VStack(alignment: .leading, spacing: 3) {
+                Text(page.title).lineLimit(1)
+                if let date = page.modifiedDate {
+                    Text(date, format: .relative(presentation: .named))
+                        .font(.caption)
+                        .foregroundStyle(Color.velvetMuted)
+                }
+            }
+            .tag(page.path)
+        }
+        .overlay {
+            if store.sectionPath != nil, store.pages.isEmpty {
+                ContentUnavailableView("No Pages", systemImage: "doc", description: Text("Tap + to start one."))
+            }
+        }
+        .navigationTitle(store.section?.name ?? "Pages")
+        .toolbar {
+            Button("New Page", systemImage: "square.and.pencil") {
+                store.newPage()
+                columns = .detailOnly
+            }
+            .disabled(store.sectionPath == nil)
+        }
+    }
+}
+
+struct WritingView: View {
+    @Bindable var store: Store
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            Color.velvetBackdrop.ignoresSafeArea()
+            if store.doc != nil {
+                PageCanvas(store: store, pageID: store.doc?.id, fingerDraws: store.fingerDraws)
+                    .ignoresSafeArea(edges: .bottom)
+                ToolDock(store: store)
+                    .padding(.bottom, 14)
+            } else {
+                ContentUnavailableView("No Page Open", systemImage: "pencil.and.scribble", description: Text("Pick a page to write on."))
+            }
+        }
+        .navigationTitle(store.doc?.title ?? "")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// Pen, highlighter, eraser, colours, nib size, undo.
+struct ToolDock: View {
+    @Bindable var store: Store
+
+    private static let penSizes: [(String, Double)] = [("Fine", 1.6), ("Medium", 2.4), ("Bold", 4)]
+    private static let highlighterSizes: [(String, Double)] = [("Thin", 10), ("Medium", 16), ("Wide", 26)]
+
+    var body: some View {
+        HStack(spacing: 4) {
+            tool(.pen, "pencil.tip")
+            tool(.highlighter, "highlighter")
+            tool(.strokeEraser, "eraser")
+            divider
+            if store.tool == .highlighter {
+                ForEach(InkColor.highlights) { swatch($0, current: store.highlighter.color) { store.highlighter.color = $0 } }
+            } else {
+                ForEach(InkColor.inks) { swatch($0, current: store.pen.color) { store.pen.color = $0 } }
+            }
+            sizeMenu
+            divider
+            iconButton("arrow.uturn.backward", enabled: store.canUndo) { store.undo() }
+            iconButton("arrow.uturn.forward", enabled: store.canRedo) { store.redo() }
+            divider
+            Button {
+                store.fingerDraws.toggle()
+            } label: {
+                Image(systemName: store.fingerDraws ? "hand.draw.fill" : "hand.draw")
+                    .frame(width: 34, height: 34)
+                    .foregroundStyle(store.fingerDraws ? Color.velvetAccent : Color.velvetMuted)
+            }
+            .accessibilityLabel(store.fingerDraws ? "Finger drawing on" : "Finger drawing off")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().strokeBorder(.white.opacity(0.06)))
+        .shadow(color: .black.opacity(0.4), radius: 16, y: 6)
+    }
+
+    private var divider: some View {
+        Rectangle().fill(.white.opacity(0.1)).frame(width: 1, height: 22).padding(.horizontal, 4)
+    }
+
+    private func tool(_ kind: ToolKind, _ icon: String) -> some View {
+        Button {
+            store.tool = kind
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .medium))
+                .frame(width: 36, height: 34)
+                .foregroundStyle(store.tool == kind ? Color.velvetAccent : Color.velvetMuted)
+                .background(store.tool == kind ? Color.velvetAccent.opacity(0.14) : .clear, in: Capsule())
+        }
+        .accessibilityLabel(kind.title)
+    }
+
+    private func swatch(_ color: InkColor, current: String, set: @escaping (String) -> Void) -> some View {
+        let selected = color.hex.caseInsensitiveCompare(current) == .orderedSame
+        return Button {
+            set(color.hex)
+            if store.tool.isEraser { store.tool = .pen }
+        } label: {
+            Circle()
+                .fill(Color.ink(color.hex))
+                .frame(width: 20, height: 20)
+                .padding(3)
+                .overlay(Circle().strokeBorder(selected ? Color.velvetAccent : .clear, lineWidth: 2))
+                .frame(width: 30, height: 34)
+        }
+        .accessibilityLabel(color.name)
+    }
+
+    private var sizeMenu: some View {
+        let highlighting = store.tool == .highlighter
+        let sizes = highlighting ? Self.highlighterSizes : Self.penSizes
+        let current = highlighting ? store.highlighter.width : store.pen.width
+        return Menu {
+            ForEach(sizes, id: \.1) { name, width in
+                Button {
+                    if highlighting { store.highlighter.width = width } else { store.pen.width = width }
+                } label: {
+                    if width == current { Label(name, systemImage: "checkmark") } else { Text(name) }
+                }
+            }
+        } label: {
+            Image(systemName: "lineweight")
+                .frame(width: 34, height: 34)
+                .foregroundStyle(Color.velvetMuted)
+        }
+        .accessibilityLabel("Nib size")
+    }
+
+    private func iconButton(_ icon: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .frame(width: 34, height: 34)
+                .foregroundStyle(enabled ? Color.white.opacity(0.85) : Color.velvetMuted.opacity(0.4))
+        }
+        .disabled(!enabled)
+    }
+}

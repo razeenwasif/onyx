@@ -1,0 +1,57 @@
+# Scribe for iPad (optimised for iPad mini). Generate the Xcode project with
+#   cd scribe/ios && xcodegen
+# The generated Scribe.xcodeproj is committed, so this is only needed after
+# changing this file.
+#
+# The app shares the Rust core and the format/bridge Swift files with the Mac
+# app (../macos/Scribe/Core) and syncs through a folder in iCloud Drive that
+# you choose on first launch, so it needs no paid developer account.
+
+name: Scribe
+options:
+  bundleIdPrefix: app.scribe
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  Scribe:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: Scribe
+      - path: Resources
+        buildPhase: resources
+      - path: ../macos/Scribe/Core/Core.swift
+      - path: ../macos/Scribe/Core/Model.swift
+      - path: ../macos/Scribe/Core/Tools.swift
+      - path: ../macos/Scribe/Page/PDFBackground.swift
+    preBuildScripts:
+      - name: Build the Rust core
+        basedOnDependencyAnalysis: false
+        script: bash "$SRCROOT/build-core.sh"
+    settings:
+      base:
+        # Change to anything unique if Xcode says this ID is taken by another team.
+        PRODUCT_BUNDLE_IDENTIFIER: app.scribe.ipad
+        PRODUCT_NAME: Scribe
+        TARGETED_DEVICE_FAMILY: "2"
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Scribe
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UIUserInterfaceStyle: Dark
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        SWIFT_INCLUDE_PATHS: $(SRCROOT)/../macos/CScribeCore
+        "LIBRARY_SEARCH_PATHS[sdk=iphoneos*]": $(SRCROOT)/../target/aarch64-apple-ios/release
+        "LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]": $(SRCROOT)/../target/aarch64-apple-ios-sim/release

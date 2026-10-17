@@ -1,0 +1,26 @@
+<!-- The iPad app icon: a nib writing on ruled velvet paper. Full-bleed
+     square; iPadOS rounds the corners. Render to
+     Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png (1024 px) with
+     desktop/scripts/render-svg.cjs. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2E2834"/><stop offset="1" stop-color="#141117"/></linearGradient>
+<linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.10"/><stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>
+<linearGradient id="ink" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF4E4"/><stop offset="1" stop-color="#E9D9C2"/></linearGradient>
+<linearGradient id="nib" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F2A487"/><stop offset="1" stop-color="#C9654A"/></linearGradient>
+<filter id="sh" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000000" flood-opacity="0.5"/></filter>
+</defs>
+<rect width="1024" height="1024" fill="url(#bg)"/>
+<g stroke="#FFFFFF" stroke-opacity="0.09" stroke-width="5">
+<line x1="0" y1="232" x2="1024" y2="232"/><line x1="0" y1="352" x2="1024" y2="352"/><line x1="0" y1="472" x2="1024" y2="472"/><line x1="0" y1="592" x2="1024" y2="592"/><line x1="0" y1="712" x2="1024" y2="712"/><line x1="0" y1="832" x2="1024" y2="832"/>
+</g>
+<line x1="150" y1="0" x2="150" y2="1024" stroke="#E39072" stroke-opacity="0.55" stroke-width="6"/>
+<rect width="1024" height="1024" fill="url(#sheen)"/>
+<path d="M200 690 C290 550 410 460 460 510 C510 560 370 680 420 710 C480 745 590 610 640 600" fill="none" stroke="url(#ink)" stroke-width="40" stroke-linecap="round"/>
+<g filter="url(#sh)" transform="translate(150 150) scale(0.72) rotate(42 700 420)">
+<path d="M600 140 h200 v230 c0 70 -40 130 -100 230 c-60 -100 -100 -160 -100 -230 z" fill="url(#nib)"/>
+<path d="M700 330 v250" stroke="#7A3424" stroke-width="10" stroke-linecap="round"/>
+<circle cx="700" cy="330" r="24" fill="#7A3424"/>
+<rect x="590" y="110" width="220" height="60" rx="20" fill="#EEE8F0"/>
+</g>
+</svg>

@@ -206,6 +206,28 @@ the host draws its app switcher where the window's traffic lights would be (Elec
 hides them), and nothing else about the interface changes. `../desktop/scripts/build-scribe.sh`
 builds and stages it.
 
+## On the iPad
+
+`ios/` is a companion app for the iPad, laid out for the iPad mini. It uses the same Rust
+core and the same page files, so there is no sync service: on first launch you pick the
+**Scribe Notebooks** folder in iCloud Drive, and the iPad and the Mac read and write the
+same files. The app checks for changes from the Mac every few seconds and saves a moment
+after you stop writing.
+
+The Apple Pencil writes, and fingers scroll and pinch. Without a Pencil, the hand button
+in the tool dock lets a finger write (then scrolling takes two fingers). Double-tap the
+Pencil to swap between pen and eraser. You get the pen, the highlighter, the stroke
+eraser, the Mac's ink colours, three nib sizes and undo. Typed text, pictures, tables and
+imported PDFs show as on the Mac; for now they're edited on the Mac, and formulas show
+their LaTeX source.
+
+To install it for free, open `ios/Scribe.xcodeproj` in Xcode, add your Apple ID under
+Settings → Accounts, choose your team under Signing & Capabilities, plug in the iPad and
+press Run. With a free Apple ID the install lasts seven days; run it again from Xcode to
+renew. Xcode builds the Rust core for the iPad itself (`ios/build-core.sh`). After
+changing `ios/project.yml`, regenerate the project with `xcodegen` in `ios/`. The icon is
+`ios/icon.svg`.
+
 ## Layout of the source
 
 | Path | What is in it |

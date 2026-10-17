@@ -1,4 +1,4 @@
-import AppKit
+import CoreGraphics
 import PDFKit
 
 /// A page of a PDF used as a page's background: how imported PDFs and
@@ -8,6 +8,10 @@ import PDFKit
 /// The PDF page is scaled to the standard page width, so imported pages
 /// line up with Scribe's own and the pen feels the same on both.
 enum PDFBackground {
+    /// The standard page (PageModel.defaultSize); kept here so the iPad app
+    /// can share this file.
+    static let standardSize = CGSize(width: 840, height: 1188)
+
     private static let cache = NSCache<NSString, PDFDocument>()
 
     /// The background's PDF page, if this background is one and the file is there.
@@ -28,9 +32,9 @@ enum PDFBackground {
     /// The page's size on the canvas: the standard page width, its own aspect.
     static func size(of page: PDFPage) -> CGSize {
         let box = page.bounds(for: .mediaBox)
-        guard box.width > 0 else { return PageModel.defaultSize }
-        let scale = PageModel.defaultSize.width / box.width
-        return CGSize(width: PageModel.defaultSize.width, height: ceil(box.height * scale))
+        guard box.width > 0 else { return standardSize }
+        let scale = standardSize.width / box.width
+        return CGSize(width: standardSize.width, height: ceil(box.height * scale))
     }
 
     /// Draws `page` at the top-left of a flipped (top-down) context.
@@ -42,7 +46,7 @@ enum PDFBackground {
         ctx.translateBy(x: 0, y: size.height)
         ctx.scaleBy(x: size.width / box.width, y: -size.height / box.height)
         ctx.translateBy(x: -box.minX, y: -box.minY)
-        ctx.setFillColor(NSColor.white.cgColor)
+        ctx.setFillColor(CGColor(gray: 1, alpha: 1))
         ctx.fill(box)
         page.draw(with: .mediaBox, to: ctx)
         ctx.restoreGState()

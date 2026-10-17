@@ -1,4 +1,8 @@
+import CoreGraphics
+import Foundation
+#if canImport(AppKit)
 import AppKit
+#endif
 import CScribeCore
 
 /// Swift face of the Rust core (crates/scribe-core).
@@ -146,6 +150,7 @@ enum Core {
     }
 }
 
+#if canImport(AppKit)
 extension NSColor {
     convenience init(rgba: UInt32) {
         self.init(
@@ -172,3 +177,4 @@ extension NSColor {
             : String(format: "#%02X%02X%02X%02X", a, r, g, b)
     }
 }
+#endif
