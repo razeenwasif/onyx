@@ -32,6 +32,9 @@ struct OneNoteClient {
     enum Failure: LocalizedError {
         case tokenExpired
         case http(Int, String)
+        /// Microsoft kept failing on one request (a 5xx, or no answer at
+        /// all). Very large pages do this; the import skips them and goes on.
+        case unavailable(String)
 
         var errorDescription: String? {
             switch self {
@@ -39,6 +42,8 @@ struct OneNoteClient {
                 "Microsoft no longer accepts the token (they last about an hour). Copy a fresh one from Graph Explorer and import again; it carries on where it stopped."
             case .http(let code, let message):
                 "Microsoft answered \(code): \(message)"
+            case .unavailable(let why):
+                "Microsoft couldn't send it (\(why))."
             }
         }
     }
@@ -47,9 +52,15 @@ struct OneNoteClient {
     private static let base = "https://graph.microsoft.com/v1.0/me/onenote"
 
     let token: String
-    /// Told when Microsoft makes the import wait (until when), and nil once
-    /// it carries on, so the popup can say so instead of looking stuck.
-    var onWait: (@Sendable (Date?) -> Void)?
+    /// Why the import is waiting, and until when.
+    struct Wait: Sendable {
+        var until: Date
+        var reason: String
+    }
+
+    /// Told when the import has to wait, and nil as soon as it tries again,
+    /// so the popup says what's happening instead of looking stuck.
+    var onWait: (@Sendable (Wait?) -> Void)?
     private let pacer = Pacer()
 
     /// Spaces requests out. OneNote allows each person only so many calls a
@@ -73,40 +84,64 @@ struct OneNoteClient {
     private static let patience: TimeInterval = 50 * 60
     /// The first wait after "slow down"; each next one doubles (tests shorten it).
     static var slowDownStep: TimeInterval = 15
+    /// Tries at a request that Microsoft fails on (5xx) or doesn't answer.
+    /// Huge pages time out on Microsoft's side every time, so a few tries
+    /// is enough before the import skips them for a later run.
+    static let serverTries = 3
 
     /// GETs `url`, waiting out Microsoft's rate limits.
     func get(_ url: String) async throws -> (Data, HTTPURLResponse) {
         guard let address = URL(string: url) else { throw Failure.http(0, "bad address") }
         var request = URLRequest(url: address)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 120
+        request.timeoutInterval = 90
         var waited: TimeInterval = 0
-        var attempt = 0
+        var slowDowns = 0
+        var failures = 0
+
+        /// Waits `seconds`, telling the popup why, then clears the notice.
+        func pause(_ seconds: TimeInterval, _ reason: String) async throws {
+            onWait?(Wait(until: Date().addingTimeInterval(seconds), reason: reason))
+            try await Task.sleep(for: .seconds(seconds))
+            waited += seconds
+            onWait?(nil)
+        }
+
+        /// A 5xx or no answer: retry soon, a few times, then give up on it.
+        func serverTrouble(_ why: String) async throws {
+            failures += 1
+            guard failures < Self.serverTries else { throw Failure.unavailable(why) }
+            try await pause(Self.slowDownStep / 5 * Double(failures), "Microsoft is struggling with this page (\(why)) · try \(failures + 1) of \(Self.serverTries)")
+        }
+
         while true {
             await pacer.turn()
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let data: Data, response: URLResponse
+            do {
+                (data, response) = try await URLSession.shared.data(for: request)
+            } catch let error as URLError where [.timedOut, .networkConnectionLost, .cannotConnectToHost, .notConnectedToInternet].contains(error.code) {
+                try await serverTrouble(error.code == .timedOut ? "no answer" : "connection lost")
+                continue
+            }
             let http = response as? HTTPURLResponse ?? HTTPURLResponse()
             switch http.statusCode {
             case 200..<300:
-                if waited > 0 { onWait?(nil) }
                 return (data, http)
             case 401, 403:
                 throw Failure.tokenExpired
-            case 429, 500, 502, 503, 504:
-                attempt += 1
+            case 429:
+                slowDowns += 1
                 let asked = Double(http.value(forHTTPHeaderField: "Retry-After") ?? "")
                 // 15 s, 30 s, 1 min, 2 min, 4 min, then 5 min at a time, or
-                // longer if Microsoft says so. Server errors retry sooner
-                // (3 s, 6 s, 9 s…).
-                let backoff = http.statusCode == 429 ? min(300, Self.slowDownStep * pow(2, Double(attempt - 1))) : min(60, Self.slowDownStep * Double(attempt) / 5)
-                let wait = max(asked ?? 0, backoff)
+                // longer if Microsoft says so.
+                let wait = max(asked ?? 0, min(300, Self.slowDownStep * pow(2, Double(slowDowns - 1))))
                 guard waited + wait <= Self.patience else {
-                    throw Failure.http(http.statusCode, "Microsoft kept asking to slow down for nearly an hour. Import again later; pages already imported are skipped.")
+                    throw Failure.http(429, "Microsoft kept asking to slow down for nearly an hour. Import again later; pages already imported are skipped.")
                 }
-                if http.statusCode == 429 { await pacer.slower() }
-                onWait?(Date().addingTimeInterval(wait))
-                try await Task.sleep(for: .seconds(wait))
-                waited += wait
+                await pacer.slower()
+                try await pause(wait, "Microsoft asked to slow down")
+            case 500, 502, 503, 504:
+                try await serverTrouble(http.statusCode == 504 ? "it timed out" : "error \(http.statusCode)")
             default:
                 let text = String(data: data.prefix(300), encoding: .utf8) ?? ""
                 throw Failure.http(http.statusCode, text)
@@ -195,8 +230,8 @@ extension AppModel {
 
         let client = {
             var waiting = client
-            waiting.onWait = { until in
-                Task { @MainActor in progress.waitingUntil = until }
+            waiting.onWait = { wait in
+                Task { @MainActor in progress.waiting = wait.map { (until: $0.until, reason: $0.reason) } }
             }
             return waiting
         }()
@@ -231,7 +266,15 @@ extension AppModel {
                             progress.alreadyHere += 1
                             continue
                         }
-                        let imported = try await importPage(page, into: section, root: root, client: client)
+                        progress.pageTitle = page.title
+                        let imported: ImportedPage
+                        do {
+                            imported = try await importPage(page, into: section, root: root, client: client)
+                        } catch OneNoteClient.Failure.unavailable {
+                            // Left out of the record, so the next run tries it again.
+                            progress.failedPages.append(page.title.isEmpty ? "Untitled page" : page.title)
+                            continue
+                        }
                         if !imported.existing { progress.pagesMade += 1 }
                         skipped += imported.skipped
                     }

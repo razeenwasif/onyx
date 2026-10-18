@@ -45,7 +45,7 @@ struct ImportPopup: View {
                         .tint(accent)
                         .frame(width: 220)
                         .animation(.easeOut(duration: 0.25), value: progress.fraction)
-                } else if isFailed {
+                } else if isFailed || !progress.failedPages.isEmpty {
                     Button("OK", action: close)
                         .buttonStyle(.borderedProminent)
                         .tint(accent)
@@ -65,7 +65,8 @@ struct ImportPopup: View {
         }
         .onChange(of: progress.phase) { _, phase in
             // A moment to see the tick, then out of the way.
-            if phase == .done {
+            // Skipped pages need reading, so that popup waits for OK.
+            if phase == .done, progress.failedPages.isEmpty {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) { close() }
             }
         }
@@ -94,12 +95,16 @@ struct ImportPopup: View {
     }
 
     private func detail(at now: Date) -> String {
-        if let until = progress.waitingUntil, !isFinished {
-            let left = max(0, Int(until.timeIntervalSince(now).rounded()))
-            return "Microsoft asked to slow down · carrying on in \(left / 60):\(String(format: "%02d", left % 60))"
+        if let wait = progress.waiting, !isFinished {
+            let left = max(0, Int(wait.until.timeIntervalSince(now).rounded()))
+            return "\(wait.reason) · trying again in \(left / 60):\(String(format: "%02d", left % 60))"
         }
-        let skipped = progress.alreadyHere > 0 ? " · \(progress.alreadyHere) already imported" : ""
-        return base + (progress.phase == .pages ? skipped : "")
+        guard progress.phase == .pages else { return base }
+        var parts = [base]
+        if !progress.pageTitle.isEmpty { parts.insert("“\(progress.pageTitle)”", at: 0) }
+        if progress.alreadyHere > 0 { parts.append("\(progress.alreadyHere) already imported") }
+        if !progress.failedPages.isEmpty { parts.append("\(progress.failedPages.count) skipped") }
+        return parts.joined(separator: " · ")
     }
 
     private var base: String {
@@ -112,10 +117,18 @@ struct ImportPopup: View {
             "Page \(progress.page) of \(progress.pageCount)"
                 + (progress.fileCount > 1 ? " · \(progress.unit) \(progress.fileIndex + 1) of \(progress.fileCount)" : "")
         case .done:
-            progress.pagesMade == 1 ? "1 page, ready to write on" : "\(progress.pagesMade) pages, ready to write on"
+            (progress.pagesMade == 1 ? "1 page, ready to write on" : "\(progress.pagesMade) pages, ready to write on")
+                + (progress.failedPages.isEmpty ? "" : skippedNote)
         case .failed(let message):
             message
         }
+    }
+
+    /// Which pages Microsoft wouldn't send, and what to do about it.
+    private var skippedNote: String {
+        let names = progress.failedPages.prefix(3).map { "“\($0)”" }.joined(separator: ", ")
+        let more = progress.failedPages.count > 3 ? " and \(progress.failedPages.count - 3) more" : ""
+        return ". Microsoft timed out on \(names)\(more); import again later to fetch \(progress.failedPages.count == 1 ? "it" : "them")."
     }
 
     private func close() {

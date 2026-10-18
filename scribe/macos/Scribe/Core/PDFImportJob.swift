@@ -26,8 +26,12 @@ final class ImportProgress {
     var pageCount = 0
     /// OneNote pages skipped because an earlier run imported them.
     var alreadyHere = 0
-    /// Set while Microsoft has asked the import to wait, until when.
-    var waitingUntil: Date?
+    /// While the import has to wait: until when, and why.
+    var waiting: (until: Date, reason: String)?
+    /// The OneNote page being fetched.
+    var pageTitle = ""
+    /// OneNote pages Microsoft wouldn't send; a later run tries them again.
+    var failedPages: [String] = []
     /// Notebooks made so far, by section path.
     var made: [String] = []
     var pagesMade = 0

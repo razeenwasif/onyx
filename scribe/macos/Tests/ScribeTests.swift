@@ -330,14 +330,28 @@ final class OneNoteClientTests: XCTestCase {
         ScriptedGraph.requests = 0
         let waits = WaitLog()
         var client = OneNoteClient(token: "t")
-        client.onWait = { until in waits.add(until) }
+        client.onWait = { wait in waits.add(wait?.until) }
         let (data, response) = try await client.get("https://graph.test/page")
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(String(decoding: data, as: UTF8.self), "ok")
         XCTAssertEqual(ScriptedGraph.requests, 4)
-        // Three waits announced, then "carrying on".
-        XCTAssertEqual(waits.entries.count, 4)
+        // Each of the three waits is announced, then cleared as it retries.
+        XCTAssertEqual(waits.entries.count, 6)
+        XCTAssertEqual(waits.entries.compactMap { $0 }.count, 3)
         XCTAssertNil(waits.entries.last!)
+    }
+
+    func testAPageMicrosoftKeepsFailingOnIsGivenUp() async {
+        ScriptedGraph.answers = [504, 504, 504, 200]
+        ScriptedGraph.requests = 0
+        do {
+            _ = try await OneNoteClient(token: "t").get("https://graph.test/page")
+            XCTFail("expected the page to be given up")
+        } catch OneNoteClient.Failure.unavailable {
+            XCTAssertEqual(ScriptedGraph.requests, OneNoteClient.serverTries)
+        } catch {
+            XCTFail("unexpected \(error)")
+        }
     }
 
     func testExpiredTokenStopsAtOnce() async {
