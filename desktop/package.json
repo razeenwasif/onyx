@@ -139,6 +139,7 @@
         "dmg",
         "zip"
       ],
+      "identity": "-",
       "icon": "build/icon.icns",
       "category": "public.app-category.productivity",
       "minimumSystemVersion": "10.15.0",

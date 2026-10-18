@@ -115,12 +115,11 @@ impl Workspace {
         let id = id.to_string();
         let mut index = self.ink_index();
         index.schema = SCHEMA.to_string();
-        let text = text.trim();
-        if text.is_empty() {
-            index.pages.remove(&id);
-        } else {
-            index.pages.insert(id, InkEntry { text: text.to_string(), modified });
-        }
+        // An empty result is kept too: it records that the page was read
+        // and had nothing legible, so it isn't read again until it changes.
+        // (Dropping the entry made such pages count as unread forever, and
+        // every launch read them all again.)
+        index.pages.insert(id, InkEntry { text: text.trim().to_string(), modified });
         write_json(&self.ink_index_path(), &index)
     }
 }

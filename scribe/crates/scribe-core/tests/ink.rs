@@ -69,13 +69,25 @@ fn search_finds_handwriting_and_previews_it() {
 }
 
 #[test]
-fn empty_text_clears_the_entry() {
+fn empty_text_clears_the_old_text_but_counts_as_read() {
     let (_d, ws) = temp_ws();
     let (_, id, modified) = inked_page(&ws, "Sketch");
     ws.set_ink_text(&id, "arrow", modified).unwrap();
     ws.set_ink_text(&id, "   ", modified).unwrap();
-    assert!(ws.ink_index().pages.is_empty());
+    assert_eq!(ws.ink_index().pages[&id].text, "");
     assert!(ws.search("arrow").is_empty());
+    // Read with nothing legible: not read again at every start.
+    assert!(ws.ink_pending().is_empty());
+}
+
+#[test]
+fn a_pdf_page_with_nothing_legible_is_read_once() {
+    let (_d, ws) = temp_ws();
+    pdf_page(&ws);
+    let pending = ws.ink_pending();
+    assert_eq!(pending.len(), 1);
+    ws.set_ink_text(&pending[0].id, "", pending[0].modified).unwrap();
+    assert!(ws.ink_pending().is_empty());
 }
 
 #[test]
