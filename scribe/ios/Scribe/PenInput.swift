@@ -110,7 +110,9 @@ final class PenInput {
         let pen = store.currentPen
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        wet.path = Core.outlinePath(points: points, width: pen.width, pressureSensitive: pen.pressureSensitive, fit: true, taper: false)
+        // Exactly as the finished stroke will be drawn (only the start
+        // tapers), so nothing shifts when the Pencil lifts.
+        wet.path = Core.outlinePath(points: points, width: pen.width, pressureSensitive: pen.pressureSensitive, fit: true, taper: true)
         CATransaction.commit()
     }
 

@@ -72,8 +72,9 @@ pill above it offers Copy, Duplicate, Recolour and Delete.
 ## The drawing surface
 
 - **Pressure-varying strokes.** Ink is rendered as a true outline whose width
-  follows pressure, so downstrokes thicken and strokes taper as the nib lands
-  and lifts. With a drawing tablet (Wacom and friends), pressure comes straight
+  follows pressure, so downstrokes thicken and strokes taper where the nib
+  lands. Ink looks the same while you write as after: nothing reshapes when
+  the pen lifts. With a drawing tablet (Wacom and friends), pressure comes straight
   from the pen. A mouse or trackpad draws at an even mid pressure.
 - **Jitter smoothing.** Strokes are resampled along a Catmull-Rom spline and
   pressure is averaged over a short window, so curves read smoothly and the

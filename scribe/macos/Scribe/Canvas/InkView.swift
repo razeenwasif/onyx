@@ -313,9 +313,9 @@ final class InkView: NSView {
     private func rebuildWet() {
         guard let pen = wetPen else { return }
         let old = wetPath?.boundingBoxOfPath
-        // Wet ink is not tapered: tapering each partial stroke would pinch the
-        // line wherever a frame happened to end.
-        wetPath = Core.outlinePath(points: wetPoints, width: pen.width, pressureSensitive: pen.pressureSensitive, fit: true, taper: false)
+        // Drawn exactly as the finished stroke will be (only the start
+        // tapers), so nothing shifts when the pen lifts.
+        wetPath = Core.outlinePath(points: wetPoints, width: pen.width, pressureSensitive: pen.pressureSensitive, fit: true, taper: true)
 
         // Only the tail changes as points arrive, so repaint just that.
         let tail = Array(wetPoints.suffix(3 * 8))

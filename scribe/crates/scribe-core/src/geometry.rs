@@ -19,7 +19,7 @@ const PRESSURE_SMOOTHING_RADIUS: usize = 3;
 const MIN_WIDTH_FACTOR: f64 = 0.30;
 const PRESSURE_EXPONENT: f64 = 0.7;
 
-/// Arc length over which stroke ends taper.
+/// Arc length over which a stroke's start tapers.
 const TAPER_LENGTH: f64 = 3.5;
 
 /// Longest chord used when flattening round caps and dots.
@@ -39,8 +39,10 @@ pub struct OutlineOptions {
     pub pressure_sensitive: bool,
     /// Catmull-Rom resample the centreline (the jitter filter).
     pub fit: bool,
-    /// False while ink is still wet: tapering every partial stroke would pinch
-    /// the line at the end of each frame.
+    /// Narrow the start, where the nib lands. Only the start: it is final
+    /// as soon as it's drawn, so wet ink can taper it too and the stroke
+    /// looks the same when the pen lifts. (Tapering the end as well made
+    /// every stroke visibly reshape itself on lifting.)
     pub taper: bool,
 }
 
@@ -85,7 +87,7 @@ pub fn outline(points: &[f64], opts: OutlineOptions) -> Vec<f64> {
         .collect();
 
     if opts.pressure_sensitive && opts.taper {
-        apply_end_taper(&samples, &mut half);
+        apply_start_taper(&samples, &mut half);
     }
 
     build_outline(&samples, &half)
@@ -163,45 +165,24 @@ fn smooth_pressure(samples: &mut [Sample]) {
     }
 }
 
-/// Narrows the first and last few units of the stroke. Real nibs land and
-/// lift progressively; without this, strokes start and stop with a blunt stub.
-fn apply_end_taper(samples: &[Sample], half: &mut [f64]) {
-    let n = samples.len();
-    if n < 3 {
+/// Narrows the first few units of the stroke, as a real nib lands
+/// progressively. Over a fixed length, so the start doesn't change as the
+/// stroke grows: wet ink tapers it the same way the finished stroke does.
+fn apply_start_taper(samples: &[Sample], half: &mut [f64]) {
+    if samples.len() < 3 {
         return;
     }
-
-    let total: f64 = samples.windows(2).map(|w| dist(w[0], w[1])).sum();
-
-    // On a stroke shorter than two tapers, taper proportionally so dots and
-    // tick marks do not vanish.
-    let taper = TAPER_LENGTH.min(total / 2.0);
-    if taper <= 0.01 {
-        return;
-    }
-
     // Never taper fully to zero: a hairline still needs to be visible.
     let ramp = |t: f64| 0.35 + 0.65 * t.clamp(0.0, 1.0).sqrt();
-
-    let mut travelled = 0.0;
-    for i in 1..n {
-        travelled += dist(samples[i - 1], samples[i]);
-        if travelled >= taper {
-            break;
-        }
-        half[i] *= ramp(travelled / taper);
-    }
     half[0] *= ramp(0.0);
-
-    travelled = 0.0;
-    for i in (0..n - 1).rev() {
-        travelled += dist(samples[i + 1], samples[i]);
-        if travelled >= taper {
+    let mut travelled = 0.0;
+    for i in 1..samples.len() {
+        travelled += dist(samples[i - 1], samples[i]);
+        if travelled >= TAPER_LENGTH {
             break;
         }
-        half[i] *= ramp(travelled / taper);
+        half[i] *= ramp(travelled / TAPER_LENGTH);
     }
-    half[n - 1] *= ramp(0.0);
 }
 
 fn build_outline(samples: &[Sample], half: &[f64]) -> Vec<f64> {
@@ -484,12 +465,32 @@ mod tests {
         }
     }
 
+    /// Half the stroke's width among outline vertices with x in `range`.
+    fn half_width(o: &[f64], range: std::ops::Range<f64>) -> f64 {
+        o.chunks(2).filter(|c| range.contains(&c[0])).map(|c| (c[1] - 10.0).abs()).fold(0.0, f64::max)
+    }
+
     #[test]
-    fn taper_narrows_the_ends() {
+    fn taper_narrows_only_the_start() {
+        // A line from x = 0 to 145 at y = 10.
         let pts = line(30, 1.0);
         let tapered = outline(&pts, opts(4.0));
         let blunt = outline(&pts, OutlineOptions { taper: false, ..opts(4.0) });
-        assert!(tapered[1].abs() < blunt[1].abs());
+        assert!(half_width(&tapered, 0.0..1.0) < half_width(&blunt, 0.0..1.0) - 0.5);
+        // The end is left as drawn, so lifting the pen changes nothing.
+        assert!((half_width(&tapered, 140.0..150.0) - half_width(&blunt, 140.0..150.0)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn wet_ink_matches_the_finished_stroke() {
+        // Ink already drawn keeps its shape as more follows and the pen lifts.
+        let pts = line(40, 1.0);
+        let early = outline(&pts[..20 * 3], opts(4.0));
+        let later = outline(&pts, opts(4.0));
+        for x in [0.0, 1.0, 2.0, 3.0, 20.0, 50.0] {
+            let r = x..x + 1.0;
+            assert!((half_width(&early, r.clone()) - half_width(&later, r)).abs() < 1e-9, "at x = {x}");
+        }
     }
 
     #[test]
