@@ -8,7 +8,9 @@ import SwiftUI
 //
 // OneNote's notebooks become folders and its sections notebooks. A run that
 // stops part way (the token lasts about an hour) carries on where it left
-// off next time: pages already imported are skipped.
+// off next time: pages already imported are skipped without being fetched.
+// Microsoft limits how fast one person can read OneNote, so requests are
+// spaced out and "slow down" answers are waited out rather than fatal.
 
 /// Reads OneNote through Microsoft Graph with a borrowed token.
 struct OneNoteClient {
@@ -45,6 +47,32 @@ struct OneNoteClient {
     private static let base = "https://graph.microsoft.com/v1.0/me/onenote"
 
     let token: String
+    /// Told when Microsoft makes the import wait (until when), and nil once
+    /// it carries on, so the popup can say so instead of looking stuck.
+    var onWait: (@Sendable (Date?) -> Void)?
+    private let pacer = Pacer()
+
+    /// Spaces requests out. OneNote allows each person only so many calls a
+    /// minute and an hour; after a "slow down" the gap widens, so a long
+    /// import settles at a pace Microsoft accepts instead of stopping.
+    private actor Pacer {
+        private var last = Date.distantPast
+        private(set) var gap: TimeInterval = 0.6
+
+        func turn() async {
+            let wait = last.addingTimeInterval(gap).timeIntervalSinceNow
+            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+            last = Date()
+        }
+
+        func slower() { gap = min(gap * 2, 10) }
+    }
+
+    /// The longest a single request waits out "slow down" answers in total.
+    /// Graph Explorer tokens last about an hour, so waiting longer is moot.
+    private static let patience: TimeInterval = 50 * 60
+    /// The first wait after "slow down"; each next one doubles (tests shorten it).
+    static var slowDownStep: TimeInterval = 15
 
     /// GETs `url`, waiting out Microsoft's rate limits.
     func get(_ url: String) async throws -> (Data, HTTPURLResponse) {
@@ -52,23 +80,38 @@ struct OneNoteClient {
         var request = URLRequest(url: address)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 120
-        for attempt in 0..<6 {
+        var waited: TimeInterval = 0
+        var attempt = 0
+        while true {
+            await pacer.turn()
             let (data, response) = try await URLSession.shared.data(for: request)
             let http = response as? HTTPURLResponse ?? HTTPURLResponse()
             switch http.statusCode {
             case 200..<300:
+                if waited > 0 { onWait?(nil) }
                 return (data, http)
             case 401, 403:
                 throw Failure.tokenExpired
             case 429, 500, 502, 503, 504:
-                let wait = Double(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? pow(2, Double(attempt + 1))
-                try await Task.sleep(for: .seconds(min(wait, 60)))
+                attempt += 1
+                let asked = Double(http.value(forHTTPHeaderField: "Retry-After") ?? "")
+                // 15 s, 30 s, 1 min, 2 min, 4 min, then 5 min at a time, or
+                // longer if Microsoft says so. Server errors retry sooner
+                // (3 s, 6 s, 9 s…).
+                let backoff = http.statusCode == 429 ? min(300, Self.slowDownStep * pow(2, Double(attempt - 1))) : min(60, Self.slowDownStep * Double(attempt) / 5)
+                let wait = max(asked ?? 0, backoff)
+                guard waited + wait <= Self.patience else {
+                    throw Failure.http(http.statusCode, "Microsoft kept asking to slow down for nearly an hour. Import again later; pages already imported are skipped.")
+                }
+                if http.statusCode == 429 { await pacer.slower() }
+                onWait?(Date().addingTimeInterval(wait))
+                try await Task.sleep(for: .seconds(wait))
+                waited += wait
             default:
                 let text = String(data: data.prefix(300), encoding: .utf8) ?? ""
                 throw Failure.http(http.statusCode, text)
             }
         }
-        throw Failure.http(429, "Microsoft kept asking to slow down; try again in a few minutes.")
     }
 
     private func json(_ url: String) async throws -> [String: Any] {
@@ -150,6 +193,18 @@ extension AppModel {
         importing = progress
         let root = self.root
 
+        let client = {
+            var waiting = client
+            waiting.onWait = { until in
+                Task { @MainActor in progress.waitingUntil = until }
+            }
+            return waiting
+        }()
+        // Pages an earlier run brought in are skipped without downloading
+        // them again, so a stopped import resumes straight away and doesn't
+        // spend Microsoft's request allowance on them.
+        let done = Set((try? Core.call("onenote_imported_ids", ["root": root], as: [String].self)) ?? [])
+
         Task { @MainActor in
             var folders: [String: String] = [:]
             var lastSection: String?
@@ -172,6 +227,10 @@ extension AppModel {
                     progress.phase = .pages
                     for (n, page) in pages.enumerated() {
                         progress.page = n + 1
+                        if done.contains(page.id) {
+                            progress.alreadyHere += 1
+                            continue
+                        }
                         let imported = try await importPage(page, into: section, root: root, client: client)
                         if !imported.existing { progress.pagesMade += 1 }
                         skipped += imported.skipped

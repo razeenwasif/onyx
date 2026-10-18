@@ -29,12 +29,15 @@ struct ImportPopup: View {
                         .foregroundStyle(text)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
-                    Text(detail)
-                        .font(.callout)
-                        .foregroundStyle(muted)
-                        .multilineTextAlignment(.center)
-                        .monospacedDigit()
-                        .contentTransition(.numericText())
+                    // Ticks each second so a wait counts down.
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Text(detail(at: context.date))
+                            .font(.callout)
+                            .foregroundStyle(muted)
+                            .multilineTextAlignment(.center)
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                    }
                 }
 
                 if !isFinished {
@@ -90,7 +93,16 @@ struct ImportPopup: View {
         }
     }
 
-    private var detail: String {
+    private func detail(at now: Date) -> String {
+        if let until = progress.waitingUntil, !isFinished {
+            let left = max(0, Int(until.timeIntervalSince(now).rounded()))
+            return "Microsoft asked to slow down · carrying on in \(left / 60):\(String(format: "%02d", left % 60))"
+        }
+        let skipped = progress.alreadyHere > 0 ? " · \(progress.alreadyHere) already imported" : ""
+        return base + (progress.phase == .pages ? skipped : "")
+    }
+
+    private var base: String {
         switch progress.phase {
         case .reading:
             progress.fileCount > 1

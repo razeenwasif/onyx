@@ -293,3 +293,68 @@ final class PDFBackgroundTests: XCTestCase {
         XCTAssertNil(PDFBackground.page(for: BackgroundDTO(), sectionPath: "/tmp"))
     }
 }
+
+/// Answers OneNote requests from a script instead of Microsoft.
+private final class ScriptedGraph: URLProtocol {
+    nonisolated(unsafe) static var answers: [Int] = []
+    nonisolated(unsafe) static var requests = 0
+
+    override class func canInit(with request: URLRequest) -> Bool { request.url?.host == "graph.test" }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        Self.requests += 1
+        let code = Self.answers.isEmpty ? 200 : Self.answers.removeFirst()
+        let response = HTTPURLResponse(url: request.url!, statusCode: code, httpVersion: nil, headerFields: ["Retry-After": "0"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data("ok".utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+final class OneNoteClientTests: XCTestCase {
+    override func setUp() {
+        URLProtocol.registerClass(ScriptedGraph.self)
+        OneNoteClient.slowDownStep = 0.05
+    }
+
+    override func tearDown() {
+        URLProtocol.unregisterClass(ScriptedGraph.self)
+        OneNoteClient.slowDownStep = 15
+    }
+
+    func testSlowDownIsWaitedOutNotFatal() async throws {
+        ScriptedGraph.answers = [429, 429, 503, 200]
+        ScriptedGraph.requests = 0
+        let waits = WaitLog()
+        var client = OneNoteClient(token: "t")
+        client.onWait = { until in waits.add(until) }
+        let (data, response) = try await client.get("https://graph.test/page")
+        XCTAssertEqual(response.statusCode, 200)
+        XCTAssertEqual(String(decoding: data, as: UTF8.self), "ok")
+        XCTAssertEqual(ScriptedGraph.requests, 4)
+        // Three waits announced, then "carrying on".
+        XCTAssertEqual(waits.entries.count, 4)
+        XCTAssertNil(waits.entries.last!)
+    }
+
+    func testExpiredTokenStopsAtOnce() async {
+        ScriptedGraph.answers = [401]
+        do {
+            _ = try await OneNoteClient(token: "t").get("https://graph.test/page")
+            XCTFail("expected the token to be refused")
+        } catch OneNoteClient.Failure.tokenExpired {
+        } catch {
+            XCTFail("unexpected \(error)")
+        }
+    }
+}
+
+private final class WaitLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var log: [Date?] = []
+    var entries: [Date?] { lock.withLock { log } }
+    func add(_ d: Date?) { lock.withLock { log.append(d) } }
+}
