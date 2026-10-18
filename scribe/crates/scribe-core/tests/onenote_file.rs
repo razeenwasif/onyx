@@ -7,6 +7,8 @@ fn sections_are_found_with_their_notebook_and_groups() {
     let nb = dir.path().join("Documents").join("Razeen's Notebook");
     fs::create_dir_all(nb.join("Year 2").join("Physics")).unwrap();
     fs::create_dir_all(nb.join("OneNote_RecycleBin")).unwrap();
+    fs::write(nb.join("OneNote_RecycleBin").join("Open Notebook.onetoc2"), b"").unwrap();
+    fs::write(nb.join("OneNote_RecycleBin").join("Algorithms.one"), b"").unwrap();
     fs::write(nb.join("Open Notebook.onetoc2"), b"").unwrap();
     fs::write(nb.join("Calculus.one"), b"").unwrap();
     fs::write(nb.join("Year 2").join("Physics").join("Waves.one"), b"").unwrap();
@@ -14,12 +16,15 @@ fn sections_are_found_with_their_notebook_and_groups() {
     fs::write(nb.join("notes.txt"), b"").unwrap();
 
     let found = find_sections(dir.path());
-    let names: Vec<(String, String)> = found.iter().map(|s| (s.notebook.clone(), s.scribe_name())).collect();
+    let names: Vec<(String, String, bool)> = found.iter().map(|s| (s.notebook.clone(), s.scribe_name(), s.deleted)).collect();
     assert_eq!(
         names,
         vec![
-            ("Razeen's Notebook".to_string(), "Calculus".to_string()),
-            ("Razeen's Notebook".to_string(), "Year 2 – Physics – Waves".to_string()),
+            ("Razeen's Notebook".to_string(), "Calculus".to_string(), false),
+            ("Razeen's Notebook".to_string(), "Year 2 – Physics – Waves".to_string(), false),
+            // Deleted in OneNote: still the notebook's, after the rest; the
+            // record of deleted pages isn't a section.
+            ("Razeen's Notebook".to_string(), "Algorithms".to_string(), true),
         ]
     );
 }

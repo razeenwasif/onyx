@@ -217,7 +217,9 @@ go through Microsoft at all: **File → Import OneNote Files…** reads the note
 typed text, handwriting, pictures and tables land where they were, on canvas pages, with no
 token, no rate limits and no size limit. Both imports share one record, and a page already
 brought in by either is skipped (by its OneNote id, or by title for pages the web import made).
-OneNote's recycle bin is left out, and so are attachments and audio.
+Sections in OneNote's recycle bin come along only if you say so when asked; attachments,
+audio and the recycle bin's deleted pages are left out. A section OneDrive couldn't put in
+the zip (it times out on the very largest) is listed in the zip's `___All_Errors.txt`.
 ## Searching handwriting
 
 Search finds written words as well as typed ones. Scribe reads each page's ink

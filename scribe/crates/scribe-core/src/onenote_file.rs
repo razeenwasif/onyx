@@ -38,6 +38,8 @@ pub struct FileSection {
     /// Section groups between the notebook and the file, outermost first.
     pub groups: Vec<String>,
     pub name: String,
+    /// In OneNote's recycle bin: deleted in OneNote, kept for a while.
+    pub deleted: bool,
 }
 
 impl FileSection {
@@ -49,19 +51,20 @@ impl FileSection {
 }
 
 /// Every section file under `root` (a folder, or one `.one` file),
-/// leaving out OneNote's recycle bin.
+/// including those in OneNote's recycle bin (marked `deleted`). The
+/// recycle bin's own record of deleted pages is left out.
 pub fn find_sections(root: &Path) -> Vec<FileSection> {
     let mut out = Vec::new();
     if root.is_file() {
         if is_section(root) {
             let name = stem(root);
             let notebook = root.parent().map(dir_name).unwrap_or_else(|| "OneNote".into());
-            out.push(FileSection { path: path_str(root), notebook, groups: vec![], name });
+            out.push(FileSection { path: path_str(root), notebook, groups: vec![], name, deleted: false });
         }
         return out;
     }
     walk(root, root, &mut out);
-    out.sort_by(|a, b| (&a.notebook, &a.groups, &a.name).cmp(&(&b.notebook, &b.groups, &b.name)));
+    out.sort_by(|a, b| (a.deleted, &a.notebook, &a.groups, &a.name).cmp(&(b.deleted, &b.notebook, &b.groups, &b.name)));
     out
 }
 
@@ -71,13 +74,19 @@ fn walk(dir: &Path, top: &Path, out: &mut Vec<FileSection>) {
     entries.sort();
     for path in entries {
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        if name.starts_with('.') || name.starts_with("__MACOSX") || name.eq_ignore_ascii_case("OneNote_RecycleBin") {
+        if name.starts_with('.') || name.starts_with("__MACOSX") || name.eq_ignore_ascii_case("OneNote_DeletedPages.one") {
             continue;
         }
         if path.is_dir() {
             walk(&path, top, out);
         } else if is_section(&path) {
-            let parent = path.parent().unwrap_or(top);
+            let mut parent = path.parent().unwrap_or(top);
+            // A deleted section sits in the notebook's recycle bin folder,
+            // which has its own .onetoc2; it still belongs to the notebook.
+            let deleted = parent.file_name().is_some_and(|n| n.eq_ignore_ascii_case("OneNote_RecycleBin"));
+            if deleted {
+                parent = parent.parent().unwrap_or(top);
+            }
             // The notebook is the nearest folder up that holds a .onetoc2;
             // the folders between it and the file are section groups.
             let mut notebook_dir = None;
@@ -97,7 +106,7 @@ fn walk(dir: &Path, top: &Path, out: &mut Vec<FileSection>) {
                 .strip_prefix(&notebook_dir)
                 .map(|rel| rel.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect())
                 .unwrap_or_default();
-            out.push(FileSection { path: path_str(&path), notebook: dir_name(&notebook_dir), groups, name: stem(&path) });
+            out.push(FileSection { path: path_str(&path), notebook: dir_name(&notebook_dir), groups, name: stem(&path), deleted });
         }
     }
 }
@@ -194,13 +203,36 @@ struct PageBuilder<'a> {
 /// A run of paragraphs in one outline, becoming one text box.
 struct Flow {
     x: f64,
+    /// Where the current text box starts.
     y: f64,
     width: f64,
-    text: String,
-    font_px: f64,
-    bold: bool,
+    /// Lines so far, each with its height.
+    lines: Vec<(String, f64)>,
+    /// Characters set at each size (half-points), and in bold, to pick the
+    /// box's size and weight.
+    sizes: HashMap<u16, usize>,
+    bold_chars: usize,
+    chars: usize,
+    /// The size to use when a paragraph doesn't say.
+    default_size: u16,
     /// Where the next thing in this outline goes.
     cursor: f64,
+}
+
+impl Flow {
+    fn new(x: f64, y: f64, width: f64, default_size: u16) -> Self {
+        Flow { x, y, width, lines: vec![], sizes: HashMap::new(), bold_chars: 0, chars: 0, default_size, cursor: y }
+    }
+}
+
+/// Points (half-points from OneNote) to page units.
+fn half_points_px(size: u16) -> f64 {
+    size as f64 / 2.0 * 96.0 / 72.0
+}
+
+/// Line height for text of `px`: Calibri's own line spacing.
+fn line_height(px: f64) -> f64 {
+    px * 1.22
 }
 
 impl<'a> PageBuilder<'a> {
@@ -229,13 +261,15 @@ impl<'a> PageBuilder<'a> {
         if let Some(t) = page.title() {
             let x = t.offset_horizontal() as f64 * HALF_INCH + HALF_INCH;
             let y = t.offset_vertical() as f64 * HALF_INCH + HALF_INCH / 2.0;
-            let mut flow = Flow { x, y, width: 600.0, text: String::new(), font_px: 20.0 * 96.0 / 72.0, bold: false, cursor: y };
+            // The title, its date and its time each get a box, so the title
+            // keeps OneNote's large size.
+            let mut flow = Flow::new(x, y, 600.0, 40);
             for outline in t.contents() {
                 for item in outline.items() {
                     self.item(item, &mut flow, 0);
+                    self.finish(&mut flow);
                 }
             }
-            self.finish(&mut flow);
         }
 
         for content in page.contents() {
@@ -244,7 +278,7 @@ impl<'a> PageBuilder<'a> {
                     let x = o.offset_horizontal().unwrap_or(0.0) as f64 * HALF_INCH;
                     let y = o.offset_vertical().unwrap_or(0.0) as f64 * HALF_INCH;
                     let width = o.layout_max_width().map(|w| w as f64 * HALF_INCH).unwrap_or(600.0);
-                    let mut flow = Flow { x, y, width, text: String::new(), font_px: BODY_PX, bold: false, cursor: y };
+                    let mut flow = Flow::new(x, y, width, 22);
                     for item in o.items() {
                         self.item(item, &mut flow, 0);
                     }
@@ -318,41 +352,71 @@ impl<'a> PageBuilder<'a> {
     }
 
     fn text(&mut self, rt: &RichText, flow: &mut Flow, lead: &str) {
-        let text = visible_text(rt.text());
-        let style = rt.paragraph_style();
-        if flow.text.is_empty() {
-            if let Some(size) = style.font_size().or_else(|| rt.text_run_formatting().iter().find_map(|f| f.font_size())) {
-                flow.font_px = size as f64 / 2.0 * 96.0 / 72.0;
+        // Each run of the paragraph: its length (UTF-16, as the indices
+        // count), size and weight.
+        let raw = rt.text();
+        let len16 = raw.encode_utf16().count();
+        let mut bounds = vec![0usize];
+        bounds.extend(rt.text_run_indices().iter().map(|i| (*i as usize).min(len16)));
+        bounds.push(len16);
+        let para = rt.paragraph_style();
+        let mut sizes: HashMap<u16, usize> = HashMap::new();
+        for (k, w) in bounds.windows(2).enumerate() {
+            let len = w[1].saturating_sub(w[0]);
+            let style = rt.text_run_formatting().get(k);
+            let size = style.and_then(|s| s.font_size()).or(para.font_size()).unwrap_or(flow.default_size);
+            *sizes.entry(size).or_default() += len;
+            if style.map_or(para.bold(), |s| s.bold()) {
+                flow.bold_chars += len;
             }
-            flow.bold = style.bold();
+            *flow.sizes.entry(size).or_default() += len;
+            flow.chars += len;
         }
-        if !flow.text.is_empty() {
-            flow.text.push('\n');
+        let size = sizes.iter().max_by_key(|(_, n)| **n).map(|(s, _)| *s).unwrap_or(flow.default_size);
+        let height = line_height(half_points_px(size));
+
+        let text = visible_text(raw);
+        let text = text.trim_end();
+        let mut first = true;
+        for line in if text.is_empty() { vec![""] } else { text.split('\n').collect() } {
+            let shown = if first { format!("{lead}{line}") } else { format!("{}{line}", " ".repeat(lead.chars().count())) };
+            flow.lines.push((shown, height));
+            flow.cursor += height;
+            first = false;
         }
-        flow.text.push_str(lead);
-        flow.text.push_str(text.trim_end());
-        let lines = text.trim_end().lines().count().max(1) as f64;
-        flow.cursor += lines * flow.font_px * 1.4;
     }
 
-    /// Writes the flow's text so far as a text box.
+    /// Writes the flow's text so far as a text box, and starts the next one
+    /// where it ends.
     fn finish(&mut self, flow: &mut Flow) {
-        let text = flow.text.trim_matches('\n').to_string();
-        flow.text.clear();
+        let mut lines = std::mem::take(&mut flow.lines);
+        let mut top = flow.y;
+        // Blank lines at the start only push the text down.
+        while lines.first().is_some_and(|(t, _)| t.trim().is_empty()) {
+            top += lines.remove(0).1;
+        }
+        while lines.last().is_some_and(|(t, _)| t.trim().is_empty()) {
+            lines.pop();
+        }
+        let size = flow.sizes.iter().max_by_key(|(_, n)| **n).map(|(s, _)| *s).unwrap_or(flow.default_size);
+        let bold = flow.chars > 0 && flow.bold_chars * 2 > flow.chars;
+        flow.sizes.clear();
+        flow.bold_chars = 0;
+        flow.chars = 0;
         flow.y = flow.cursor;
-        if text.trim().is_empty() {
+        if lines.is_empty() {
             return;
         }
-        let lines = text.lines().count() as f64;
+        let text = lines.into_iter().map(|(t, _)| t).collect::<Vec<_>>().join("\n");
         self.doc.text_boxes.push(TextBox {
             id: new_id(),
             x: round2(flow.x),
-            y: round2(flow.cursor - lines * flow.font_px * 1.4),
+            y: round2(top),
             width: round2(flow.width.max(40.0)),
             text,
             font_family: "Calibri".into(),
-            font_size: round2(flow.font_px),
-            bold: flow.bold,
+            font_size: round2(half_points_px(size)),
+            bold,
             ..TextBox::default()
         });
     }
@@ -457,9 +521,18 @@ fn collect_strokes(ink: &Ink, parent_offset: (f64, f64), out: &mut Vec<Stroke>) 
         collect_strokes(child, offset, out);
     }
     for s in ink.ink_strokes() {
+        // The first point is where the stroke starts; each after it is a
+        // step from the one before.
         let mut points = Vec::with_capacity(s.path().len() * 3);
-        for p in s.path() {
-            points.extend([p.x() as f64 * HIMETRIC + offset.0, p.y() as f64 * HIMETRIC + offset.1, 0.6]);
+        let (mut x, mut y) = (0.0f64, 0.0f64);
+        for (i, p) in s.path().iter().enumerate() {
+            if i == 0 {
+                (x, y) = (p.x() as f64, p.y() as f64);
+            } else {
+                x += p.x() as f64;
+                y += p.y() as f64;
+            }
+            points.extend([x * HIMETRIC + offset.0, y * HIMETRIC + offset.1, 0.6]);
         }
         if points.len() < 3 {
             continue;
@@ -496,6 +569,8 @@ pub fn visible_text(raw: &str) -> String {
         rest = &after[skip..];
     }
     out.push_str(rest);
+    // Equations carry OneNote's structure as noncharacters (U+FDD0–FDEF).
+    out.retain(|c| !('\u{fdd0}'..='\u{fdef}').contains(&c));
     out.replace(['\u{b}', '\r'], "\n")
 }
 

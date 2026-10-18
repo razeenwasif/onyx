@@ -14,6 +14,8 @@ private struct FileSection: Decodable {
     var notebook: String
     var groups: [String]
     var name: String
+    /// In OneNote's recycle bin.
+    var deleted: Bool
 
     var scribeName: String { groups.isEmpty ? name : (groups + [name]).joined(separator: " – ") }
 }
@@ -63,6 +65,11 @@ extension AppModel {
                     }
                     sections += try Core.call("onenote_file_sections", ["path": source.path])
                 }
+                // Sections deleted in OneNote come along only if you say so.
+                let deleted = sections.filter(\.deleted)
+                if !deleted.isEmpty, !Self.askAboutDeleted(deleted.map(\.name)) {
+                    sections.removeAll(where: \.deleted)
+                }
                 guard !sections.isEmpty else {
                     throw Core.Failure(message: "There are no OneNote sections (.one files) in what you chose.")
                 }
@@ -73,6 +80,8 @@ extension AppModel {
                     progress.file = source.scribeName
                     let folder = try folders[source.notebook] ?? folder(named: source.notebook, root: root)
                     folders[source.notebook] = folder
+                    let tree: [NotebookInfo] = (try? Core.call("tree", ["root": root])) ?? notebooks
+                    let existed = tree.first { $0.path == folder }?.sections.contains { $0.name == source.scribeName } ?? false
                     let section = try notebook(named: source.scribeName, in: folder)
                     // Parsing a big section takes a moment; keep the UI moving.
                     let result: SectionImport = try await Task.detached {
@@ -80,6 +89,10 @@ extension AppModel {
                     }.value
                     progress.pagesMade += result.made
                     progress.alreadyHere += result.existing
+                    // A section with no pages leaves no empty notebook behind.
+                    if !existed, result.made == 0, result.existing == 0 {
+                        try? FileManager.default.removeItem(atPath: section)
+                    }
                     if result.made > 0 { progress.made.append(section); lastSection = section }
                     if !result.skipped.isEmpty {
                         NSLog("Scribe: OneNote file import left out %@", result.skipped.joined(separator: ", "))
@@ -99,6 +112,21 @@ extension AppModel {
             }
             inkReader.backfill(root: root)
         }
+    }
+
+    /// Asks whether to import sections that are in OneNote's recycle bin.
+    @MainActor
+    private static func askAboutDeleted(_ names: [String]) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = names.count == 1
+            ? "Also import a section from OneNote's recycle bin?"
+            : "Also import \(names.count) sections from OneNote's recycle bin?"
+        let shown = names.prefix(8).joined(separator: ", ") + (names.count > 8 ? ", and \(names.count - 8) more" : "")
+        alert.informativeText = "These were deleted in OneNote but are still in the download: \(shown). "
+            + "They go into the same folder as the rest of the notebook."
+        alert.addButton(withTitle: "Import Them Too")
+        alert.addButton(withTitle: "Skip Them")
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     /// Unzips a OneDrive download into a temporary folder.
