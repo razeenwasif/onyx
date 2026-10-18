@@ -70,7 +70,8 @@ enum ScribeAction: Hashable {
         case .save:
             app.commitOpenPage()
         case .importPDF:
-            app.chooseAndImportPDFs()
+            // Menus always run on the main thread.
+            MainActor.assumeIsolated { app.chooseAndImportPDFs() }
         case .pasteOntoPage:
             app.paste()
         case .search:

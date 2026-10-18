@@ -52,6 +52,13 @@ public struct ContentView: View {
             case .table: TableSheet(app: app)
             }
         }
+        .overlay {
+            if let progress = app.importing {
+                ImportPopup(progress: progress, accent: Velvet.accent, text: Velvet.text, muted: Velvet.muted, card: Velvet.raised) {
+                    app.importing = nil
+                }
+            }
+        }
         .sheet(item: $app.prompt) { PromptSheet(info: $0) }
         .alert(item: $app.alert) { info in
             Alert(title: Text(info.title), message: Text(info.message))

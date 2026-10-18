@@ -65,15 +65,23 @@ struct LibraryView: View {
     @State private var searched = ""
     @State private var showingDeleted = false
 
-    /// One file picker for both jobs (SwiftUI allows one per view).
+    /// One file picker for both jobs (SwiftUI allows one per view). The
+    /// job is kept apart from whether the picker shows: the picker closes
+    /// before it hands over the files.
     private enum Picking { case library, pdfs(NotebookInfo?) }
-    @State private var picking: Picking?
+    @State private var picking: Picking = .library
+    @State private var picker = false
 
     static let style = PageGrid.Style(
         ground: .velvetBackdrop, text: Color(uiColor: Velvet.text), muted: .velvetMuted,
         accent: .velvetAccent, control: Color(uiColor: Velvet.control)
     )
     static let deleteNote = "It stays in Recently Deleted for 30 days."
+
+    private func pick(_ job: Picking) {
+        picking = job
+        picker = true
+    }
 
     private var actions: LibraryActions {
         LibraryActions(
@@ -120,11 +128,11 @@ struct LibraryView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             Button("New Folder…", systemImage: "folder.badge.plus") { prompt = NamePrompt(kind: .newFolder) }
-                            Button("Import PDF or Goodnotes…", systemImage: "doc.badge.plus") { picking = .pdfs(nil) }
+                            Button("Import PDF or Goodnotes…", systemImage: "doc.badge.plus") { pick(.pdfs(nil)) }
                             Divider()
                             Button("Recently Deleted", systemImage: "trash") { showingDeleted = true }
                             Button("Sync Now", systemImage: "arrow.clockwise") { store.refresh() }
-                            Button("Change Library Location…", systemImage: "externaldrive") { picking = .library }
+                            Button("Change Library Location…", systemImage: "externaldrive") { pick(.library) }
                         } label: {
                             Image(systemName: "ellipsis.circle")
                         }
@@ -140,7 +148,7 @@ struct LibraryView: View {
                                     ToolbarItem(placement: .topBarTrailing) {
                                         Menu {
                                             Button("New Notebook…", systemImage: "book.closed") { prompt = NamePrompt(kind: .newNotebook(folder)) }
-                                            Button("Import PDF or Goodnotes…", systemImage: "doc.badge.plus") { picking = .pdfs(folder) }
+                                            Button("Import PDF or Goodnotes…", systemImage: "doc.badge.plus") { pick(.pdfs(folder)) }
                                         } label: {
                                             Image(systemName: "plus")
                                         }
@@ -161,12 +169,21 @@ struct LibraryView: View {
         }
         .namePrompt($prompt, store: store)
         .fileImporter(
-            isPresented: Binding(get: { picking != nil }, set: { if !$0 { picking = nil } }),
+            isPresented: $picker,
             allowedContentTypes: { if case .pdfs = picking { [.pdf] } else { [.folder] } }(),
             allowsMultipleSelection: { if case .pdfs = picking { true } else { false } }()
         ) { result in
-            guard case .success(let urls) = result, let job = picking else { return }
-            switch job {
+            switch result {
+            case .failure(let error):
+                store.problem = error.localizedDescription
+                return
+            case .success(let urls) where urls.isEmpty:
+                return
+            case .success:
+                break
+            }
+            guard case .success(let urls) = result else { return }
+            switch picking {
             case .library:
                 if let url = urls.first {
                     store.forgetFolder()
@@ -177,6 +194,14 @@ struct LibraryView: View {
             }
         }
         .sheet(isPresented: $showingDeleted) { RecentlyDeletedView(store: store) }
+        .overlay {
+            if let progress = store.importing {
+                ImportPopup(progress: progress, accent: .velvetAccent, text: Color(uiColor: Velvet.text),
+                            muted: .velvetMuted, card: Color(uiColor: Velvet.sidebar)) {
+                    store.importing = nil
+                }
+            }
+        }
     }
 }
 

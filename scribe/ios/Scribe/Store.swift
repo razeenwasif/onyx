@@ -577,44 +577,30 @@ final class Store {
         return (try? Core.call("search", ["root": root.path, "query": q], as: [PageInfo].self)) ?? []
     }
 
+    /// The import in progress, for the import popup.
+    var importing: ImportProgress?
+
     /// Imports PDFs (and Goodnotes exports) into `folder`: each becomes a
     /// notebook with one page per PDF page, written on top of the PDF, the
-    /// same layout the Mac makes.
+    /// same layout the Mac makes. Runs in the background; `importing`
+    /// follows it.
     func importPDFs(_ urls: [URL], into folder: NotebookInfo?) {
-        guard let root else { return }
-        var target = folder?.path ?? notebooks.first?.path
-        do {
+        guard let root, !urls.isEmpty, importing == nil else { return }
+        let progress = ImportProgress()
+        importing = progress
+        Task {
+            var target = folder?.path ?? notebooks.first?.path
             if target == nil {
-                target = try Core.call("create_notebook", ["root": root.path, "name": "Imported"], as: String.self)
+                target = try? Core.call("create_notebook", ["root": root.path, "name": "Imported"], as: String.self)
             }
-            guard let target else { return }
-            for url in urls {
-                let scoped = url.startAccessingSecurityScopedResource()
-                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                guard let pdf = PDFDocument(url: url), pdf.pageCount > 0 else {
-                    problem = "\(url.lastPathComponent) isn't a PDF Scribe can open."
-                    continue
-                }
-                let name = url.deletingPathExtension().lastPathComponent
-                let section: String = try Core.call("create_section", ["notebook": target, "name": name])
-                let slot: AssetSlot = try Core.call("new_asset", ["section": section, "ext": "pdf"])
-                try FileManager.default.copyItem(at: url, to: URL(fileURLWithPath: slot.path))
-                let stamp = ISO8601DateFormatter().string(from: Date())
-                for index in 0..<pdf.pageCount {
-                    let title = pdf.pageCount == 1 ? name : "Page \(index + 1)"
-                    let pagePath: String = try Core.call("create_page", ["section": section, "title": title])
-                    var page: PageDoc = try Core.call("read_page", ["path": pagePath])
-                    page.background = BackgroundDTO(kind: "pdf", spacing: 32, color: "#E8EEF5", asset: slot.rel, pdfPage: index)
-                    page.source = SourceDTO(app: "pdf", id: url.lastPathComponent, importedAt: stamp)
-                    let _: WriteResult = try Core.call("write_page", ["path": pagePath, "page": try Core.json(page)])
-                }
+            guard let target else {
+                progress.phase = .failed("Could not make a folder to import into.")
+                return
             }
+            await PDFImportJob.run(urls, into: target, progress: progress)
             refresh()
             route = [.folder(target)]
             inkReader.backfill(root: root.path)
-        } catch {
-            problem = "Could not import: \(error.localizedDescription)"
-            refresh()
         }
     }
 

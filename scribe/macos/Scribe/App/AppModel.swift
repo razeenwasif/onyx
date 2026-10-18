@@ -20,6 +20,8 @@ public final class AppModel {
     var homeFolderPath: String?
     /// Pages edited most recently, for the library's Recent row.
     var recents: [PageInfo] = []
+    /// A PDF import in progress, for the import popup.
+    var importing: ImportProgress?
 
     var searchText = "" {
         didSet { scheduleSearch() }

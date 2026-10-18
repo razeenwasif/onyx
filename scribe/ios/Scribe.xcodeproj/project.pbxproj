@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		0E65E97DE98AEC0D5CCAB2DF /* Velvet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45F59826CA139258AB536628 /* Velvet.swift */; };
+		157536B5C3A22C3989DA026D /* PDFImportJob.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CD198BB03AB8EEA48020A46 /* PDFImportJob.swift */; };
+		43BB0BFB7503B1DE63C79456 /* ImportPopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1B97368B968B9EA7A98E4E /* ImportPopup.swift */; };
 		7A96DE04F655CEAF1AC10883 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F50B0C1B73148655154DC4C /* Store.swift */; };
 		83E8088CA8239F35669B8A17 /* NotebookCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E3CA41C98CC4FBC7E26526 /* NotebookCanvas.swift */; };
 		A7ACA6CFC92A5C3FBDD8A401 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8650DE64B4BDACE4CDCEC84F /* Assets.xcassets */; };
@@ -32,6 +34,7 @@
 		21A1816517869BFE33A8CD79 /* InkReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InkReader.swift; sourceTree = "<group>"; };
 		3ECB559B954847D3FD91E918 /* PenInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PenInput.swift; sourceTree = "<group>"; };
 		45F59826CA139258AB536628 /* Velvet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Velvet.swift; sourceTree = "<group>"; };
+		4CD198BB03AB8EEA48020A46 /* PDFImportJob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFImportJob.swift; sourceTree = "<group>"; };
 		572ACD849DC28AE0C35FCA9B /* ScribeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeApp.swift; sourceTree = "<group>"; };
 		5BE1E6F13ED1FC990425AA82 /* Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
 		5F50B0C1B73148655154DC4C /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
@@ -42,6 +45,7 @@
 		8930E33BFE96CC0DF6861196 /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
 		94B50B840A6F28ACEF2FC4C8 /* FolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderAccess.swift; sourceTree = "<group>"; };
 		A01DAF81BFF5F19B0C8A8E66 /* PageGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageGrid.swift; sourceTree = "<group>"; };
+		AC1B97368B968B9EA7A98E4E /* ImportPopup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportPopup.swift; sourceTree = "<group>"; };
 		C2E90B89CCA9C197405CACDA /* PageCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageCanvas.swift; sourceTree = "<group>"; };
 		C50D08615E70ECA0AD221386 /* Tools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tools.swift; sourceTree = "<group>"; };
 		E9017CAEE01B5AC8085F73E9 /* PDFBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFBackground.swift; sourceTree = "<group>"; };
@@ -51,6 +55,7 @@
 		028E0D777A83853150FC7C5F /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				AC1B97368B968B9EA7A98E4E /* ImportPopup.swift */,
 				5BE1E6F13ED1FC990425AA82 /* Library.swift */,
 				A01DAF81BFF5F19B0C8A8E66 /* PageGrid.swift */,
 			);
@@ -62,6 +67,7 @@
 			children = (
 				60E1FAA8E2DD1D5F03EB5B57 /* Core.swift */,
 				6E329633AFA168D7DC1B4E70 /* Model.swift */,
+				4CD198BB03AB8EEA48020A46 /* PDFImportJob.swift */,
 				10075054A2E953FD835C1284 /* Thumbnails.swift */,
 				C50D08615E70ECA0AD221386 /* Tools.swift */,
 			);
@@ -249,11 +255,13 @@
 			files = (
 				C0AC686D602BDD92D5E4FE0C /* Core.swift in Sources */,
 				FFB1C571B5B76C90F0C6AE97 /* FolderAccess.swift in Sources */,
+				43BB0BFB7503B1DE63C79456 /* ImportPopup.swift in Sources */,
 				F6131F4DB4683F5D8D5AB0AC /* InkReader.swift in Sources */,
 				F244FA5829D8033601AB3D02 /* Library.swift in Sources */,
 				B5FE8681AB132633604FB772 /* Model.swift in Sources */,
 				83E8088CA8239F35669B8A17 /* NotebookCanvas.swift in Sources */,
 				D4A6DD7A8D98E8CB3119B1F8 /* PDFBackground.swift in Sources */,
+				157536B5C3A22C3989DA026D /* PDFImportJob.swift in Sources */,
 				E05B9C001E4E76D6CF053D77 /* PageCanvas.swift in Sources */,
 				DE1FECFCBE5F19EBAA62AC7E /* PageGrid.swift in Sources */,
 				C2DFAA61D3C90D098EDCA7F5 /* PenInput.swift in Sources */,
