@@ -54,6 +54,8 @@ struct InkColor: Identifiable, Equatable {
     /// blindness (no red/green-only pairing).
     static let inks: [InkColor] = [
         InkColor(name: "Black", hex: "#1A1A1A"),
+        // Shows as pure white, where black shows as a warm cream.
+        InkColor(name: "White", hex: "#FFFFFF"),
         InkColor(name: "Blue", hex: "#1D4ED8"),
         InkColor(name: "Rose", hex: "#C02848"),
         InkColor(name: "Sage", hex: "#157F3C"),

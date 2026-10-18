@@ -152,7 +152,8 @@ open here with their handwriting intact.
 Ink colour is adapted for display only: black handwriting shows as warm cream
 on the dark page and stays black in the file, so pages written here read
 correctly anywhere else, and coloured inks keep their hue, lifted to stay
-legible.
+legible. White ink is drawn as it is, pure white, and is stored as white, so
+on paper or a light PDF page it won't show.
 
 ## Checking the ink engine
 

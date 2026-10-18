@@ -323,7 +323,7 @@ struct Dock: View {
 
             BarDivider()
 
-            ForEach(InkColor.inks.prefix(4)) { ink in
+            ForEach(InkColor.inks.prefix(5)) { ink in
                 Button { app.chooseInk(ink.hex) } label: {
                     Swatch(color: InkPaint.swatch(ink.hex), selected: app.tool == .pen && app.pen.color == ink.hex)
                 }
