@@ -9,10 +9,12 @@
 /* Begin PBXBuildFile section */
 		0E65E97DE98AEC0D5CCAB2DF /* Velvet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45F59826CA139258AB536628 /* Velvet.swift */; };
 		7A96DE04F655CEAF1AC10883 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F50B0C1B73148655154DC4C /* Store.swift */; };
+		83E8088CA8239F35669B8A17 /* NotebookCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E3CA41C98CC4FBC7E26526 /* NotebookCanvas.swift */; };
 		A7ACA6CFC92A5C3FBDD8A401 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8650DE64B4BDACE4CDCEC84F /* Assets.xcassets */; };
 		B5FE8681AB132633604FB772 /* Model.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E329633AFA168D7DC1B4E70 /* Model.swift */; };
 		BD15A724EAC201BDC240C58C /* Thumbnails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10075054A2E953FD835C1284 /* Thumbnails.swift */; };
 		C0AC686D602BDD92D5E4FE0C /* Core.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60E1FAA8E2DD1D5F03EB5B57 /* Core.swift */; };
+		C2DFAA61D3C90D098EDCA7F5 /* PenInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ECB559B954847D3FD91E918 /* PenInput.swift */; };
 		C4457AFB46EBCC8F7A30D469 /* ScribeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 572ACD849DC28AE0C35FCA9B /* ScribeApp.swift */; };
 		D4A6DD7A8D98E8CB3119B1F8 /* PDFBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9017CAEE01B5AC8085F73E9 /* PDFBackground.swift */; };
 		DE1FECFCBE5F19EBAA62AC7E /* PageGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = A01DAF81BFF5F19B0C8A8E66 /* PageGrid.swift */; };
@@ -26,12 +28,14 @@
 /* Begin PBXFileReference section */
 		10075054A2E953FD835C1284 /* Thumbnails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Thumbnails.swift; sourceTree = "<group>"; };
 		11345C81116DC36BA7419B25 /* Scribe.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Scribe.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3ECB559B954847D3FD91E918 /* PenInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PenInput.swift; sourceTree = "<group>"; };
 		45F59826CA139258AB536628 /* Velvet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Velvet.swift; sourceTree = "<group>"; };
 		572ACD849DC28AE0C35FCA9B /* ScribeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeApp.swift; sourceTree = "<group>"; };
 		5BE1E6F13ED1FC990425AA82 /* Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
 		5F50B0C1B73148655154DC4C /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
 		60E1FAA8E2DD1D5F03EB5B57 /* Core.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core.swift; sourceTree = "<group>"; };
 		6E329633AFA168D7DC1B4E70 /* Model.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model.swift; sourceTree = "<group>"; };
+		70E3CA41C98CC4FBC7E26526 /* NotebookCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookCanvas.swift; sourceTree = "<group>"; };
 		8650DE64B4BDACE4CDCEC84F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8930E33BFE96CC0DF6861196 /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
 		94B50B840A6F28ACEF2FC4C8 /* FolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderAccess.swift; sourceTree = "<group>"; };
@@ -117,7 +121,9 @@
 			isa = PBXGroup;
 			children = (
 				94B50B840A6F28ACEF2FC4C8 /* FolderAccess.swift */,
+				70E3CA41C98CC4FBC7E26526 /* NotebookCanvas.swift */,
 				C2E90B89CCA9C197405CACDA /* PageCanvas.swift */,
+				3ECB559B954847D3FD91E918 /* PenInput.swift */,
 				572ACD849DC28AE0C35FCA9B /* ScribeApp.swift */,
 				5F50B0C1B73148655154DC4C /* Store.swift */,
 				45F59826CA139258AB536628 /* Velvet.swift */,
@@ -234,9 +240,11 @@
 				FFB1C571B5B76C90F0C6AE97 /* FolderAccess.swift in Sources */,
 				F244FA5829D8033601AB3D02 /* Library.swift in Sources */,
 				B5FE8681AB132633604FB772 /* Model.swift in Sources */,
+				83E8088CA8239F35669B8A17 /* NotebookCanvas.swift in Sources */,
 				D4A6DD7A8D98E8CB3119B1F8 /* PDFBackground.swift in Sources */,
 				E05B9C001E4E76D6CF053D77 /* PageCanvas.swift in Sources */,
 				DE1FECFCBE5F19EBAA62AC7E /* PageGrid.swift in Sources */,
+				C2DFAA61D3C90D098EDCA7F5 /* PenInput.swift in Sources */,
 				C4457AFB46EBCC8F7A30D469 /* ScribeApp.swift in Sources */,
 				7A96DE04F655CEAF1AC10883 /* Store.swift in Sources */,
 				BD15A724EAC201BDC240C58C /* Thumbnails.swift in Sources */,

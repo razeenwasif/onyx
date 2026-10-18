@@ -242,9 +242,12 @@ after you stop writing.
 
 The Apple Pencil writes, and fingers scroll and pinch. Without a Pencil, the hand button
 in the tool dock lets a finger write (then scrolling takes two fingers). Double-tap the
-Pencil to swap between pen and eraser. Pull past the bottom of a page to turn to the
-next one, or, on the last page of a section, to add a new page; pull past the top to go
-back. Pages keep their size while you write, like paper: ink past an edge is cut off
+Pencil to swap between pen and eraser. A notebook scrolls straight through its pages, one
+under another, with a "3 of 14" counter while you scroll; write on any page you can see.
+Pull past the end of the last page to add a new one. The notebooks you've opened sit as
+tabs above the page. The **⋯** menu switches to one page at a time (pull past a page's
+end to turn it) and turns finger drawing on or off. Swiping sideways never goes back
+while you're writing; use the back button. Pages keep their size while you write, like paper: ink past an edge is cut off
 rather than growing the page (a page only grows to fit what is already on it, such as
 writing from the Mac). The iPad's pen is a little heavier than the Mac's, and its curve
 lifts the light pressure of everyday Pencil writing.

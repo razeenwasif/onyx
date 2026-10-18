@@ -109,6 +109,7 @@ final class Store {
         root = nil
         notebooks = []
         recents = []
+        tabs = []
         route = []
         sectionPath = nil
         closePage()
@@ -117,6 +118,7 @@ final class Store {
     private func open(_ url: URL) {
         root = url
         refresh()
+        restoreTabs()
         // Back to the page you were on; the back button leads to its folder
         // and then the library.
         if let rel = UserDefaults.standard.string(forKey: Self.lastPageKey) {
@@ -175,6 +177,8 @@ final class Store {
             newPage()
         }
         route = [.folder(notebook.notebookPath), .notebook(notebook.path)]
+        scrollTarget = pagePath
+        addTab(notebook.path)
     }
 
     func openRecent(_ page: PageInfo) {
@@ -189,6 +193,8 @@ final class Store {
         sectionPath = section
         openPage(path)
         route = [.folder((section as NSString).deletingLastPathComponent), .notebook(section)]
+        scrollTarget = path
+        addTab(section)
     }
 
     /// Back out of a notebook: save, and leave the grid.
@@ -230,7 +236,113 @@ final class Store {
     private func reloadPages() {
         guard let sectionPath else { pages = []; return }
         let list = (try? Core.call("pages", ["section": sectionPath], as: [PageInfo].self)) ?? []
-        if list != pages { pages = list }
+        guard list != pages else { return }
+        // Pages added, moved or removed, or changed on another device: the
+        // continuous canvas lays them out again. Saving the page you're
+        // writing on doesn't count.
+        let old = Dictionary(pages.map { ($0.path, $0.modified) }, uniquingKeysWith: { a, _ in a })
+        let moved = list.map(\.path) != pages.map(\.path)
+        let changedElsewhere = list.contains { $0.path != pagePath && old[$0.path] != $0.modified }
+        pages = list
+        if moved || changedElsewhere { layoutVersion += 1 }
+    }
+
+    // ------------------------------------------------- continuous writing
+
+    /// Scroll through all of a notebook's pages (true), or one page at a
+    /// time with pull-to-turn (false).
+    var continuous: Bool = UserDefaults.standard.object(forKey: "continuousPages") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(continuous, forKey: "continuousPages") }
+    }
+
+    /// Bumped whenever the notebook's pages change, for the canvas.
+    private(set) var layoutVersion = 0
+
+    /// A page the canvas should scroll to (opened from the grid, a new page).
+    var scrollTarget: String?
+
+    struct PageLayout: Decodable {
+        var path: String
+        var pageId: String
+        var background: BackgroundDTO
+        var contentWidth: Double
+        var contentHeight: Double
+        var blank: Bool
+    }
+
+    /// Every page of the open notebook, in order, with what laying them out needs.
+    func pageLayouts() -> [PageLayout] {
+        guard let section = pagePath.map({ ($0 as NSString).deletingLastPathComponent }) ?? sectionPath else { return [] }
+        return (try? Core.call("page_layouts", ["section": section], as: [PageLayout].self)) ?? []
+    }
+
+    /// A page's size as paper: the standard page or its PDF, grown only to
+    /// fit what is already on it (the same rule as `pageSize`).
+    func size(of layout: PageLayout) -> CGSize {
+        let section = (layout.path as NSString).deletingLastPathComponent
+        var size = PDFBackground.standardSize
+        if let pdf = PDFBackground.page(for: layout.background, sectionPath: section) { size = PDFBackground.size(of: pdf) }
+        return CGSize(width: max(size.width, ceil(layout.contentWidth + 24)), height: max(size.height, ceil(layout.contentHeight + 24)))
+    }
+
+    /// What a page that isn't the one being edited looks like.
+    func content(of path: String) -> PageView.Content? {
+        if path == pagePath { return PageView.Content(store: self) }
+        guard let doc = try? Core.call("read_page", ["path": path], as: PageDoc.self) else { return nil }
+        let ink = doc.strokes.filter { $0.points.count >= 3 }.map(Ink.init)
+        return PageView.Content(doc: doc, sectionPath: (path as NSString).deletingLastPathComponent, ink: ink)
+    }
+
+    /// Makes the page at `path` the one being written on, after saving the
+    /// last one; the view stays where it is.
+    func activate(_ path: String) {
+        guard path != pagePath else { return }
+        openPage(path)
+    }
+
+    /// Whether the last page has anything on it, so a new one may follow.
+    func canAddAfter(_ layouts: [PageLayout]) -> Bool {
+        guard let last = layouts.last else { return true }
+        if last.path == pagePath { return !pageIsBlank }
+        return !last.blank
+    }
+
+    // --------------------------------------------------------------- tabs
+
+    /// Notebooks open as tabs above the page, by section path.
+    private(set) var tabs: [String] = []
+
+    private func addTab(_ section: String) {
+        if !tabs.contains(section) {
+            tabs.append(section)
+            if tabs.count > 8 { tabs.removeFirst() }
+        }
+        saveTabs()
+    }
+
+    /// Closes a notebook's tab; closing the one you're in moves to its
+    /// neighbour, or back to its folder when it was the last.
+    func closeTab(_ section: String) {
+        guard let i = tabs.firstIndex(of: section) else { return }
+        tabs.remove(at: i)
+        saveTabs()
+        guard section == pageSectionPath else { return }
+        if !tabs.isEmpty, let next = notebook(at: tabs[min(i, tabs.count - 1)]) {
+            openNotebook(next)
+        } else {
+            leftNotebook()
+            route = route.filter { if case .notebook = $0 { false } else { true } }
+        }
+    }
+
+    private func saveTabs() {
+        UserDefaults.standard.set(tabs.compactMap(relative), forKey: "openNotebooks")
+    }
+
+    private func restoreTabs() {
+        guard let root else { return }
+        let saved = UserDefaults.standard.stringArray(forKey: "openNotebooks") ?? []
+        tabs = saved.map { root.appendingPathComponent($0).path }.filter { FileManager.default.fileExists(atPath: $0) }
     }
 
     // --------------------------------------------------------------- pages
@@ -269,6 +381,7 @@ final class Store {
             let path: String = try Core.call("create_page", ["section": sectionPath, "title": "Untitled page"])
             reloadPages()
             openPage(path)
+            scrollTarget = path
         } catch {
             problem = error.localizedDescription
         }
@@ -295,6 +408,7 @@ final class Store {
     func openFromGrid(_ page: PageInfo) {
         showingGrid = false
         if page.path != pagePath { openPage(page.path) }
+        scrollTarget = page.path
     }
 
     func toggleStar(_ page: PageInfo) {
@@ -441,6 +555,8 @@ final class Store {
             problem = "Could not delete it: \(error.localizedDescription)"
         }
         if sectionPath?.hasPrefix(path) == true { sectionPath = nil }
+        tabs.removeAll { $0 == path || $0.hasPrefix(path + "/") }
+        saveTabs()
         if case .folder = item { route.removeAll { $0 == .folder(path) } }
         refresh()
     }

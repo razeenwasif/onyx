@@ -150,6 +150,10 @@ fn dispatch(req: &Value) -> R {
             Ok(Value::Null)
         }
 
+        "page_layouts" => {
+            Ok(json!(ws_any().page_layouts(&path_arg(req, "section")?)))
+        }
+
         "recent_pages" => {
             let limit: Option<usize> = arg(req, "limit")?;
             Ok(json!(ws(req)?.recent_pages(limit.unwrap_or(8))))

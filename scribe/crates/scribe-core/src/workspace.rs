@@ -305,6 +305,82 @@ impl Workspace {
     }
 }
 
+/// What laying out a notebook's pages one under another needs to know about
+/// each page, without the app loading them all.
+#[derive(Debug, Clone, Serialize)]
+pub struct PageLayout {
+    pub path: String,
+    #[serde(rename = "pageId")]
+    pub page_id: String,
+    pub background: crate::model::Background,
+    /// How far right and down the page's content reaches, in page units.
+    #[serde(rename = "contentWidth")]
+    pub content_width: f64,
+    #[serde(rename = "contentHeight")]
+    pub content_height: f64,
+    /// Nothing on it: no ink, text, pictures, tables, formulas or PDF.
+    pub blank: bool,
+}
+
+impl Workspace {
+    /// Every page of a section, in order, with its extent (see PageLayout).
+    pub fn page_layouts(&self, section_dir: &Path) -> Vec<PageLayout> {
+        self.list_page_files(section_dir)
+            .into_iter()
+            .map(|f| {
+                let doc = self.read_page_lenient(&f);
+                let (w, h) = content_extent(&doc);
+                let blank = doc.strokes.is_empty()
+                    && doc.text_boxes.is_empty()
+                    && doc.images.is_empty()
+                    && doc.tables.is_empty()
+                    && doc.latex_blocks.is_empty()
+                    && !doc.background.kind.eq_ignore_ascii_case("pdf");
+                PageLayout {
+                    path: path_str(&f),
+                    page_id: doc.id.clone(),
+                    background: doc.background.clone(),
+                    content_width: w,
+                    content_height: h,
+                    blank,
+                }
+            })
+            .collect()
+    }
+}
+
+/// The furthest right and down anything on the page reaches.
+fn content_extent(doc: &PageDoc) -> (f64, f64) {
+    let (mut w, mut h) = (0.0_f64, 0.0_f64);
+    let mut reach = |x: f64, y: f64| {
+        w = w.max(x);
+        h = h.max(y);
+    };
+    for s in &doc.strokes {
+        let r = s.width.max(s.height) / 2.0;
+        for p in s.points.chunks_exact(3) {
+            reach(p[0] + r, p[1] + r);
+        }
+    }
+    for t in &doc.text_boxes {
+        reach(t.x + t.width, t.y + t.height.unwrap_or(40.0));
+    }
+    for i in &doc.images {
+        reach(i.x + i.width, i.y + i.height);
+    }
+    for t in &doc.tables {
+        let columns = t.rows.iter().map(Vec::len).max().unwrap_or(0);
+        let width: f64 = (0..columns)
+            .map(|c| t.column_widths.as_ref().and_then(|w| w.get(c)).copied().unwrap_or(140.0))
+            .sum();
+        reach(t.x + width, t.y + t.rows.len() as f64 * 30.0);
+    }
+    for l in &doc.latex_blocks {
+        reach(l.x + l.latex.len() as f64 * l.scale * 0.5, l.y + l.scale * 1.5);
+    }
+    (w, h)
+}
+
 /// One page's listing entry, read from just its header.
 fn page_info(f: &Path, section_dir: &Path) -> PageInfo {
     let header: Option<PageHeader> = read_json(f);

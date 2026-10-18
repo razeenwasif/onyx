@@ -313,6 +313,27 @@ fn library_covers_recents_and_colours() {
 }
 
 #[test]
+fn page_layouts_report_extent_and_blankness() {
+    let (_d, ws) = temp_ws();
+    let nb = ws.create_notebook("Uni").unwrap();
+    let sec = ws.create_section(&nb, "Lectures").unwrap();
+    let empty = ws.create_page(&sec, "Empty").unwrap();
+    let inked = ws.create_page(&sec, "Inked").unwrap();
+    let mut doc = ws.read_page(&inked).unwrap();
+    doc.strokes = vec![Stroke { width: 4.0, height: 4.0, points: vec![10.0, 20.0, 0.5, 900.0, 1500.0, 0.5], ..Stroke::default() }];
+    ws.write_page(&inked, &mut doc).unwrap();
+
+    let layouts = ws.page_layouts(&sec);
+    assert_eq!(layouts.len(), 2);
+    assert_eq!(layouts[0].path, empty.to_string_lossy());
+    assert!(layouts[0].blank);
+    assert!(!layouts[1].blank);
+    assert_eq!(layouts[1].page_id, doc.id);
+    assert_eq!(layouts[1].content_width, 902.0);
+    assert_eq!(layouts[1].content_height, 1502.0);
+}
+
+#[test]
 fn starter_is_created_once() {
     let (_d, ws) = temp_ws();
     assert!(ws.ensure_starter().unwrap().is_some());

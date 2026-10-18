@@ -28,9 +28,11 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
     private let scroll = UIScrollView()
     private let page = PageView()
     private var shownPageID: String?
+    private let pen: PenInput
 
     init(store: Store) {
         self.store = store
+        pen = PenInput(store: store)
         super.init(frame: .zero)
         backgroundColor = Velvet.backdrop
 
@@ -46,7 +48,9 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
         addSubview(topHint)
         addSubview(bottomHint)
 
-        page.input = self
+        page.pen = pen
+        pen.zoom = { [weak self] in self?.scroll.zoomScale ?? 1 }
+        pen.pencilSeen = { [weak self] in self?.configureGestures() }
         let pencil = UIPencilInteraction(delegate: self)
         addInteraction(pencil)
 
@@ -57,6 +61,20 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        // Once in the window the navigation controller can be found.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, window != nil else { return }
+            blockSwipeBack(true)
+        }
+    }
+
+    override func willMove(toWindow newWindow: UIWindow?) {
+        super.willMove(toWindow: newWindow)
+        if newWindow == nil { blockSwipeBack(false) }
+    }
 
     func configureGestures() {
         let fingers = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
@@ -159,7 +177,7 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
 
     func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
         followsFit = scale <= scroll.minimumZoomScale * 1.01
-        wetScale = scale * traitCollection.displayScale
+        pen.wetScale = scale * traitCollection.displayScale
     }
 
     // ------------------------------------------------------------ content
@@ -204,104 +222,6 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
         fitZoom()
     }
 
-    // -------------------------------------------------------------- input
-
-    private var active: UITouch?
-    private var points: [Double] = []
-    private var wet: CAShapeLayer?
-    private var wetScale: CGFloat = 2
-    private var erasedThisDrag = false
-    private var eraserRadius: Double { 6 / max(Double(scroll.zoomScale), 0.5) }
-
-    private func accepts(_ touch: UITouch) -> Bool {
-        touch.type == .pencil || (store.fingerDraws && touch.type == .direct)
-    }
-
-    fileprivate func penBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard active == nil, store.doc != nil, let touch = touches.first(where: accepts) else { return }
-        if touch.type == .pencil, store.fingerDraws {
-            // A Pencil is here: from now on fingers scroll.
-            store.fingerDraws = false
-            configureGestures()
-        }
-        active = touch
-        erasedThisDrag = false
-        points = []
-        if store.tool.isInk {
-            let layer = CAShapeLayer()
-            layer.contentsScale = wetScale
-            layer.fillRule = .nonZero
-            layer.fillColor = InkPaint.color(hex: store.currentPen.color, highlighter: store.currentPen.highlighter)
-            page.layer.addSublayer(layer)
-            wet = layer
-        }
-        moved(touch, event)
-    }
-
-    fileprivate func penMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let active, touches.contains(active) else { return }
-        moved(active, event)
-    }
-
-    fileprivate func penEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let active, touches.contains(active) else { return }
-        moved(active, event)
-        finish(commit: true)
-    }
-
-    fileprivate func penCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let active, touches.contains(active) else { return }
-        finish(commit: false)
-    }
-
-    private func moved(_ touch: UITouch, _ event: UIEvent?) {
-        let samples = event?.coalescedTouches(for: touch) ?? [touch]
-        for t in samples {
-            let p = t.preciseLocation(in: page)
-            if store.tool.isEraser {
-                if store.erase(at: p, radius: eraserRadius, recordUndo: !erasedThisDrag) { erasedThisDrag = true }
-            } else {
-                points += [p.x, p.y, pressure(t)]
-            }
-        }
-        guard let wet, points.count >= 3 else { return }
-        let pen = store.currentPen
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        wet.path = Core.outlinePath(points: points, width: pen.width, pressureSensitive: pen.pressureSensitive, fit: true, taper: false)
-        CATransaction.commit()
-    }
-
-    /// Pencil force as 0…1. Everyday handwriting presses at only a fifth to
-    /// a third of the Pencil's range, so the curve lifts it: a normal hand
-    /// lands around 0.75, and pressing harder still swells the line.
-    /// Fingers have no pressure and write at 0.75 too.
-    private func pressure(_ t: UITouch) -> Double {
-        guard t.type == .pencil, t.maximumPossibleForce > 0 else { return 0.75 }
-        let force = min(1, Double(t.force / t.maximumPossibleForce))
-        return min(1, 0.35 + 0.9 * pow(force, 0.6))
-    }
-
-    private func finish(commit: Bool) {
-        active = nil
-        if commit, store.tool.isInk, points.count >= 3 {
-            // A tap leaves a dot.
-            if points.count == 3 { points += [points[0] + 0.1, points[1], points[2]] }
-            let pen = store.currentPen
-            store.add(StrokeDTO(
-                color: pen.color, width: pen.width, height: pen.width, tip: "ellipse",
-                highlighter: pen.highlighter, fit: true, pressureSensitive: pen.pressureSensitive, points: points
-            ))
-        }
-        points = []
-        // The page tile draws the stroke a moment later; keep the wet copy
-        // until then so it doesn't blink.
-        if let wet {
-            DispatchQueue.main.asyncAfter(deadline: .now() + (commit ? 0.35 : 0)) { wet.removeFromSuperlayer() }
-        }
-        wet = nil
-    }
-
     /// Double-tap on the Pencil: swap between the eraser and the pen.
     func pencilInteraction(_ interaction: UIPencilInteraction, didReceiveTap tap: UIPencilInteraction.Tap) {
         store.tool = store.tool.isEraser ? .pen : .strokeEraser
@@ -325,11 +245,17 @@ final class PageView: UIView {
 
         @MainActor
         init(store: Store) {
-            guard let doc = store.doc else { return }
-            let section = store.pageSectionPath
+            guard let doc = store.doc else {
+                self.init()
+                return
+            }
+            self.init(doc: doc, sectionPath: store.pageSectionPath, ink: store.ink)
+        }
+
+        init(doc: PageDoc, sectionPath section: String, ink: [Ink]) {
             background = doc.background
             pdf = PDFBackground.page(for: doc.background, sectionPath: section)
-            ink = store.ink
+            self.ink = ink
             texts = doc.textBoxes
             latex = doc.latexBlocks
             tables = doc.tables
@@ -341,7 +267,9 @@ final class PageView: UIView {
         }
     }
 
-    fileprivate weak var input: CanvasView?
+    weak var pen: PenInput?
+    /// The page file shown, in the continuous canvas.
+    var path: String?
     private let lock = NSLock()
     private var content = Content()
 
@@ -361,6 +289,13 @@ final class PageView: UIView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    /// What the view shows now.
+    var currentContent: Content? {
+        lock.lock()
+        defer { lock.unlock() }
+        return content
+    }
 
     func update(_ change: (inout Content) -> Void) {
         lock.lock()
@@ -498,10 +433,10 @@ final class PageView: UIView {
 
     // Writing goes to the canvas; touches it doesn't want fall through to
     // the scroll view as usual.
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) { input?.penBegan(touches, with: event) }
-    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) { input?.penMoved(touches, with: event) }
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) { input?.penEnded(touches, with: event) }
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { input?.penCancelled(touches, with: event) }
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) { pen?.began(touches, with: event, on: self) }
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) { pen?.moved(touches, with: event) }
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) { pen?.ended(touches, with: event) }
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { pen?.cancelled(touches, with: event) }
 }
 
 /// The small "Pull for a new page" label shown while pulling past an end.

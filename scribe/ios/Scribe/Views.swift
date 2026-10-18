@@ -165,7 +165,14 @@ struct WritingView: View {
                     }
                 )
             } else if store.doc != nil {
-                PageCanvas(store: store, pageID: store.doc?.id, fingerDraws: store.fingerDraws)
+                Group {
+                    if store.continuous {
+                        NotebookCanvasView(store: store, layoutVersion: store.layoutVersion, scrollTarget: store.scrollTarget,
+                                           pagePath: store.pagePath, fingerDraws: store.fingerDraws)
+                    } else {
+                        PageCanvas(store: store, pageID: store.doc?.id, fingerDraws: store.fingerDraws)
+                    }
+                }
                     .ignoresSafeArea(edges: .bottom)
                     // Writing near the screen's edges comes before the
                     // system's edge swipes.
@@ -178,7 +185,23 @@ struct WritingView: View {
         }
         .navigationTitle(store.showingGrid ? (store.section?.name ?? "All Pages") : (store.doc?.title ?? ""))
         .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if store.tabs.count > 1 { NotebookTabs(store: store) }
+        }
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Toggle(isOn: $store.continuous) {
+                        Label("Scroll Through Pages", systemImage: "arrow.up.and.down.text.horizontal")
+                    }
+                    Toggle(isOn: $store.fingerDraws) {
+                        Label("Draw with Finger", systemImage: "hand.draw")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityLabel("Page options")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     withAnimation(.spring(duration: 0.3)) { store.toggleGrid() }
@@ -190,6 +213,52 @@ struct WritingView: View {
             }
         }
         .modifier(RenameTitleMenu(store: store, prompt: $prompt))
+    }
+}
+
+/// The notebooks you have open, one tap apart.
+struct NotebookTabs: View {
+    let store: Store
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(store.tabs, id: \.self) { path in
+                    if let notebook = store.notebook(at: path) {
+                        tab(notebook, current: path == store.pageSectionPath)
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+        }
+        .background(Color.velvetBackdrop)
+    }
+
+    private func tab(_ notebook: SectionInfo, current: Bool) -> some View {
+        HStack(spacing: 6) {
+            Circle().fill(CoverColor.color(notebook.color)).frame(width: 7, height: 7)
+            Text(notebook.name).font(.footnote.weight(current ? .semibold : .regular)).lineLimit(1)
+            if current {
+                Button {
+                    store.closeTab(notebook.path)
+                } label: {
+                    Image(systemName: "xmark").font(.caption2.weight(.bold))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close \(notebook.name)")
+            }
+        }
+        .foregroundStyle(current ? Color(uiColor: Velvet.text) : Color.velvetMuted)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(current ? Color(uiColor: Velvet.control) : Color(uiColor: Velvet.sidebar), in: Capsule())
+        .contentShape(Capsule())
+        .onTapGesture { if !current { store.openNotebook(notebook) } }
+        .contextMenu {
+            Button("Close Tab", systemImage: "xmark") { store.closeTab(notebook.path) }
+        }
+        .accessibilityAddTraits(current ? [.isButton, .isSelected] : .isButton)
     }
 }
 
