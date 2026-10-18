@@ -205,6 +205,81 @@ final class Store {
         }
     }
 
+    // ----------------------------------------------------------- page grid
+
+    /// The section's pages as thumbnails, in place of the open page.
+    var showingGrid = false
+
+    var rootPath: String { root?.path ?? "" }
+
+    func toggleGrid() {
+        if showingGrid {
+            showingGrid = false
+            return
+        }
+        flush()
+        // The grid shows the open page's own section.
+        if pagePath != nil, sectionPath != pageSectionPath { sectionPath = pageSectionPath } else { reloadPages() }
+        showingGrid = true
+    }
+
+    func openFromGrid(_ page: PageInfo) {
+        showingGrid = false
+        if page.path != pagePath { openPage(page.path) }
+    }
+
+    func toggleStar(_ page: PageInfo) {
+        do {
+            try Core.run("set_bookmarked", ["path": page.path, "bookmarked": !page.isBookmarked])
+            reloadPages()
+        } catch {
+            problem = "Could not star the page: \(error.localizedDescription)"
+        }
+    }
+
+    /// Puts the section's pages in `paths` order, after a drag in the grid.
+    func setPageOrder(_ paths: [String]) {
+        guard let sectionPath else { return }
+        let byPath = Dictionary(uniqueKeysWithValues: pages.map { ($0.path, $0) })
+        pages = paths.compactMap { byPath[$0] }
+        do {
+            try Core.run("set_page_order", ["section": sectionPath, "paths": paths])
+        } catch {
+            problem = "Could not reorder pages: \(error.localizedDescription)"
+        }
+    }
+
+    /// Deletes a page to Recently Deleted (iCloud Drive's, in the Files app),
+    /// or, where the system has no bin for the folder, to the workspace's own
+    /// `.scribe/Recently Deleted` folder.
+    func deletePage(_ page: PageInfo) {
+        let wasOpen = page.path == pagePath
+        let index = pages.firstIndex(of: page)
+        if wasOpen { flush() }
+        let url = URL(fileURLWithPath: page.path)
+        do {
+            do {
+                try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+            } catch {
+                guard let root else { throw error }
+                let bin = root.appendingPathComponent(".scribe/Recently Deleted", isDirectory: true)
+                try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+                let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+                try FileManager.default.moveItem(at: url, to: bin.appendingPathComponent("\(stamp) \(url.lastPathComponent)"))
+            }
+            try Core.run("forget_page", ["section": page.sectionPath, "path": page.path])
+        } catch {
+            problem = "Could not delete the page: \(error.localizedDescription)"
+        }
+        refresh()
+        guard wasOpen else { return }
+        if let index, !pages.isEmpty {
+            openPage(pages[min(index, pages.count - 1)].path)
+        } else {
+            closePage()
+        }
+    }
+
     // ------------------------------------------- notebooks, sections, names
 
     /// A new section (a folder of pages) at the end of `notebook`, opened.

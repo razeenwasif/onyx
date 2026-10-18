@@ -135,8 +135,13 @@ struct PageInfo: Codable, Identifiable, Hashable {
     var modified: Double
     /// The start of the page's typed text.
     var snippet: String
+    /// The page's own id (the file's `id`), for caches such as thumbnails.
+    var pageId: String?
+    /// Starred in the page grid.
+    var bookmarked: Bool?
 
     var id: String { path }
+    var isBookmarked: Bool { bookmarked ?? false }
 
     var modifiedDate: Date? { modified > 0 ? Date(timeIntervalSince1970: modified) : nil }
 }

@@ -64,13 +64,23 @@ pub struct PageInfo {
     pub modified: f64,
     /// The start of the page's typed text, for previews.
     pub snippet: String,
+    /// The page's own `id` (empty for a page without one), for keying
+    /// caches such as thumbnails.
+    #[serde(rename = "pageId")]
+    pub page_id: String,
+    /// Starred, to find again in the page grid.
+    pub bookmarked: bool,
 }
 
 /// Just enough of a page to list it, without building its ink in memory.
 #[derive(Deserialize)]
 struct PageHeader {
     #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
     title: Option<String>,
+    #[serde(default)]
+    bookmarked: Option<bool>,
     #[serde(default)]
     modified: Option<String>,
     #[serde(default, rename = "textBoxes")]
@@ -104,6 +114,8 @@ struct PageSearchView {
     text_boxes: Vec<SearchText>,
     #[serde(default)]
     tables: Vec<SearchTable>,
+    #[serde(default)]
+    bookmarked: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -243,9 +255,15 @@ impl Workspace {
             .into_iter()
             .map(|f| {
                 let header: Option<PageHeader> = read_json(&f);
-                let (title, modified, snippet) = match header {
-                    Some(h) => (h.title, h.modified, snippet_of(h.text_boxes.iter().map(|t| t.text.as_str()))),
-                    None => (None, None, String::new()),
+                let (title, modified, snippet, id, bookmarked) = match header {
+                    Some(h) => (
+                        h.title,
+                        h.modified,
+                        snippet_of(h.text_boxes.iter().map(|t| t.text.as_str())),
+                        h.id.unwrap_or_default(),
+                        h.bookmarked.unwrap_or(false),
+                    ),
+                    None => (None, None, String::new(), String::new(), false),
                 };
                 PageInfo {
                     title: title.unwrap_or_else(|| file_stem(&f)),
@@ -253,6 +271,8 @@ impl Workspace {
                     path: path_str(&f),
                     section_path: path_str(section_dir),
                     snippet,
+                    page_id: id,
+                    bookmarked,
                 }
             })
             .collect()
@@ -339,6 +359,20 @@ impl Workspace {
             fs::remove_file(file).map_err(|e| io_err("Could not delete", file, e))?;
         }
         self.forget_page(section_dir, file)
+    }
+
+    /// Stars or unstars a page. Only that one field changes: the page's
+    /// `modified` stamp stays, since starring isn't an edit.
+    pub fn set_bookmarked(&self, file: &Path, on: bool) -> Result<()> {
+        let text = fs::read_to_string(file).map_err(|e| io_err("Could not read", file, e))?;
+        let mut page: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+        let obj = page.as_object_mut().ok_or("Not a Scribe page")?;
+        if on {
+            obj.insert("bookmarked".into(), serde_json::Value::Bool(true));
+        } else {
+            obj.remove("bookmarked");
+        }
+        write_json(file, &page)
     }
 
     /// Replaces the section's page order, e.g. after a drag in the page list.
@@ -464,6 +498,8 @@ impl Workspace {
                             section_path: path_str(&sec),
                             modified: parse_stamp(view.modified.as_deref()),
                             snippet,
+                            page_id: view.id.clone().unwrap_or_default(),
+                            bookmarked: view.bookmarked.unwrap_or(false),
                         });
                     }
                 }

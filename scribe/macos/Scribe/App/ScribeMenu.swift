@@ -66,6 +66,7 @@ public enum ScribeMenu {
                 item("Toggle Sidebar", .toggleSidebar, "Ctrl+Cmd+S"),
                 item("Toggle Pages", .togglePages, "Ctrl+Cmd+P"),
                 item("Focus on Page", .toggleFocus, "Cmd+\\"),
+                item("All Pages", .pageGrid, "Cmd+Shift+G"),
             ]],
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: menus),

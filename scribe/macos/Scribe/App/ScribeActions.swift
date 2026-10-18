@@ -13,7 +13,7 @@ enum ScribeAction: Hashable {
     case heading(HeadingPreset)
     case tool(ToolKind)
     case zoomIn, zoomOut, actualSize, fitWidth
-    case toggleSidebar, togglePages, toggleFocus
+    case toggleSidebar, togglePages, toggleFocus, pageGrid
 
     /// The name a host uses for this action, e.g. "newPage" or "tool:pen".
     var id: String {
@@ -40,7 +40,7 @@ enum ScribeAction: Hashable {
             .insertTable, .insertEquation, .insertImage,
             .bold, .italic, .underline, .strikethrough, .bigger, .smaller,
             .zoomIn, .zoomOut, .actualSize, .fitWidth,
-            .toggleSidebar, .togglePages, .toggleFocus,
+            .toggleSidebar, .togglePages, .toggleFocus, .pageGrid,
         ]
         guard let match = simple.first(where: { $0.id == id }) else { return nil }
         self = match
@@ -115,6 +115,8 @@ enum ScribeAction: Hashable {
             app.pageListCollapsed.toggle()
         case .toggleFocus:
             withAnimation(.spring(duration: 0.35)) { app.focusMode.toggle() }
+        case .pageGrid:
+            withAnimation(.spring(duration: 0.3)) { app.togglePageGrid() }
         }
     }
 

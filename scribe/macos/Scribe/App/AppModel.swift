@@ -12,6 +12,8 @@ public final class AppModel {
     var selectedSectionPath: String?
     var pages: [PageInfo] = []
     var selectedPagePath: String?
+    /// The section's pages as a grid of thumbnails, in place of the editor.
+    var showingPageGrid = false
 
     var searchText = "" {
         didSet { scheduleSearch() }
@@ -342,6 +344,51 @@ public final class AppModel {
             try Core.run("set_page_order", ["section": sec, "paths": pages.map(\.path)])
         } catch {
             show(error, title: "Could not reorder pages")
+        }
+    }
+
+    // ------------------------------------------------------------ page grid
+
+    func togglePageGrid() {
+        if showingPageGrid {
+            showingPageGrid = false
+            return
+        }
+        commitOpenPage()
+        reloadPages()
+        focusMode = false
+        showingPageGrid = true
+    }
+
+    func openFromGrid(_ info: PageInfo) {
+        showingPageGrid = false
+        if page?.path != info.path { openPage(info.path) }
+    }
+
+    func toggleBookmark(_ info: PageInfo) {
+        do {
+            try Core.run("set_bookmarked", ["path": info.path, "bookmarked": !info.isBookmarked])
+            reloadPages()
+        } catch {
+            show(error, title: "Could not star the page")
+        }
+    }
+
+    /// Puts the section's pages in `paths` order, after a drag in the grid.
+    func setPageOrder(_ paths: [String]) {
+        guard let sec = selectedSectionPath else { return }
+        let byPath = Dictionary(uniqueKeysWithValues: pages.map { ($0.path, $0) })
+        pages = paths.compactMap { byPath[$0] }
+        do {
+            try Core.run("set_page_order", ["section": sec, "paths": paths])
+        } catch {
+            show(error, title: "Could not reorder pages")
+        }
+    }
+
+    func promptRename(_ info: PageInfo) {
+        prompt = PromptInfo(title: "Rename Page", label: "Page title", text: info.title, confirm: "Rename") { [weak self] in
+            self?.renamePage(info, to: $0)
         }
     }
 

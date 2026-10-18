@@ -58,6 +58,44 @@ final class CoreBridgeTests: XCTestCase {
         let hits: [PageInfo] = try Core.call("search", ["root": dir.path, "query": "THERE"])
         XCTAssertEqual(hits.map(\.path), [file])
     }
+
+    func testStarsAndThumbnails() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("scribe-tests-\(newID())")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        _ = try Core.call("create_notebook", ["root": dir.path, "name": "NB", "firstSection": "S"], as: String.self)
+        let tree: [NotebookInfo] = try Core.call("tree", ["root": dir.path])
+        let section = try XCTUnwrap(tree.first?.sections.first)
+        let file: String = try Core.call("create_page", ["section": section.path, "title": "Ink"])
+
+        // A thick cream diagonal across the page.
+        var doc: PageDoc = try Core.call("read_page", ["path": file])
+        doc.strokes = [StrokeDTO(width: 30, height: 30, points: [100, 100, 1, 740, 1000, 1])]
+        let _: WriteResult = try Core.call("write_page", ["path": file, "page": try Core.json(doc)])
+
+        try Core.run("set_bookmarked", ["path": file, "bookmarked": true])
+        let page = try XCTUnwrap((try Core.call("pages", ["section": section.path], as: [PageInfo].self)).first)
+        XCTAssertTrue(page.isBookmarked)
+        XCTAssertEqual(page.pageId, doc.id)
+
+        let image = await Thumbnails.shared.image(for: page, root: dir.path)
+        let thumb = try XCTUnwrap(image)
+        XCTAssertEqual(thumb.width, Thumbnails.pixelWidth)
+        XCTAssertEqual(thumb.height, Int((1188.0 * Double(Thumbnails.pixelWidth) / 840).rounded()))
+
+        // The middle of the stroke is ink, far brighter than the dark paper.
+        let gray = CGContext(data: nil, width: thumb.width, height: thumb.height, bitsPerComponent: 8, bytesPerRow: thumb.width,
+                             space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)!
+        gray.draw(thumb, in: CGRect(x: 0, y: 0, width: thumb.width, height: thumb.height))
+        let pixels = gray.data!.assumingMemoryBound(to: UInt8.self)
+        // The stroke's midpoint, (420, 550) on the page, at thumbnail scale.
+        let scale = Double(Thumbnails.pixelWidth) / 840
+        let mid = Int(550 * scale) * thumb.width + Int(420 * scale)
+        XCTAssertGreaterThan(pixels[mid], 150)
+        XCTAssertLessThan(pixels[thumb.width * 4 + thumb.width - 4], 60)
+
+        let cached = dir.appendingPathComponent(".scribe/thumbs.nosync/\(doc.id).png")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cached.path))
+    }
 }
 
 final class RichTextTests: XCTestCase {

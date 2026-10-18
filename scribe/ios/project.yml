@@ -33,6 +33,8 @@ targets:
       - path: ../macos/Scribe/Core/Model.swift
       - path: ../macos/Scribe/Core/Tools.swift
       - path: ../macos/Scribe/Page/PDFBackground.swift
+      - path: ../macos/Scribe/Core/Thumbnails.swift
+      - path: ../macos/Scribe/Views/PageGrid.swift
     preBuildScripts:
       - name: Build the Rust core
         basedOnDependencyAnalysis: false

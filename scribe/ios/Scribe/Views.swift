@@ -152,6 +152,9 @@ struct PageList: View {
             }
             .tag(page.path)
             .contextMenu {
+                Button(page.isBookmarked ? "Unstar" : "Star", systemImage: page.isBookmarked ? "star.slash" : "star") {
+                    store.toggleStar(page)
+                }
                 Button("Rename…", systemImage: "pencil") {
                     prompt = NamePrompt(kind: .page(page.path), initial: page.title)
                 }
@@ -180,7 +183,25 @@ struct WritingView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             Color.velvetBackdrop.ignoresSafeArea()
-            if store.doc != nil {
+            if store.showingGrid {
+                PageGrid(
+                    pages: store.pages,
+                    root: store.rootPath,
+                    currentPath: store.pagePath,
+                    style: .init(ground: .velvetBackdrop, text: Color(uiColor: Velvet.text), muted: .velvetMuted, accent: .velvetAccent, control: Color(uiColor: Velvet.control)),
+                    minWidth: 150,
+                    deleteNote: "It moves to Recently Deleted, so you can get it back.",
+                    open: { store.openFromGrid($0) },
+                    reorder: { store.setPageOrder($0) },
+                    toggleStar: { store.toggleStar($0) },
+                    rename: { prompt = NamePrompt(kind: .page($0.path), initial: $0.title) },
+                    delete: { store.deletePage($0) },
+                    add: {
+                        store.showingGrid = false
+                        store.newPage()
+                    }
+                )
+            } else if store.doc != nil {
                 PageCanvas(store: store, pageID: store.doc?.id, fingerDraws: store.fingerDraws)
                     .ignoresSafeArea(edges: .bottom)
                     // Writing near the screen's edges comes before the
@@ -192,14 +213,38 @@ struct WritingView: View {
                 ContentUnavailableView("No Page Open", systemImage: "pencil.and.scribble", description: Text("Pick a page to write on."))
             }
         }
-        .navigationTitle(store.doc?.title ?? "")
+        .navigationTitle(store.showingGrid ? (store.section?.name ?? "All Pages") : (store.doc?.title ?? ""))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarTitleMenu {
-            if let path = store.pagePath {
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    withAnimation(.spring(duration: 0.3)) { store.toggleGrid() }
+                } label: {
+                    Image(systemName: store.showingGrid ? "square.grid.2x2.fill" : "square.grid.2x2")
+                }
+                .accessibilityLabel(store.showingGrid ? "Back to the page" : "All pages")
+                .disabled(store.pagePath == nil && store.sectionPath == nil)
+            }
+        }
+        .modifier(RenameTitleMenu(store: store, prompt: $prompt))
+    }
+}
+
+/// Tapping the open page's title offers Rename. Left off while the grid
+/// shows, where the title names the section instead.
+private struct RenameTitleMenu: ViewModifier {
+    let store: Store
+    @Binding var prompt: NamePrompt?
+
+    func body(content: Content) -> some View {
+        if let path = store.pagePath, !store.showingGrid {
+            content.toolbarTitleMenu {
                 Button("Rename…", systemImage: "pencil") {
                     prompt = NamePrompt(kind: .page(path), initial: store.doc?.title ?? "")
                 }
             }
+        } else {
+            content
         }
     }
 }

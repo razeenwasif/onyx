@@ -1,0 +1,253 @@
+import CoreGraphics
+import CoreText
+import Foundation
+import ImageIO
+import PDFKit
+import UniformTypeIdentifiers
+
+/// Small pictures of pages, for the page grid. Shared by the Mac app (and so
+/// Scribe inside Electron) and the iPad app, which draw them identically.
+///
+/// A thumbnail is the page as it looks on the dark velvet paper: rules or
+/// PDF, pictures, typed text and ink. Thumbnails are cached on disk in the
+/// workspace's `.scribe/thumbs.nosync/` folder, one PNG per page id. iCloud
+/// Drive skips anything ending in `.nosync`, so each device keeps its own
+/// cache and nothing extra syncs. A cached thumbnail is used while it is
+/// newer than its page file; otherwise the page is drawn again.
+final class Thumbnails: @unchecked Sendable {
+    static let shared = Thumbnails()
+
+    /// Width of a thumbnail in pixels: sharp in a grid cell at 2× without
+    /// costing much to draw or keep.
+    static let pixelWidth = 320
+
+    private let work = OperationQueue()
+    private let memory = NSCache<NSString, CGImage>()
+    private let lock = NSLock()
+    private var waiting: [String: [(CGImage?) -> Void]] = [:]
+
+    private init() {
+        work.name = "Scribe thumbnails"
+        work.maxConcurrentOperationCount = 2
+        work.qualityOfService = .utility
+        memory.countLimit = 400
+    }
+
+    /// The page's thumbnail, drawn or read from the cache off the main thread.
+    func image(for page: PageInfo, root: String) async -> CGImage? {
+        let key = Self.key(page)
+        let memoryKey = "\(key)@\(page.modified)" as NSString
+        if let hit = memory.object(forKey: memoryKey) { return hit }
+        return await withCheckedContinuation { done in
+            lock.lock()
+            if waiting[memoryKey as String] != nil {
+                waiting[memoryKey as String]?.append { done.resume(returning: $0) }
+                lock.unlock()
+                return
+            }
+            waiting[memoryKey as String] = [{ done.resume(returning: $0) }]
+            lock.unlock()
+
+            work.addOperation { [self] in
+                let image = Self.cachedOrDrawn(page, key: key, root: root)
+                if let image { memory.setObject(image, forKey: memoryKey) }
+                lock.lock()
+                let callbacks = waiting.removeValue(forKey: memoryKey as String) ?? []
+                lock.unlock()
+                callbacks.forEach { $0(image) }
+            }
+        }
+    }
+
+    private static func key(_ page: PageInfo) -> String {
+        if let id = page.pageId, !id.isEmpty { return id }
+        // A page without an id still gets a stable name from its path.
+        return String(page.path.utf8.reduce(UInt64(1469598103934665603)) { ($0 ^ UInt64($1)) &* 1099511628211 }, radix: 16)
+    }
+
+    private static func cachedOrDrawn(_ page: PageInfo, key: String, root: String) -> CGImage? {
+        let folder = URL(fileURLWithPath: root).appendingPathComponent(".scribe/thumbs.nosync", isDirectory: true)
+        let file = folder.appendingPathComponent("\(key).png")
+        let fm = FileManager.default
+        let pageDate = (try? fm.attributesOfItem(atPath: page.path))?[.modificationDate] as? Date
+        if let thumbDate = (try? fm.attributesOfItem(atPath: file.path))?[.modificationDate] as? Date,
+           let pageDate, thumbDate >= pageDate,
+           let source = CGImageSourceCreateWithURL(file as CFURL, nil),
+           let image = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+            return image
+        }
+
+        guard let doc = try? Core.call("read_page", ["path": page.path], as: PageDoc.self),
+              let image = render(doc, sectionPath: page.sectionPath)
+        else { return nil }
+
+        try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        if let out = CGImageDestinationCreateWithURL(file as CFURL, UTType.png.identifier as CFString, 1, nil) {
+            CGImageDestinationAddImage(out, image, nil)
+            CGImageDestinationFinalize(out)
+        }
+        return image
+    }
+
+    // ------------------------------------------------------------- drawing
+
+    private static let paper = CGColor(srgbRed: 0x1C / 255, green: 0x19 / 255, blue: 0x20 / 255, alpha: 1)
+    private static let rule = CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.05)
+    private static let margin = CGColor(srgbRed: 0xE3 / 255, green: 0x90 / 255, blue: 0x72 / 255, alpha: 0.35)
+    private static let muted = CGColor(srgbRed: 0xA6 / 255, green: 0x9D / 255, blue: 0xAB / 255, alpha: 0.5)
+
+    /// The page at thumbnail size: the standard page (or the PDF page's own
+    /// shape), with anything beyond it cut off.
+    static func render(_ doc: PageDoc, sectionPath: String) -> CGImage? {
+        let pdf = PDFBackground.page(for: doc.background, sectionPath: sectionPath)
+        let size = pdf.map { PDFBackground.size(of: $0) } ?? PDFBackground.standardSize
+        let scale = CGFloat(pixelWidth) / size.width
+        let height = Int((size.height * scale).rounded())
+        guard let ctx = CGContext(
+            data: nil, width: pixelWidth, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+
+        // Page coordinates run top-down.
+        ctx.translateBy(x: 0, y: CGFloat(height))
+        ctx.scaleBy(x: scale, y: -scale)
+        let bounds = CGRect(origin: .zero, size: size)
+        ctx.clip(to: bounds)
+        ctx.setFillColor(paper)
+        ctx.fill(bounds)
+
+        if let pdf {
+            PDFBackground.draw(pdf, in: ctx)
+        } else {
+            drawRules(doc.background, in: bounds, ctx)
+        }
+
+        let strokes = doc.strokes.filter { $0.points.count >= 3 }
+        drawInk(strokes.filter(\.highlighter), ctx)
+        for image in doc.images { drawImage(image, sectionPath: sectionPath, ctx) }
+        for table in doc.tables { drawTable(table, ctx) }
+        for box in doc.textBoxes { drawText(box, ctx) }
+        for block in doc.latexBlocks {
+            // Formulas show as a faint bar at thumbnail size.
+            ctx.setFillColor(muted)
+            let width = min(Double(block.latex.count) * block.scale * 0.45, 600)
+            ctx.fill(CGRect(x: block.x, y: block.y, width: width, height: block.scale * 0.9))
+        }
+        drawInk(strokes.filter { !$0.highlighter }, ctx)
+        return ctx.makeImage()
+    }
+
+    private static func drawRules(_ background: BackgroundDTO, in bounds: CGRect, _ ctx: CGContext) {
+        let kind = background.kind.lowercased()
+        guard kind != "blank" else { return }
+        let spacing = max(background.spacing, 4)
+        ctx.setStrokeColor(rule)
+        ctx.setFillColor(rule)
+        ctx.setLineWidth(1.6)
+        var y = spacing
+        while y < bounds.maxY {
+            if kind == "dots" {
+                var x = spacing
+                while x < bounds.maxX {
+                    ctx.fillEllipse(in: CGRect(x: x - 1.6, y: y - 1.6, width: 3.2, height: 3.2))
+                    x += spacing
+                }
+            } else {
+                ctx.move(to: CGPoint(x: 0, y: y))
+                ctx.addLine(to: CGPoint(x: bounds.maxX, y: y))
+            }
+            y += spacing
+        }
+        if kind == "grid" {
+            var x = spacing
+            while x < bounds.maxX {
+                ctx.move(to: CGPoint(x: x, y: 0))
+                ctx.addLine(to: CGPoint(x: x, y: bounds.maxY))
+                x += spacing
+            }
+        }
+        ctx.strokePath()
+        if kind == "ruled" {
+            ctx.setStrokeColor(margin)
+            ctx.move(to: CGPoint(x: spacing * 3, y: 0))
+            ctx.addLine(to: CGPoint(x: spacing * 3, y: bounds.maxY))
+            ctx.strokePath()
+        }
+    }
+
+    private static func drawInk(_ strokes: [StrokeDTO], _ ctx: CGContext) {
+        for s in strokes {
+            let path = Core.outlinePath(
+                points: s.points, width: max(s.width, s.height), pressureSensitive: s.pressureSensitive, fit: s.fit, taper: true
+            )
+            ctx.addPath(path)
+            ctx.setFillColor(color(s.color, highlighter: s.highlighter))
+            ctx.fillPath(using: .winding)
+        }
+    }
+
+    /// Ink as it shows on the dark page (black ink becomes warm cream).
+    static func color(_ hex: String, highlighter: Bool) -> CGColor {
+        var rgba = Core.adapt(Core.parseColor(hex), dark: true)
+        if highlighter { rgba = (rgba & 0xFFFF_FF00) | UInt32(Core.highlighterAlpha(dark: true)) }
+        return CGColor(
+            srgbRed: CGFloat((rgba >> 24) & 0xFF) / 255, green: CGFloat((rgba >> 16) & 0xFF) / 255,
+            blue: CGFloat((rgba >> 8) & 0xFF) / 255, alpha: CGFloat(rgba & 0xFF) / 255
+        )
+    }
+
+    private static func drawImage(_ dto: ImageDTO, sectionPath: String, _ ctx: CGContext) {
+        let url = URL(fileURLWithPath: sectionPath).appendingPathComponent(dto.file)
+        let options = [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceThumbnailMaxPixelSize: 400] as CFDictionary
+        guard dto.width > 0, dto.height > 0,
+              let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options)
+        else { return }
+        ctx.saveGState()
+        // Images draw bottom-up; flip back for this one.
+        ctx.translateBy(x: dto.x, y: dto.y + dto.height)
+        ctx.scaleBy(x: 1, y: -1)
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: dto.width, height: dto.height))
+        ctx.restoreGState()
+    }
+
+    private static func drawText(_ box: TextBoxDTO, _ ctx: CGContext) {
+        guard !box.text.isEmpty else { return }
+        var font = CTFontCreateUIFontForLanguage(.system, box.fontSize, nil) ?? CTFontCreateWithName("Helvetica" as CFString, box.fontSize, nil)
+        var traits: CTFontSymbolicTraits = []
+        if box.bold || box.heading != nil { traits.insert(.traitBold) }
+        if box.italic { traits.insert(.traitItalic) }
+        if !traits.isEmpty, let styled = CTFontCreateCopyWithSymbolicTraits(font, box.fontSize, nil, traits, traits) { font = styled }
+        let attributes: [NSAttributedString.Key: Any] = [
+            NSAttributedString.Key(kCTFontAttributeName as String): font,
+            NSAttributedString.Key(kCTForegroundColorAttributeName as String): color(box.color, highlighter: false),
+        ]
+        let setter = CTFramesetterCreateWithAttributedString(NSAttributedString(string: box.text, attributes: attributes))
+        let height = box.height ?? 4000
+        let frame = CTFramesetterCreateFrame(setter, CFRange(location: 0, length: 0), CGPath(rect: CGRect(x: 0, y: 0, width: box.width, height: height), transform: nil), nil)
+        ctx.saveGState()
+        // CoreText lays out bottom-up; flip for the box.
+        ctx.translateBy(x: box.x, y: box.y + height)
+        ctx.scaleBy(x: 1, y: -1)
+        ctx.textMatrix = .identity
+        CTFrameDraw(frame, ctx)
+        ctx.restoreGState()
+    }
+
+    private static func drawTable(_ table: TableDTO, _ ctx: CGContext) {
+        let columns = table.rows.map(\.count).max() ?? 0
+        guard columns > 0 else { return }
+        let widths = (0..<columns).map { i in table.columnWidths.flatMap { i < $0.count ? $0[i] : nil } ?? 140 }
+        ctx.setStrokeColor(muted)
+        ctx.setLineWidth(1.5)
+        var y = table.y
+        for _ in table.rows {
+            var x = table.x
+            for w in widths {
+                ctx.stroke(CGRect(x: x, y: y, width: w, height: 30))
+                x += w
+            }
+            y += 30
+        }
+    }
+}

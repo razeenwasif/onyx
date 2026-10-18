@@ -10,7 +10,9 @@ struct EditorView: View {
 
     var body: some View {
         Group {
-            if let page = app.page {
+            if app.showingPageGrid {
+                PageGridPanel(app: app)
+            } else if let page = app.page {
                 VStack(spacing: 0) {
                     if app.focusMode {
                         SlimHeader(app: app, page: page, undoManager: undoManager)
@@ -213,6 +215,12 @@ struct PageActions: View {
                 .disabled(historyTick < 0 || !(undoManager?.canRedo ?? false))
                 .help("Redo (⇧⌘Z)")
                 .accessibilityLabel("Redo")
+            Button {
+                withAnimation(.spring(duration: 0.3)) { app.togglePageGrid() }
+            } label: { Image(systemName: "square.grid.2x2") }
+                .buttonStyle(RoundButtonStyle(size: size))
+                .help("All pages (⇧⌘G)")
+                .accessibilityLabel("All pages")
             if showFocusToggle {
                 Button {
                     withAnimation(.spring(duration: 0.35)) { app.focusMode = true }
@@ -530,5 +538,53 @@ struct ZoomPill: View {
         }
         .padding(4)
         .velvetFloating()
+    }
+}
+
+/// The open section's pages as thumbnails (PageGrid), in place of the page.
+struct PageGridPanel: View {
+    @Bindable var app: AppModel
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .bottom, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(app.selectedSectionPath.map { app.sectionName(for: $0) } ?? "")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Velvet.faint)
+                        .lineLimit(1)
+                    Text("All Pages")
+                        .font(.system(size: 34, weight: .semibold))
+                }
+                Spacer(minLength: 12)
+                Button("Done") { withAnimation(.spring(duration: 0.3)) { app.showingPageGrid = false } }
+                    .keyboardShortcut(.cancelAction)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(app.page == nil && app.pages.isEmpty)
+            }
+            .padding(.horizontal, 30)
+            .padding(.top, 26)
+            .padding(.bottom, 4)
+            .contentShape(Rectangle())
+            .windowDraggable()
+
+            PageGrid(
+                pages: app.pages,
+                root: app.root,
+                currentPath: app.page?.path,
+                style: .init(ground: .clear, text: Velvet.text, muted: Velvet.muted, accent: Velvet.accent, control: Velvet.control),
+                minWidth: 150,
+                deleteNote: "It moves to the Trash.",
+                open: { app.openFromGrid($0) },
+                reorder: { app.setPageOrder($0) },
+                toggleStar: { app.toggleBookmark($0) },
+                rename: { app.promptRename($0) },
+                delete: { app.trashPage($0) },
+                add: {
+                    app.showingPageGrid = false
+                    app.newPage()
+                }
+            )
+        }
     }
 }

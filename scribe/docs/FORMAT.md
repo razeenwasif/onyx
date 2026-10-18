@@ -72,9 +72,13 @@ append-if-missing rule.
   "strokes": [ … ],
   "textBoxes": [ … ],
   "images": [ … ],
-  "source": { … }
+  "source": { … },
+  "bookmarked": true
 }
 ```
+
+`bookmarked` (optional) stars the page so the page grid can filter to starred
+pages. It is absent when unset, and changing it leaves `modified` alone.
 
 All coordinates are in **page units**, with the origin at the top-left of the
 page. One unit is one device-independent pixel on Windows and one point on

@@ -164,6 +164,11 @@ fn dispatch(req: &Value) -> R {
             Ok(Value::Null)
         }
 
+        "set_bookmarked" => {
+            ws_any().set_bookmarked(&path_arg(req, "path")?, arg::<bool>(req, "bookmarked")?)?;
+            Ok(Value::Null)
+        }
+
         "set_page_order" => {
             let paths: Vec<PathBuf> = arg::<Vec<String>>(req, "paths")?.into_iter().map(PathBuf::from).collect();
             ws_any().set_page_order(&path_arg(req, "section")?, &paths)?;

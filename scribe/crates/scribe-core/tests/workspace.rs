@@ -235,6 +235,33 @@ fn page_listings_carry_a_text_snippet() {
 }
 
 #[test]
+fn bookmarks_survive_saves_and_do_not_count_as_edits() {
+    let (_d, ws) = temp_ws();
+    let nb = ws.create_notebook("Uni").unwrap();
+    let sec = ws.create_section(&nb, "Lectures").unwrap();
+    let file = ws.create_page(&sec, "Week 1").unwrap();
+    let mut doc = ws.read_page(&file).unwrap();
+    ws.write_page(&file, &mut doc).unwrap();
+    let before = ws.read_page(&file).unwrap().modified;
+
+    ws.set_bookmarked(&file, true).unwrap();
+    let listed = &ws.list_pages(&sec)[0];
+    assert!(listed.bookmarked);
+    assert_eq!(listed.page_id, doc.id);
+    assert_eq!(ws.read_page(&file).unwrap().modified, before);
+
+    // An app that doesn't know the field saves the page: the star stays.
+    let mut edited = ws.read_page(&file).unwrap();
+    edited.extra.remove("bookmarked");
+    ws.write_page(&file, &mut edited).unwrap();
+    assert!(ws.list_pages(&sec)[0].bookmarked);
+
+    ws.set_bookmarked(&file, false).unwrap();
+    assert!(!ws.list_pages(&sec)[0].bookmarked);
+    assert!(!fs::read_to_string(&file).unwrap().contains("bookmarked"));
+}
+
+#[test]
 fn starter_is_created_once() {
     let (_d, ws) = temp_ws();
     assert!(ws.ensure_starter().unwrap().is_some());

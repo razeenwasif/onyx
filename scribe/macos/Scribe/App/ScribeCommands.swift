@@ -101,6 +101,8 @@ public struct ScribeCommands: Commands {
                 .keyboardShortcut("p", modifiers: [.command, .control])
             button(app.focusMode ? "Show Notebooks" : "Focus on Page", .toggleFocus)
                 .keyboardShortcut("\\", modifiers: .command)
+            button(app.showingPageGrid ? "Hide All Pages" : "All Pages", .pageGrid)
+                .keyboardShortcut("g", modifiers: [.command, .shift])
             Divider()
         }
     }

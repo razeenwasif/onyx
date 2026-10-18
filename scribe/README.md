@@ -206,6 +206,19 @@ the host draws its app switcher where the window's traffic lights would be (Elec
 hides them), and nothing else about the interface changes. `../desktop/scripts/build-scribe.sh`
 builds and stages it.
 
+## All pages
+
+The grid button by a page's title (or View → All Pages, ⇧⌘G, on the Mac) shows every
+page in the section as thumbnails. Tap one to open it, drag a page onto another to move
+it there, and use a page's menu to star, rename or delete it. "Starred" lists starred
+pages only. The grid is one SwiftUI view (`macos/Scribe/Views/PageGrid.swift`) shared by
+the Mac app, Scribe inside Electron, and the iPad.
+
+Thumbnails are drawn by `macos/Scribe/Core/Thumbnails.swift` on both platforms and cached
+in the notebook folder's `.scribe/thumbs.nosync/`, one PNG per page. iCloud Drive leaves
+`.nosync` folders alone, so each device keeps its own cache. Delete the folder any time;
+it is rebuilt as pages are shown.
+
 ## On the iPad
 
 `ios/` is a companion app for the iPad, laid out for the iPad mini. It uses the same Rust
