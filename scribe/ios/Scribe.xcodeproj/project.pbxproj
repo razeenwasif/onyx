@@ -14,11 +14,13 @@
 		315A05C01E7BCA99ECB13EE6 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB911B4EFF147E75B54578F /* EditorView.swift */; };
 		43BB0BFB7503B1DE63C79456 /* ImportPopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1B97368B968B9EA7A98E4E /* ImportPopup.swift */; };
 		584F21555D252EB26E2C8877 /* VaultStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7DFDBF4CEADE100F11DF80B /* VaultStore.swift */; };
+		5A9C5A62BB1B39E868FAC2A7 /* GraphSim.swift in Sources */ = {isa = PBXBuildFile; fileRef = 693BBEB08977D11534B0D382 /* GraphSim.swift */; };
 		613A1427114AF6DF93EA473F /* Markdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59DF6175F65D66837FB70317 /* Markdown.swift */; };
 		731E1662D1413CD10AF0EE2A /* Inline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A2318E4D0EAAB9072D2E57F /* Inline.swift */; };
 		73EAA4B79C3F9F00519C6A2A /* ElectronViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C13920EAFF24E0A57E26E1BB /* ElectronViews.swift */; };
 		7A96DE04F655CEAF1AC10883 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F50B0C1B73148655154DC4C /* Store.swift */; };
 		83E8088CA8239F35669B8A17 /* NotebookCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E3CA41C98CC4FBC7E26526 /* NotebookCanvas.swift */; };
+		9991CF0E5D8130ADD7B0753B /* GraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F77458CD35B81A7CABDC943 /* GraphView.swift */; };
 		9D728A0825C40292DF904968 /* MathRender.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CA4FDBB9E32D7DCC80A445A /* MathRender.swift */; };
 		A7ACA6CFC92A5C3FBDD8A401 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8650DE64B4BDACE4CDCEC84F /* Assets.xcassets */; };
 		ADACD8FF4CE1B4FE9FFAC5DF /* ElectronTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B61DB841BDDBE4F762558DF /* ElectronTheme.swift */; };
@@ -31,6 +33,7 @@
 		D4A6DD7A8D98E8CB3119B1F8 /* PDFBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9017CAEE01B5AC8085F73E9 /* PDFBackground.swift */; };
 		DE1FECFCBE5F19EBAA62AC7E /* PageGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = A01DAF81BFF5F19B0C8A8E66 /* PageGrid.swift */; };
 		E05B9C001E4E76D6CF053D77 /* PageCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E90B89CCA9C197405CACDA /* PageCanvas.swift */; };
+		EA54154DE4F69B7068F389CB /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E06CAE16DB036846B944DEB /* CalendarView.swift */; };
 		F16F173277BCC63E26C15691 /* NoteParse.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB33200061EAB3BA677755CF /* NoteParse.swift */; };
 		F244FA5829D8033601AB3D02 /* Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BE1E6F13ED1FC990425AA82 /* Library.swift */; };
 		F6131F4DB4683F5D8D5AB0AC /* InkReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21A1816517869BFE33A8CD79 /* InkReader.swift */; };
@@ -44,6 +47,7 @@
 		10075054A2E953FD835C1284 /* Thumbnails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Thumbnails.swift; sourceTree = "<group>"; };
 		11345C81116DC36BA7419B25 /* Scribe.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Scribe.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		21A1816517869BFE33A8CD79 /* InkReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InkReader.swift; sourceTree = "<group>"; };
+		2F77458CD35B81A7CABDC943 /* GraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphView.swift; sourceTree = "<group>"; };
 		3ECB559B954847D3FD91E918 /* PenInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PenInput.swift; sourceTree = "<group>"; };
 		45F59826CA139258AB536628 /* Velvet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Velvet.swift; sourceTree = "<group>"; };
 		4A2318E4D0EAAB9072D2E57F /* Inline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Inline.swift; sourceTree = "<group>"; };
@@ -53,7 +57,9 @@
 		5BE1E6F13ED1FC990425AA82 /* Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
 		5F50B0C1B73148655154DC4C /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
 		60E1FAA8E2DD1D5F03EB5B57 /* Core.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core.swift; sourceTree = "<group>"; };
+		693BBEB08977D11534B0D382 /* GraphSim.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphSim.swift; sourceTree = "<group>"; };
 		6B61DB841BDDBE4F762558DF /* ElectronTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElectronTheme.swift; sourceTree = "<group>"; };
+		6E06CAE16DB036846B944DEB /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
 		6E329633AFA168D7DC1B4E70 /* Model.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model.swift; sourceTree = "<group>"; };
 		70E3CA41C98CC4FBC7E26526 /* NotebookCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookCanvas.swift; sourceTree = "<group>"; };
 		8650DE64B4BDACE4CDCEC84F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -196,9 +202,12 @@
 		ED9162FCB1E62E8334F7F70A /* Electron */ = {
 			isa = PBXGroup;
 			children = (
+				6E06CAE16DB036846B944DEB /* CalendarView.swift */,
 				AEB911B4EFF147E75B54578F /* EditorView.swift */,
 				6B61DB841BDDBE4F762558DF /* ElectronTheme.swift */,
 				C13920EAFF24E0A57E26E1BB /* ElectronViews.swift */,
+				693BBEB08977D11534B0D382 /* GraphSim.swift */,
+				2F77458CD35B81A7CABDC943 /* GraphView.swift */,
 				4A2318E4D0EAAB9072D2E57F /* Inline.swift */,
 				59DF6175F65D66837FB70317 /* Markdown.swift */,
 				0CA4FDBB9E32D7DCC80A445A /* MathRender.swift */,
@@ -309,11 +318,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				208107C86710E02C5C10FAFC /* AppSwitcher.swift in Sources */,
+				EA54154DE4F69B7068F389CB /* CalendarView.swift in Sources */,
 				C0AC686D602BDD92D5E4FE0C /* Core.swift in Sources */,
 				315A05C01E7BCA99ECB13EE6 /* EditorView.swift in Sources */,
 				ADACD8FF4CE1B4FE9FFAC5DF /* ElectronTheme.swift in Sources */,
 				73EAA4B79C3F9F00519C6A2A /* ElectronViews.swift in Sources */,
 				FFB1C571B5B76C90F0C6AE97 /* FolderAccess.swift in Sources */,
+				5A9C5A62BB1B39E868FAC2A7 /* GraphSim.swift in Sources */,
+				9991CF0E5D8130ADD7B0753B /* GraphView.swift in Sources */,
 				43BB0BFB7503B1DE63C79456 /* ImportPopup.swift in Sources */,
 				F6131F4DB4683F5D8D5AB0AC /* InkReader.swift in Sources */,
 				731E1662D1413CD10AF0EE2A /* Inline.swift in Sources */,

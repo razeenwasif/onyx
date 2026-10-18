@@ -305,9 +305,13 @@ lists on with Return, has formatting keys above the keyboard (⌘B, ⌘I, ⌘K) 
 notes after `[[`. Either way you stay at the same place in the note. Links open their note
 (a missing one is created, as in Obsidian), and the end of each note lists its backlinks.
 The sidebar has recent notes, the file tree and search; its **⋯** menu has the desktop's
-Todo list (`.onyx/todos.md`) and tags. Renaming a note rewrites links to it, and deleting
-moves it to the vault's `.trash` folder. The graph, calendar, canvases and AI are still
-desktop-only.
+Todo list (`.onyx/todos.md`), tags, today's note (⇧⌘D), a calendar of daily notes
+(`Daily/YYYY-MM-DD.md`, as the desktop names them) and the graph (⌘G). The graph uses the
+desktop's layout (tag nodes, pastel tag colours, tag families gathered into continents, a
+round edge): drag to move, pinch to zoom, tap a dot to see it and open it. A note's **⋯**
+menu has its local graph, one to three links deep. Renaming a note rewrites links to it,
+and deleting moves it to the vault's `.trash` folder. Canvases, the database view and AI
+are still desktop-only.
 
 To install it for free, open `ios/Scribe.xcodeproj` in Xcode, add your Apple ID under
 Settings → Accounts, choose your team under Signing & Capabilities, plug in the iPad and

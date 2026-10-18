@@ -83,6 +83,8 @@ private struct ElectronMain: View {
     @State private var deleting: String?
     @State private var showingTodos = false
     @State private var showingTags = false
+    @State private var showingCalendar = false
+    @State private var graphFocus: GraphFocus?
     @State private var picking = false
 
     var body: some View {
@@ -96,6 +98,10 @@ private struct ElectronMain: View {
                         Menu {
                             Button("New Note", systemImage: "square.and.pencil") { store.newNote(in: folderForNew) }
                             Button("New Folder…", systemImage: "folder.badge.plus") { ask = NameAsk(kind: .newFolder(parent: ""), text: "") }
+                            Divider()
+                            Button("Today's Note", systemImage: "sun.max") { store.openDaily() }
+                            Button("Daily Notes…", systemImage: "calendar") { showingCalendar = true }
+                            Button("Graph", systemImage: "point.3.connected.trianglepath.dotted") { graphFocus = GraphFocus(rel: nil) }
                             Divider()
                             Button("Todos", systemImage: "checklist") { showingTodos = true }
                             Button("Tags", systemImage: "number") { showingTags = true }
@@ -112,7 +118,7 @@ private struct ElectronMain: View {
                     }
                 }
         } detail: {
-            NoteDetail(store: store, ask: { ask = $0 }, delete: { deleting = $0 })
+            NoteDetail(store: store, ask: { ask = $0 }, delete: { deleting = $0 }, graph: { graphFocus = GraphFocus(rel: $0) })
         }
         .navigationSplitViewStyle(.balanced)
         .searchable(text: $query, placement: .sidebar, prompt: "Search notes")
@@ -145,6 +151,13 @@ private struct ElectronMain: View {
             Text("It goes to the .trash folder in the vault, where the desktop can restore it.")
         }
         .sheet(isPresented: $showingTodos) { TodoSheet(store: store) }
+        .sheet(isPresented: $showingCalendar) { CalendarSheet(store: store) }
+        .fullScreenCover(item: $graphFocus) { focus in GraphScreen(store: store, focus: focus.rel) }
+        .background {
+            // Keyboard: today's note and the graph, as on the desktop.
+            Button("Today's Note") { store.openDaily() }.keyboardShortcut("d", modifiers: [.command, .shift]).hidden()
+            Button("Graph") { graphFocus = GraphFocus(rel: nil) }.keyboardShortcut("g", modifiers: .command).hidden()
+        }
         .sheet(isPresented: $showingTags) { TagSheet(store: store, start: nil) }
         .sheet(item: Binding(get: { store.tagFilter.map(TagPick.init) }, set: { store.tagFilter = $0?.tag })) { pick in
             TagSheet(store: store, start: pick.tag)
@@ -152,6 +165,11 @@ private struct ElectronMain: View {
         .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result { store.choose(url) }
         }
+    }
+
+    private struct GraphFocus: Identifiable {
+        let rel: String?
+        var id: String { rel ?? "" }
     }
 
     private struct TagPick: Identifiable {
@@ -280,6 +298,7 @@ private struct NoteDetail: View {
     @Bindable var store: VaultStore
     let ask: (NameAsk) -> Void
     let delete: (String) -> Void
+    let graph: (String) -> Void
     @State private var bridge = EditorBridge()
     @State private var showingOutline = false
 
@@ -341,6 +360,9 @@ private struct NoteDetail: View {
                         .keyboardShortcut("e", modifiers: .command)
                     }
                     Menu {
+                        if VaultNode.kind(of: rel) == .note {
+                            Button("Local Graph", systemImage: "point.3.connected.trianglepath.dotted") { graph(rel) }
+                        }
                         Button("Rename…", systemImage: "pencil") {
                             ask(NameAsk(kind: .rename(rel: rel), text: (((rel as NSString).lastPathComponent) as NSString).deletingPathExtension))
                         }

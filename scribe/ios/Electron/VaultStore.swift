@@ -618,6 +618,34 @@ final class VaultStore {
         refresh()
     }
 
+    // MARK: Daily notes
+
+    /// Where daily notes go and how they're named, as the desktop's defaults
+    /// (Settings → Daily notes: folder "Daily", "YYYY-MM-DD").
+    static let dailyFolder = "Daily"
+
+    static func dailyName(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: date)
+    }
+
+    static func dailyPath(_ date: Date) -> String {
+        (dailyFolder as NSString).appendingPathComponent(dailyName(date) + ".md")
+    }
+
+    /// Opens the day's note, making it (as the desktop does) if it's new.
+    func openDaily(_ date: Date = Date()) {
+        let rel = Self.dailyPath(date)
+        if files[rel] == nil {
+            guard create(rel, text: "# \(Self.dailyName(date))\n\n") else { return }
+            mode = .editing
+        }
+        show(rel)
+    }
+
     // MARK: Search
 
     struct Hit: Identifiable, Sendable {
