@@ -99,6 +99,10 @@ cp -R "$APP_BUILD_DIR" "$DEST_APP"
 echo "Clearing quarantine attributes..."
 xattr -cr "$DEST_APP" 2>/dev/null || true
 xattr -dr com.apple.quarantine "$DEST_APP" 2>/dev/null || true
+# Seal the whole bundle with an ad-hoc signature. The packager signs nothing
+# for local builds (see "identity" in package.json), which leaves only the
+# Electron binary's own signature and an unsealed bundle.
+codesign --force --deep --sign - "$DEST_APP" >/dev/null 2>&1 || true
 touch "$DEST_APP"
 
 # Link CLI
