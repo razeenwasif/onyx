@@ -83,6 +83,12 @@ append-if-missing rule.
 }
 ```
 
+`layout` (optional, `"canvas"`) marks a page without fixed paper, such as one
+imported from OneNote: apps open it at a readable zoom, scroll it sideways, and grow
+it as you write past an edge. OneNote imports also record `source.app: "onenote"`
+and the OneNote page id; `.scribe/onenote-import.json` maps those ids to page files
+so a second import skips pages it already brought in.
+
 `bookmarked` (optional) stars the page so the page grid can filter to starred
 pages. It is absent when unset, and changing it leaves `modified` alone.
 

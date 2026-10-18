@@ -39,7 +39,8 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
 
         scroll.delegate = self
         scroll.delaysContentTouches = false
-        scroll.showsHorizontalScrollIndicator = false
+        scroll.showsHorizontalScrollIndicator = true
+        scroll.isDirectionalLockEnabled = true
         scroll.indicatorStyle = .white
         scroll.contentInsetAdjustmentBehavior = .never
         scroll.contentInset = UIEdgeInsets(top: 16, left: 0, bottom: 120, right: 0)
@@ -102,10 +103,13 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
     /// four times that.
     private func fitZoom() {
         guard bounds.width > 0, page.bounds.width > 0 else { return }
-        let fit = (bounds.width - 24) / page.bounds.width
-        scroll.minimumZoomScale = fit
-        scroll.maximumZoomScale = fit * 4
-        if followsFit || scroll.zoomScale < fit { scroll.zoomScale = fit }
+        // A standard page's width fills the screen; wider canvas pages
+        // scroll sideways, and pinching out shows their whole width.
+        let whole = (bounds.width - 24) / page.bounds.width
+        let readable = (bounds.width - 24) / min(page.bounds.width, PDFBackground.standardSize.width)
+        scroll.minimumZoomScale = whole
+        scroll.maximumZoomScale = readable * 4
+        if followsFit || scroll.zoomScale < whole { scroll.zoomScale = readable }
         centre()
     }
 
@@ -179,7 +183,8 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
     private var followsFit = true
 
     func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
-        followsFit = scale <= scroll.minimumZoomScale * 1.01
+        let readable = (bounds.width - 24) / min(max(page.bounds.width, 1), PDFBackground.standardSize.width)
+        followsFit = abs(scale - readable) <= readable * 0.01
         pen.wetScale = scale * traitCollection.displayScale
     }
 
@@ -213,7 +218,7 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
         page.setNeedsDisplay()
         if first {
             followsFit = true
-            scroll.zoomScale = scroll.minimumZoomScale
+            fitZoom()
             scroll.contentOffset = CGPoint(x: -scroll.contentInset.left, y: -scroll.contentInset.top)
         }
     }

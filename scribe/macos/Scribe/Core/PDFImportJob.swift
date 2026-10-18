@@ -15,8 +15,10 @@ final class ImportProgress {
     }
 
     var phase: Phase = .reading
-    /// The file being imported, without its extension.
+    /// The file (or OneNote section) being imported.
     var file = ""
+    /// What the steps are called: a "file", or a "notebook" from OneNote.
+    var unit = "file"
     /// Which file of how many.
     var fileIndex = 0
     var fileCount = 0

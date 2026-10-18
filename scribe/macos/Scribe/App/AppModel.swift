@@ -737,11 +737,13 @@ struct PromptInfo: Identifiable {
 enum SheetKind: Identifiable {
     case latex(LatexItem?)
     case table
+    case oneNote
 
     var id: String {
         switch self {
         case .latex(let item): "latex-\(item?.dto.id ?? "new")"
         case .table: "table"
+        case .oneNote: "onenote"
         }
     }
 }

@@ -328,6 +328,9 @@ pub struct PageLayout {
     pub content_height: f64,
     /// Nothing on it: no ink, text, pictures, tables, formulas or PDF.
     pub blank: bool,
+    /// A canvas page (`layout: "canvas"`, e.g. from OneNote): no fixed
+    /// paper size; it grows as you write past an edge.
+    pub canvas: bool,
 }
 
 impl Workspace {
@@ -351,6 +354,7 @@ impl Workspace {
                     content_width: w,
                     content_height: h,
                     blank,
+                    canvas: doc.extra.get("layout").and_then(|v| v.as_str()) == Some("canvas"),
                 }
             })
             .collect()

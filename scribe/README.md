@@ -186,6 +186,26 @@ PDF first (Share → Export → PDF). Its handwriting arrives as part of the pag
 rather than as editable strokes, but Scribe reads it, along with any typed
 text, so search finds it.
 
+## Importing from OneNote
+
+File → **Import from OneNote…** (on the Mac, and in Scribe inside Electron) brings your
+OneNote notebooks across with handwriting, typed text, pictures and tables where they
+were. Each OneNote notebook becomes a folder and each section a notebook (sections in a
+section group are named "Group – Section").
+
+Scribe reads OneNote through Microsoft's web API with a temporary key from Microsoft's
+**Graph Explorer**, so there is no app to register: open Graph Explorer (the sheet has a
+button), sign in, run any OneNote query once so it asks for **Notes.Read**, then copy
+the key from the **Access token** tab and click Continue. Scribe takes the key from the
+clipboard, clears it, and never stores it. The key lasts about an hour; if it runs out
+part way, copy a fresh one and import again: pages already brought in are skipped
+(`.scribe/onenote-import.json` remembers them).
+
+OneNote pages have no fixed size, so they come in as **canvas pages**: they keep their
+full width, open at a readable zoom with sideways scrolling, grow as you write past an
+edge, and show their whole width in thumbnails. Attachments and audio aren't imported.
+The conversion lives in `crates/scribe-core/src/onenote.rs`.
+
 ## Searching handwriting
 
 Search finds written words as well as typed ones. Scribe reads each page's ink
@@ -298,6 +318,6 @@ changing `ios/project.yml`, regenerate the project with `xcodegen` in `ios/`. Th
 
 ## Known gaps
 
-- Importing straight from OneNote needs the Windows version: OneNote for Mac
-  has no API that exposes ink. Notebooks imported there open here unchanged.
+- OneNote attachments, audio and embedded files aren't imported, and pictures or tables
+  inside a text block are placed by estimate below the text before them.
 - Handwriting is read for search, but there is no "convert to typed text" command yet.

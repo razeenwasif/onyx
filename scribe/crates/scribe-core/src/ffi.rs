@@ -155,6 +155,16 @@ fn dispatch(req: &Value) -> R {
             Ok(Value::Null)
         }
 
+        "onenote_import_page" => {
+            let body = std::fs::read_to_string(path_arg(req, "bodyPath")?).map_err(|e| e.to_string())?;
+            let content_type: String = arg(req, "contentType")?;
+            let page_id: String = arg(req, "pageId")?;
+            let w = ws(req)?;
+            Ok(json!(crate::onenote::import_page(&w, &path_arg(req, "section")?, &body, &content_type, &page_id)?))
+        }
+
+        "onenote_imported_ids" => Ok(json!(crate::onenote::imported_ids(&ws(req)?))),
+
         "page_layouts" => {
             Ok(json!(ws_any().page_layouts(&path_arg(req, "section")?)))
         }

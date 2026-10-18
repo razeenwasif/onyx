@@ -280,7 +280,12 @@ final class Store {
         var contentWidth: Double
         var contentHeight: Double
         var blank: Bool
+        var canvas: Bool?
     }
+
+    /// Room a canvas page keeps beyond its content, so there's always space
+    /// to carry on writing to the right and below.
+    static let canvasRoom = CGSize(width: 400, height: 600)
 
     /// Every page of the open notebook, in order, with what laying them out needs.
     func pageLayouts() -> [PageLayout] {
@@ -294,7 +299,9 @@ final class Store {
         let section = (layout.path as NSString).deletingLastPathComponent
         var size = PDFBackground.standardSize
         if let pdf = PDFBackground.page(for: layout.background, sectionPath: section) { size = PDFBackground.size(of: pdf) }
-        return CGSize(width: max(size.width, ceil(layout.contentWidth + 24)), height: max(size.height, ceil(layout.contentHeight + 24)))
+        let room = layout.canvas == true ? Self.canvasRoom : CGSize(width: 24, height: 24)
+        return CGSize(width: max(size.width, ceil(layout.contentWidth + room.width)),
+                      height: max(size.height, ceil(layout.contentHeight + room.height)))
     }
 
     /// What a page that isn't the one being edited looks like.
@@ -778,7 +785,24 @@ final class Store {
             extent = extent.union(CGRect(x: t.x, y: t.y, width: t.width, height: t.height ?? 40))
         }
         for i in doc?.images ?? [] { extent = extent.union(CGRect(x: i.x, y: i.y, width: i.width, height: i.height)) }
+        if doc?.isCanvas == true {
+            // Canvas pages keep room to carry on writing (see canvasRoom).
+            extent.size.width += Self.canvasRoom.width
+            extent.size.height += Self.canvasRoom.height
+        }
         pageSize = CGSize(width: ceil(extent.maxX), height: ceil(extent.maxY))
+    }
+
+    /// A canvas page grows once writing nears its right or bottom edge.
+    private func growCanvas(for bounds: CGRect) {
+        guard doc?.isCanvas == true else { return }
+        let near = bounds.maxX > pageSize.width - Self.canvasRoom.width / 2
+            || bounds.maxY > pageSize.height - Self.canvasRoom.height / 2
+        guard near else { return }
+        measurePage()
+        // The continuous canvas sizes pages from the saved files.
+        flush()
+        layoutVersion += 1
     }
 
     // ----------------------------------------------------------------- ink
@@ -789,6 +813,7 @@ final class Store {
         ink.append(item)
         inkChanged?(item.bounds)
         changed()
+        growCanvas(for: item.bounds)
     }
 
     /// Removes the strokes under `point` (page units). True when any went.

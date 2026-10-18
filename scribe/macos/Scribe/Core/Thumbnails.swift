@@ -100,7 +100,13 @@ final class Thumbnails: @unchecked Sendable {
     /// shape), with anything beyond it cut off.
     static func render(_ doc: PageDoc, sectionPath: String) -> CGImage? {
         let pdf = PDFBackground.page(for: doc.background, sectionPath: sectionPath)
-        let size = pdf.map { PDFBackground.size(of: $0) } ?? PDFBackground.standardSize
+        var size = pdf.map { PDFBackground.size(of: $0) } ?? PDFBackground.standardSize
+        if doc.isCanvas {
+            // A canvas page shows its whole width, page-shaped from the top,
+            // so writing that runs off to the right isn't cropped away.
+            let width = max(size.width, contentRight(doc) + 24)
+            size = CGSize(width: width, height: width * size.height / size.width)
+        }
         let scale = CGFloat(pixelWidth) / size.width
         let height = Int((size.height * scale).rounded())
         guard let ctx = CGContext(
@@ -135,6 +141,19 @@ final class Thumbnails: @unchecked Sendable {
         }
         drawInk(strokes.filter { !$0.highlighter }, ctx)
         return ctx.makeImage()
+    }
+
+    /// How far right the page's content reaches.
+    private static func contentRight(_ doc: PageDoc) -> CGFloat {
+        var right: CGFloat = 0
+        for s in doc.strokes {
+            let pad = max(s.width, s.height) / 2
+            for i in stride(from: 0, to: s.points.count - 2, by: 3) { right = max(right, s.points[i] + pad) }
+        }
+        for t in doc.textBoxes { right = max(right, t.x + t.width) }
+        for i in doc.images { right = max(right, i.x + i.width) }
+        for t in doc.tables { right = max(right, t.x + CGFloat((t.columnWidths ?? []).reduce(0, +))) }
+        return right
     }
 
     private static func drawRules(_ background: BackgroundDTO, in bounds: CGRect, _ ctx: CGContext) {

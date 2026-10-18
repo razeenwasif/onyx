@@ -27,6 +27,7 @@ public struct ScribeCommands: Commands {
             button("Show Library in Finder", .revealFolder)
             Divider()
             button("Import PDF or Goodnotes…", .importPDF)
+            button("Import from OneNote…", .importOneNote)
                 .keyboardShortcut("i", modifiers: [.command, .shift])
         }
 

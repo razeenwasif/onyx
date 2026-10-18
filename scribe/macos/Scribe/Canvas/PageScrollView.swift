@@ -129,7 +129,9 @@ final class PageScrollView: NSScrollView {
 
     private func applyFit() {
         guard autoFit, contentView.frame.width > 80 else { return }
-        let docWidth = page.pageSize.width + Self.pageMargin * 2
+        // A wide canvas page fits a standard page's width; scroll for the rest.
+        let width = page.isCanvas ? min(page.pageSize.width, PDFBackground.standardSize.width) : page.pageSize.width
+        let docWidth = width + Self.pageMargin * 2
         let target = min(1, contentView.frame.width / docWidth).clamped(minMagnification, maxMagnification)
         guard abs(target - magnification) > 0.002 else { return }
         let top = contentView.bounds.minY

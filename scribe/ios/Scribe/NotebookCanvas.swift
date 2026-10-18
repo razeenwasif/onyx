@@ -61,7 +61,8 @@ final class NotebookCanvas: UIView, UIScrollViewDelegate, UIPencilInteractionDel
 
         scroll.delegate = self
         scroll.delaysContentTouches = false
-        scroll.showsHorizontalScrollIndicator = false
+        scroll.showsHorizontalScrollIndicator = true
+        scroll.isDirectionalLockEnabled = true
         scroll.indicatorStyle = .white
         scroll.contentInsetAdjustmentBehavior = .never
         scroll.contentInset = UIEdgeInsets(top: 16, left: 0, bottom: 120, right: 0)
@@ -156,9 +157,11 @@ final class NotebookCanvas: UIView, UIScrollViewDelegate, UIPencilInteractionDel
         var width: CGFloat = PDFBackground.standardSize.width
         let sized = layouts.map { ($0, store.size(of: $0)) }
         for (_, size) in sized { width = max(width, size.width) }
+        // Pages line up on the left: a wide canvas page runs off to the
+        // right, where you scroll to it, and the rest stay where you read.
         slots = sized.map { layout, size in
             defer { y += size.height + gap }
-            return Slot(layout: layout, frame: CGRect(x: (width - size.width) / 2, y: y, width: size.width, height: size.height))
+            return Slot(layout: layout, frame: CGRect(x: 0, y: y, width: size.width, height: size.height))
         }
         let total = CGSize(width: width, height: max(y - gap, 1))
 
@@ -175,13 +178,21 @@ final class NotebookCanvas: UIView, UIScrollViewDelegate, UIPencilInteractionDel
         updateVisible()
     }
 
+    /// Zooms so a standard page's width fills the screen, readable even
+    /// when a canvas page is far wider (scroll sideways to see the rest);
+    /// pinching out goes as far as the whole width.
     private func fitZoom() {
         guard bounds.width > 0, stack.bounds.width > 0 else { return }
-        let fit = (bounds.width - 24) / stack.bounds.width
-        scroll.minimumZoomScale = fit
-        scroll.maximumZoomScale = fit * 4
-        if followsFit || scroll.zoomScale < fit { scroll.zoomScale = fit }
+        let whole = (bounds.width - 24) / stack.bounds.width
+        let readable = (bounds.width - 24) / min(stack.bounds.width, PDFBackground.standardSize.width)
+        scroll.minimumZoomScale = whole
+        scroll.maximumZoomScale = readable * 4
+        if followsFit || scroll.zoomScale < whole { scroll.zoomScale = readable }
         centre()
+    }
+
+    private var readableZoom: CGFloat {
+        (bounds.width - 24) / min(max(stack.bounds.width, 1), PDFBackground.standardSize.width)
     }
 
     private func centre() {
@@ -198,7 +209,7 @@ final class NotebookCanvas: UIView, UIScrollViewDelegate, UIPencilInteractionDel
     }
 
     func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
-        followsFit = scale <= scroll.minimumZoomScale * 1.01
+        followsFit = abs(scale - readableZoom) <= readableZoom * 0.01
         pen.wetScale = scale * traitCollection.displayScale
     }
 

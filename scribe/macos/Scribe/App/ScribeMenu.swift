@@ -31,6 +31,7 @@ public enum ScribeMenu {
                 item("Show Library in Finder", .revealFolder),
                 separator,
                 item("Import PDF or Goodnotes…", .importPDF, "Cmd+Shift+I"),
+                item("Import from OneNote…", .importOneNote),
                 separator,
                 item("Save", .save, "Cmd+S"),
             ]],

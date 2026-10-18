@@ -93,10 +93,12 @@ struct ImportPopup: View {
     private var detail: String {
         switch progress.phase {
         case .reading:
-            progress.fileCount > 1 ? "File \(progress.fileIndex + 1) of \(progress.fileCount)" : "Opening the PDF…"
+            progress.fileCount > 1
+                ? "\(progress.unit.capitalized) \(progress.fileIndex + 1) of \(progress.fileCount)"
+                : (progress.unit == "file" ? "Opening the PDF…" : "Fetching the page list…")
         case .pages:
             "Page \(progress.page) of \(progress.pageCount)"
-                + (progress.fileCount > 1 ? " · file \(progress.fileIndex + 1) of \(progress.fileCount)" : "")
+                + (progress.fileCount > 1 ? " · \(progress.unit) \(progress.fileIndex + 1) of \(progress.fileCount)" : "")
         case .done:
             progress.pagesMade == 1 ? "1 page, ready to write on" : "\(progress.pagesMade) pages, ready to write on"
         case .failed(let message):

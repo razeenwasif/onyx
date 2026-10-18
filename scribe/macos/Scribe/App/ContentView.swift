@@ -50,6 +50,7 @@ public struct ContentView: View {
             switch kind {
             case .latex(let item): LatexSheet(app: app, editing: item)
             case .table: TableSheet(app: app)
+            case .oneNote: OneNoteImportSheet(app: app)
             }
         }
         .overlay {

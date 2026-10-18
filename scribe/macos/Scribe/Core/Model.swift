@@ -18,6 +18,11 @@ struct PageDoc: Codable {
     var latexBlocks: [LatexDTO] = []
     var tables: [TableDTO] = []
     var source: SourceDTO?
+    /// "canvas" for a page without fixed paper (imported from OneNote): it
+    /// grows as you write past an edge. Absent for ordinary pages.
+    var layout: String?
+
+    var isCanvas: Bool { layout == "canvas" }
 }
 
 struct BackgroundDTO: Codable, Equatable {

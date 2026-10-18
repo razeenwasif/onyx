@@ -69,6 +69,9 @@ final class PageModel {
     func moved(to newPath: String) { path = newPath }
 
     var createdStamp: String? { base.created }
+    /// A page without fixed paper (imported from OneNote), opened at a
+    /// readable zoom rather than shrunk to its whole width.
+    var isCanvas: Bool { base.isCanvas }
 
     func toDoc() -> PageDoc {
         var doc = base
