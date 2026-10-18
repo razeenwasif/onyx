@@ -97,6 +97,12 @@ struct SelectionPill: View {
     var body: some View {
         HStack(spacing: 2) {
             action("Copy", symbol: "doc.on.doc") { app.copySelection() }
+                .help("Copy (⌘C)")
+            action("Cut", symbol: "scissors") {
+                app.copySelection()
+                page.deleteSelection()
+            }
+            .help("Cut (⌘X)")
             action("Duplicate", symbol: "plus.square.on.square") { app.duplicateSelection() }
             action("Link", symbol: "link") { app.copyLink() }
                 .help("Copy a link to this area, to paste into a note (⌥⌘L)")

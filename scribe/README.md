@@ -329,8 +329,11 @@ Folders and notebooks are made from the library (the **⋯** menu, the **+** in 
 the dashed tiles). To rename a page, tap the open page's title, or long-press it in the
 page grid. You get the pen, the highlighter, the stroke
 eraser, the lasso, the Mac's ink colours, three nib sizes and undo. Tap with two fingers
-to undo and three to redo. The lasso selects writing to move, recolour (tap a colour) or
-delete. The **⋯** menu sets the page's paper and line spacing, and new pages in that
+to undo and three to redo. The lasso selects writing to move, recolour (tap a colour),
+copy, cut or delete; with the lasso out and writing copied, **Paste** drops it in the middle
+of the screen, selected (⌘C, ⌘X and ⌘V work with a keyboard). Copied writing pastes on the
+Mac too, and the Mac's on the iPad. When scrolling through pages, drag a selection across
+the gap onto the next or previous page and it moves there; one undo puts it back. The **⋯** menu sets the page's paper and line spacing, and new pages in that
 notebook follow.
 
 The library's search finds titles, typed text and handwriting; the iPad reads handwriting

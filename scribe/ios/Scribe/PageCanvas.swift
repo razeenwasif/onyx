@@ -62,6 +62,10 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
         addInteraction(pencil)
 
         store.inkChanged = { [weak self] area in self?.inkChanged(area) }
+        store.visibleCentre = { [weak self] in
+            guard let self else { return nil }
+            return self.scroll.convert(CGPoint(x: self.scroll.bounds.midX, y: self.scroll.bounds.midY), to: self.page)
+        }
         configureGestures()
         reloadIfNeeded()
     }
@@ -218,7 +222,7 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
 
     private func redraw(_ area: CGRect?) {
         if let area {
-            page.update { $0.ink = store.ink }
+            page.update { $0.ink = store.visibleInk }
             resize()
             page.setNeedsDisplay(area)
             return
@@ -281,7 +285,7 @@ final class PageView: UIView {
                 self.init()
                 return
             }
-            self.init(doc: doc, sectionPath: store.pageSectionPath, ink: store.ink)
+            self.init(doc: doc, sectionPath: store.pageSectionPath, ink: store.visibleInk)
         }
 
         init(doc: PageDoc, sectionPath section: String, ink: [Ink]) {

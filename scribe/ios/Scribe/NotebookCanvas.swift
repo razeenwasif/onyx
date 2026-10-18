@@ -84,7 +84,52 @@ final class NotebookCanvas: UIView, UIScrollViewDelegate, UIPencilInteractionDel
         }
         addInteraction(UIPencilInteraction(delegate: self))
         store.inkChanged = { [weak self] area in self?.inkChanged(area) }
+        store.pageRewritten = { [weak self] path in self?.pageRewritten(path) }
+        store.visibleCentre = { [weak self] in self?.visibleCentre }
+        pen.floatHost = { [weak self] in self?.stack.layer }
+        pen.dropSelection = { [weak self] page, dx, dy in self?.drop(from: page, dx: dx, dy: dy) }
         configureGestures()
+    }
+
+    // ------------------------------------------------- moving writing about
+
+    /// Lands a dragged selection on the page under its middle: the page it
+    /// came from, or the next or previous one (or any other it was carried to).
+    private func drop(from page: PageView, dx: Double, dy: Double) {
+        guard let source = page.path, let from = slots.first(where: { $0.layout.path == source }),
+              let bounds = store.selectionBounds else {
+            store.dropSelection(dx: dx, dy: dy)
+            return
+        }
+        let y = from.frame.minY + bounds.midY + dy
+        let target = slots.first { y < $0.frame.maxY + gap / 2 } ?? slots[slots.count - 1]
+        if target.layout.path == source {
+            store.dropSelection(dx: dx, dy: dy)
+        } else {
+            store.moveSelection(toPage: target.layout.path,
+                                dx: dx + from.frame.minX - target.frame.minX,
+                                dy: dy + from.frame.minY - target.frame.minY)
+        }
+    }
+
+    /// Another page's file changed under us (writing moved off it, or an
+    /// undo of that): draw it afresh.
+    private func pageRewritten(_ path: String) {
+        cache[path] = nil
+        guard path != store.pagePath, let view = views[path] else { return }
+        let content = store.content(of: path)
+        cache[path] = content
+        view.update { $0 = content ?? PageView.Content() }
+        view.setNeedsDisplay()
+    }
+
+    /// The middle of the screen on the page being written on, in its units,
+    /// for pasting.
+    private var visibleCentre: CGPoint? {
+        guard let path = store.pagePath, let slot = slots.first(where: { $0.layout.path == path }) else { return nil }
+        let mid = scroll.convert(CGPoint(x: scroll.bounds.midX, y: scroll.bounds.midY), to: stack)
+        return CGPoint(x: min(max(mid.x - slot.frame.minX, 40), slot.frame.width - 40),
+                       y: min(max(mid.y - slot.frame.minY, 40), slot.frame.height - 40))
     }
 
     @available(*, unavailable)
@@ -197,6 +242,8 @@ final class NotebookCanvas: UIView, UIScrollViewDelegate, UIPencilInteractionDel
         scroll.contentSize = CGSize(width: total.width * zoom, height: total.height * zoom)
         fitZoom()
         updateVisible()
+        // The selection's outline lived on a page view that's just gone.
+        pen.refreshSelection()
     }
 
     /// Zooms so a standard page's width fills the screen, readable even
@@ -305,7 +352,7 @@ final class NotebookCanvas: UIView, UIScrollViewDelegate, UIPencilInteractionDel
         shownActive = path
         guard let view = views[path] else { return }
         if let area {
-            view.update { $0.ink = store.ink }
+            view.update { $0.ink = store.visibleInk }
             view.setNeedsDisplay(area)
         } else {
             view.update { $0 = PageView.Content(store: store) }

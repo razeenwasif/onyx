@@ -18,6 +18,13 @@ final class PenInput {
     var wetScale: CGFloat = 2
     /// The page view showing the store's page, for the selection outline.
     var activePage: () -> PageView? = { nil }
+    /// A layer above every page, in the same units as the pages' frames,
+    /// to drag a selection in so it can cross onto another page (the
+    /// continuous canvas). Without one, a selection moves on its page.
+    var floatHost: () -> CALayer? = { nil }
+    /// A dragged selection was let go: the page it came from and how far
+    /// it moved, in page units. The canvas lands it on the page under it.
+    var dropSelection: ((PageView, Double, Double) -> Void)?
 
     /// With the lasso: drawing a loop, or dragging the selection.
     private enum Lasso { case drawing, moving }
@@ -25,6 +32,9 @@ final class PenInput {
     private var lassoLayer: CAShapeLayer?
     private var lastPoint: CGPoint?
     private var firstMove = true
+    /// A selection being dragged above the pages, and where the drag began.
+    private var floating: FloatingInkLayer?
+    private var dragStart: CGPoint?
     private let selectionLayer: CAShapeLayer = {
         let layer = CAShapeLayer()
         layer.fillColor = Velvet.accent.withAlphaComponent(0.07).cgColor
@@ -160,6 +170,22 @@ final class PenInput {
             lasso = .moving
             lastPoint = p
             firstMove = true
+            if let host = floatHost(), dropSelection != nil {
+                // Lift it off the page, which clips what it draws, so it
+                // can be carried across the gap onto another page.
+                let layer = FloatingInkLayer(ink: store.selectedInk, area: bounds.insetBy(dx: -10, dy: -10),
+                                             scale: min(wetScale, 6), zoom: Double(zoom()))
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                layer.frame = layer.area.offsetBy(dx: page.frame.minX, dy: page.frame.minY)
+                layer.zPosition = 10
+                host.addSublayer(layer)
+                CATransaction.commit()
+                floating = layer
+                dragStart = p
+                store.liftSelection()
+                selectionLayer.removeFromSuperlayer()
+            }
             return
         }
         store.clearSelection()
@@ -187,6 +213,15 @@ final class PenInput {
             lassoLayer?.path = path
             CATransaction.commit()
         case .moving:
+            if let floating, let start = dragStart, let page {
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                floating.frame.origin = CGPoint(x: page.frame.minX + floating.area.minX + p.x - start.x,
+                                                y: page.frame.minY + floating.area.minY + p.y - start.y)
+                CATransaction.commit()
+                lastPoint = p
+                return
+            }
             guard let last = lastPoint else { return }
             store.moveSelection(dx: p.x - last.x, dy: p.y - last.y, first: firstMove)
             firstMove = false
@@ -200,6 +235,19 @@ final class PenInput {
     private func endLasso(commit: Bool) {
         if lasso == .drawing, commit, points.count >= 6 {
             store.select(lasso: points)
+        }
+        if let layer = floating {
+            floating = nil
+            let moved = commit ? (lastPoint ?? .zero) : (dragStart ?? .zero)
+            let start = dragStart ?? .zero
+            dragStart = nil
+            if let page, let dropSelection {
+                dropSelection(page, moved.x - start.x, moved.y - start.y)
+            } else {
+                store.dropSelection(dx: 0, dy: 0)
+            }
+            // Removed once the page has drawn the writing where it landed.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { layer.removeFromSuperlayer() }
         }
         lassoLayer?.removeFromSuperlayer()
         lassoLayer = nil
@@ -224,6 +272,52 @@ final class PenInput {
         selectionLayer.lineDashPattern = [NSNumber(value: 6 / z), NSNumber(value: 5 / z)]
         selectionLayer.path = CGPath(roundedRect: bounds.insetBy(dx: -8, dy: -8), cornerWidth: 10, cornerHeight: 10, transform: nil)
         CATransaction.commit()
+    }
+}
+
+/// A selection being dragged: its strokes drawn once into a layer that
+/// moves with the pen, above every page, with the selection's outline.
+final class FloatingInkLayer: CALayer {
+    /// The selection's area on its page, in page units.
+    let area: CGRect
+    private let ink: [Ink]
+    private let zoom: Double
+
+    init(ink: [Ink], area: CGRect, scale: CGFloat, zoom: Double) {
+        self.ink = ink
+        self.area = area
+        self.zoom = max(zoom, 0.1)
+        super.init()
+        bounds = CGRect(origin: .zero, size: area.size)
+        anchorPoint = .zero
+        contentsScale = scale
+        setNeedsDisplay()
+    }
+
+    override init(layer: Any) {
+        let other = layer as! FloatingInkLayer
+        ink = other.ink
+        area = other.area
+        zoom = other.zoom
+        super.init(layer: layer)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func draw(in ctx: CGContext) {
+        ctx.translateBy(x: -area.minX, y: -area.minY)
+        for stroke in ink {
+            ctx.addPath(stroke.path)
+            ctx.setFillColor(stroke.color)
+            ctx.fillPath(using: .winding)
+        }
+        let outline = CGPath(roundedRect: area.insetBy(dx: 2, dy: 2), cornerWidth: 10, cornerHeight: 10, transform: nil)
+        ctx.addPath(outline)
+        ctx.setStrokeColor(Velvet.accent.cgColor)
+        ctx.setLineWidth(1.5 / zoom)
+        ctx.setLineDash(phase: 0, lengths: [6 / zoom, 5 / zoom])
+        ctx.strokePath()
     }
 }
 

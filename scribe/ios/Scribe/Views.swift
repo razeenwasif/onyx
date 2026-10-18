@@ -214,6 +214,9 @@ struct WritingView: View {
     @Binding var prompt: NamePrompt?
     /// A link was just copied: say so for a moment.
     @State private var linkCopied = false
+    /// Copied writing is on the clipboard (checked without reading it, so
+    /// iPadOS doesn't ask about pasting).
+    @State private var canPaste = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -252,6 +255,14 @@ struct WritingView: View {
                 VStack(spacing: 10) {
                     if store.hasSelection {
                         HStack(spacing: 18) {
+                            Button("Copy", systemImage: "doc.on.doc") {
+                                store.copySelection()
+                                canPaste = true
+                            }
+                            Button("Cut", systemImage: "scissors") {
+                                store.cutSelection()
+                                canPaste = true
+                            }
                             Button("Link", systemImage: "link") {
                                 store.copyLink()
                                 linkCopied = true
@@ -264,6 +275,14 @@ struct WritingView: View {
                         .padding(.vertical, 9)
                         .background(.ultraThinMaterial, in: Capsule())
                         .transition(.scale(scale: 0.9).combined(with: .opacity))
+                    } else if store.tool == .select, canPaste {
+                        // Copied writing, ready to drop in the middle of the screen.
+                        Button("Paste", systemImage: "doc.on.clipboard") { store.paste() }
+                            .font(.callout.weight(.medium))
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 9)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .transition(.scale(scale: 0.9).combined(with: .opacity))
                     }
                     ToolDock(store: store)
                 }
@@ -335,6 +354,20 @@ struct WritingView: View {
             }
         }
         .modifier(RenameTitleMenu(store: store, prompt: $prompt))
+        .onAppear { canPaste = store.canPaste }
+        .onReceive(NotificationCenter.default.publisher(for: UIPasteboard.changedNotification)) { _ in canPaste = store.canPaste }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in canPaste = store.canPaste }
+        .background {
+            // With a keyboard: copy, cut and paste writing, as on the Mac.
+            Group {
+                Button("Copy") { store.copySelection(); canPaste = true }.keyboardShortcut("c")
+                Button("Cut") { store.cutSelection(); canPaste = true }.keyboardShortcut("x")
+                Button("Paste") { store.paste() }.keyboardShortcut("v")
+            }
+            .hidden()
+            // Only with the lasso, so typing a title still copies and pastes text.
+            .disabled(store.doc == nil || store.tool != .select)
+        }
         .overlay(alignment: .top) {
             if linkCopied {
                 Label("Link copied. Paste it into a note in Electron.", systemImage: "link")

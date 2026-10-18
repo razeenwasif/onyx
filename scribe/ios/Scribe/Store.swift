@@ -65,9 +65,12 @@ final class Store {
     @ObservationIgnored private(set) var ink: [Ink] = []
     /// Called with the area to redraw, or nil for the whole page.
     @ObservationIgnored var inkChanged: ((CGRect?) -> Void)?
+    /// Another page's file was rewritten (moving writing between pages, or
+    /// undoing that), for a canvas that shows it.
+    @ObservationIgnored var pageRewritten: ((String) -> Void)?
 
-    @ObservationIgnored private var undoStack: [[StrokeDTO]] = []
-    @ObservationIgnored private var redoStack: [[StrokeDTO]] = []
+    @ObservationIgnored private var undoStack: [InkSnapshot] = []
+    @ObservationIgnored private var redoStack: [InkSnapshot] = []
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var dirty = false
     /// When the open page's file last changed on disk, as we know it.
@@ -1009,6 +1012,126 @@ final class Store {
         changed()
     }
 
+    // -------------------------------------------- copy, cut, paste, move
+
+    /// The selection is being dragged in a layer of its own (so it can
+    /// cross onto another page); the page leaves it out until it lands.
+    @ObservationIgnored private(set) var floating = false
+
+    /// The ink the page shows: all of it, less a selection being dragged.
+    var visibleInk: [Ink] {
+        guard floating, !selection.isEmpty else { return ink }
+        return ink.indices.filter { !selection.contains($0) }.map { ink[$0] }
+    }
+
+    /// The selected strokes, for drawing them while they're dragged.
+    var selectedInk: [Ink] { selection.sorted().map { ink[$0] } }
+
+    func liftSelection() {
+        guard !selection.isEmpty, !floating else { return }
+        floating = true
+        inkChanged?(selectionBounds?.insetBy(dx: -4, dy: -4))
+    }
+
+    /// Lands a lifted selection on this page, moved by (dx, dy).
+    func dropSelection(dx: Double, dy: Double) {
+        guard floating else { return }
+        floating = false
+        if dx == 0 && dy == 0 {
+            inkChanged?(selectionBounds?.insetBy(dx: -4, dy: -4))
+        } else {
+            moveSelection(dx: dx, dy: dy, first: true)
+        }
+    }
+
+    /// Moves the selection onto the page at `path`, by (dx, dy) in that
+    /// page's units, and makes it the page being written on with the
+    /// writing still selected. One undo there puts it back on this page.
+    func moveSelection(toPage path: String, dx: Double, dy: Double) {
+        guard let source = pagePath, path != source, !selection.isEmpty else { return dropSelection(dx: 0, dy: 0) }
+        floating = false
+        let before = ink.map(\.dto)
+        let moving = selection.sorted().map { Self.translated(ink[$0].dto, dx: dx, dy: dy) }
+        for i in selection.sorted(by: >) { ink.remove(at: i) }
+        selection = []
+        hasSelection = false
+        dirty = true
+        flush()
+        openPage(path)
+        guard pagePath == path else { return }
+        record(other: (source, before))
+        let start = ink.count
+        ink += moving.map(Ink.init)
+        selection = Set(start..<ink.count)
+        hasSelection = true
+        inkChanged?(nil)
+        changed()
+        pageRewritten?(source)
+    }
+
+    static let fragmentType = "app.scribe.fragment"
+
+    /// A copied selection, in the Mac's format (AppModel.Fragment), so
+    /// writing copied on one pastes on the other.
+    struct Fragment: Codable {
+        var sectionPath: String
+        var strokes: [StrokeDTO]
+        var textBoxes: [TextBoxDTO] = []
+        var images: [ImageDTO] = []
+        var latexBlocks: [LatexDTO] = []
+        var tables: [TableDTO] = []
+    }
+
+    func copySelection() {
+        guard !selection.isEmpty else { return }
+        let fragment = Fragment(sectionPath: pageSectionPath, strokes: selectedInk.map(\.dto))
+        guard let data = try? JSONEncoder().encode(fragment) else { return }
+        UIPasteboard.general.setData(data, forPasteboardType: Self.fragmentType)
+    }
+
+    func cutSelection() {
+        copySelection()
+        deleteSelection()
+    }
+
+    /// Whether there's copied writing to paste.
+    var canPaste: Bool { UIPasteboard.general.contains(pasteboardTypes: [Self.fragmentType]) }
+
+    /// Where pasted writing lands: the middle of what's on screen (page
+    /// units), from the canvas.
+    @ObservationIgnored var visibleCentre: (() -> CGPoint?)?
+
+    /// Pastes copied writing in the middle of the screen, selected, so it
+    /// can be dragged into place.
+    func paste() {
+        guard doc != nil,
+              let data = UIPasteboard.general.data(forPasteboardType: Self.fragmentType),
+              let fragment = try? JSONDecoder().decode(Fragment.self, from: data) else { return }
+        let strokes = fragment.strokes.filter { $0.points.count >= 3 }
+        guard !strokes.isEmpty else { return }
+        let bounds = strokes.map { Ink($0).bounds }.reduce(CGRect.null) { $0.union($1) }
+        let centre = visibleCentre?() ?? CGPoint(x: bounds.midX + 24, y: bounds.midY + 24)
+        let dx = centre.x - bounds.midX, dy = centre.y - bounds.midY
+        record()
+        let start = ink.count
+        ink += strokes.map { Ink(Self.translated($0, dx: dx, dy: dy)) }
+        selection = Set(start..<ink.count)
+        hasSelection = true
+        tool = .select
+        inkChanged?(nil)
+        changed()
+        if let pasted = selectionBounds { growCanvas(for: pasted) }
+    }
+
+    private static func translated(_ stroke: StrokeDTO, dx: Double, dy: Double) -> StrokeDTO {
+        var s = stroke
+        for j in stride(from: 0, to: s.points.count - 2, by: 3) {
+            s.points[j] += dx
+            s.points[j + 1] += dy
+        }
+        return s
+    }
+
     func deleteSelection() {
         guard !selection.isEmpty else { return }
         record()
@@ -1032,9 +1155,17 @@ final class Store {
         changed()
     }
 
+    /// One undo step: the page's ink before a change, and, when writing was
+    /// moved here from another page, that page's ink before too, so one
+    /// undo puts it back where it was.
+    struct InkSnapshot {
+        var ink: [StrokeDTO]
+        var other: (path: String, ink: [StrokeDTO])?
+    }
+
     /// Marks the start of one undoable change (a stroke, or one eraser drag).
-    func record() {
-        undoStack.append(ink.map(\.dto))
+    func record(other: (path: String, ink: [StrokeDTO])? = nil) {
+        undoStack.append(InkSnapshot(ink: ink.map(\.dto), other: other))
         if undoStack.count > 200 { undoStack.removeFirst() }
         redoStack = []
         updateUndo()
@@ -1042,23 +1173,44 @@ final class Store {
 
     func undo() {
         guard let last = undoStack.popLast() else { return }
-        redoStack.append(ink.map(\.dto))
+        redoStack.append(InkSnapshot(ink: ink.map(\.dto), other: last.other.map { ($0.path, inkOnDisk($0.path)) }))
         restore(last)
     }
 
     func redo() {
         guard let next = redoStack.popLast() else { return }
-        undoStack.append(ink.map(\.dto))
+        undoStack.append(InkSnapshot(ink: ink.map(\.dto), other: next.other.map { ($0.path, inkOnDisk($0.path)) }))
         restore(next)
     }
 
-    private func restore(_ strokes: [StrokeDTO]) {
+    private func restore(_ snapshot: InkSnapshot) {
         selection = []
         hasSelection = false
-        ink = strokes.map(Ink.init)
+        floating = false
+        if let other = snapshot.other { writeInk(other.ink, to: other.path) }
+        ink = snapshot.ink.map(Ink.init)
         inkChanged?(nil)
         updateUndo()
         changed()
+    }
+
+    /// The strokes saved in another page's file.
+    private func inkOnDisk(_ path: String) -> [StrokeDTO] {
+        finishSaving()
+        return (try? Core.readPage(path))?.strokes ?? []
+    }
+
+    /// Replaces the strokes in another page's file.
+    private func writeInk(_ strokes: [StrokeDTO], to path: String) {
+        finishSaving()
+        guard var other = try? Core.readPage(path) else { return }
+        other.strokes = strokes
+        do {
+            try Core.writePage(path, other)
+        } catch {
+            problem = "Could not save: \(error.localizedDescription)"
+        }
+        pageRewritten?(path)
     }
 
     private func updateUndo() {
