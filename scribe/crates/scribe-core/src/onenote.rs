@@ -542,6 +542,25 @@ pub fn import_page(
     })
 }
 
+/// A folder of imported pages moved from `from` to `to` (both relative to
+/// the workspace): the record follows it.
+pub fn moved(ws: &crate::workspace::Workspace, from: &str, to: &str) -> crate::workspace::Result<()> {
+    let path = ws.root.join(MANIFEST);
+    let Some(mut manifest) = crate::workspace::read_json::<HashMap<String, String>>(&path) else { return Ok(()) };
+    let prefix = format!("{from}/");
+    let mut changed = false;
+    for rel in manifest.values_mut() {
+        if let Some(rest) = rel.strip_prefix(&prefix) {
+            *rel = format!("{to}/{rest}");
+            changed = true;
+        }
+    }
+    if changed {
+        crate::workspace::write_json(&path, &manifest)?;
+    }
+    Ok(())
+}
+
 /// Already-imported OneNote pages by id, for resuming.
 pub fn imported_ids(ws: &crate::workspace::Workspace) -> Vec<String> {
     let manifest: HashMap<String, String> = crate::workspace::read_json(&ws.root.join(MANIFEST)).unwrap_or_default();

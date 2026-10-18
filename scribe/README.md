@@ -249,6 +249,13 @@ notebook's colour. Long-press (or right-click) a folder or notebook to rename, r
 or delete it. On the Mac the library shows when no page is open, and View → Library (⌘L)
 brings it back.
 
+To move a notebook to another folder, drag it onto the folder: from inside a folder, onto
+one of the other folders listed above its notebooks; on the Mac also from the sidebar, onto
+a folder there or a folder in the library. Or choose **Move to Folder** from the notebook's
+menu. Its pages, pictures and the open page go with it, and the OneNote import's record
+follows, so a later import doesn't bring it in again. A folder that already has a notebook
+by that name gets the moved one as "Name (2)".
+
 The library's words map onto the files like this: a **folder** is a Scribe notebook
 folder (`notebook.json`), and a **notebook** is a section folder (`section.json`) holding
 pages. Only the labels changed; the format is the same (docs/FORMAT.md).

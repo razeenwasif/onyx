@@ -675,6 +675,43 @@ final class Store {
         }
     }
 
+    /// Moves a notebook into another folder. What was open in it stays
+    /// open, and its tab and "where you were" follow it.
+    func move(_ notebook: SectionInfo, to folder: NotebookInfo) {
+        guard notebook.notebookPath != folder.path, let root else { return }
+        flush()
+        let old = notebook.path
+        let newPath: String
+        do {
+            newPath = try Core.call("move_section", ["root": root.path, "path": old, "notebook": folder.path])
+        } catch {
+            problem = "Could not move it: \(error.localizedDescription)"
+            return
+        }
+        func moved(_ path: String) -> String {
+            if path == old { return newPath }
+            if path.hasPrefix(old + "/") { return newPath + path.dropFirst(old.count) }
+            return path
+        }
+        let openPath = pagePath
+        if let current = sectionPath, current == old || current.hasPrefix(old + "/") { sectionPath = moved(current) }
+        if let openPath, openPath.hasPrefix(old + "/") { openPage(moved(openPath)) }
+        route = route.map { if case .notebook(let p) = $0 { .notebook(moved(p)) } else { $0 } }
+        tabs = tabs.map(moved)
+        saveTabs()
+        // Reopen-where-you-were is kept by relative path.
+        if let oldRel = relative(old), let newRel = relative(newPath) {
+            func movedRel(_ r: String) -> String { r == oldRel ? newRel : r.hasPrefix(oldRel + "/") ? newRel + r.dropFirst(oldRel.count) : r }
+            if let last = UserDefaults.standard.dictionary(forKey: Self.lastInNotebookKey) as? [String: String] {
+                UserDefaults.standard.set(Dictionary(last.map { (movedRel($0.key), movedRel($0.value)) }, uniquingKeysWith: { a, _ in a }), forKey: Self.lastInNotebookKey)
+            }
+            if let lastPage = UserDefaults.standard.string(forKey: Self.lastPageKey) {
+                UserDefaults.standard.set(movedRel(lastPage), forKey: Self.lastPageKey)
+            }
+        }
+        refresh()
+    }
+
     func delete(_ item: LibraryItem) {
         let path: String
         switch item {

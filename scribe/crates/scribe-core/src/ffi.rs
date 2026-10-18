@@ -188,6 +188,12 @@ fn dispatch(req: &Value) -> R {
             Ok(Value::Null)
         }
 
+        "move_section" => {
+            let w = ws(req)?;
+            let dir = w.move_section(&path_arg(req, "path")?, &path_arg(req, "notebook")?)?;
+            Ok(json!(path_str(&dir)))
+        }
+
         "forget_section" => {
             ws_any().forget_section(&path_arg(req, "notebook")?, &path_arg(req, "section")?)?;
             Ok(Value::Null)

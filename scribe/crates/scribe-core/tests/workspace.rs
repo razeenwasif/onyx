@@ -399,3 +399,31 @@ fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
     }
     out
 }
+
+#[test]
+fn a_notebook_moves_to_another_folder_with_its_pages() {
+    let (_tmp, ws) = temp_ws();
+    let maths = ws.create_notebook("Maths").unwrap();
+    let physics = ws.create_notebook("Physics").unwrap();
+    let calc = ws.create_section(&maths, "Calculus").unwrap();
+    let page = ws.create_page(&calc, "Limits").unwrap();
+    // The OneNote import's record points at the page.
+    let rel = page.strip_prefix(&ws.root).unwrap().to_string_lossy().into_owned();
+    fs::create_dir_all(ws.root.join(".scribe")).unwrap();
+    fs::write(ws.root.join(".scribe/onenote-import.json"), format!(r#"{{"page-1": "{rel}"}}"#)).unwrap();
+
+    let moved = ws.move_section(&calc, &physics).unwrap();
+    assert_eq!(moved, physics.join("Calculus"));
+    assert!(!calc.exists());
+    assert_eq!(ws.list_page_files(&moved).len(), 1);
+    assert!(ws.list_section_dirs(&maths).is_empty());
+    assert_eq!(ws.list_section_dirs(&physics), vec![moved.clone()]);
+    let record = fs::read_to_string(ws.root.join(".scribe/onenote-import.json")).unwrap();
+    assert!(record.contains("Physics/Calculus/"), "{record}");
+
+    // A folder that already has a notebook by that name gets "(2)".
+    let other = ws.create_section(&maths, "Calculus").unwrap();
+    assert_eq!(ws.move_section(&other, &physics).unwrap(), physics.join("Calculus (2)"));
+    // Moving into its own folder changes nothing.
+    assert_eq!(ws.move_section(&moved, &physics).unwrap(), moved);
+}

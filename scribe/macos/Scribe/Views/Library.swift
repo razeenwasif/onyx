@@ -29,6 +29,34 @@ struct LibraryActions {
     var recolor: (LibraryItem, String) -> Void
     var setCover: (SectionInfo, String) -> Void
     var delete: (LibraryItem) -> Void
+    /// Every folder, for "Move to Folder".
+    var folders: [NotebookInfo] = []
+    /// Moves a notebook into a folder.
+    var move: (SectionInfo, NotebookInfo) -> Void = { _, _ in }
+}
+
+/// What a dragged notebook carries: its path, marked so that only folders
+/// take it (a stray drop into a text box doesn't match).
+enum NotebookDrag {
+    private static let prefix = "scribe-notebook:"
+
+    static func payload(_ notebook: SectionInfo) -> String { prefix + notebook.path }
+
+    static func path(in items: [String]) -> String? {
+        items.lazy.compactMap { $0.hasPrefix(prefix) ? String($0.dropFirst(prefix.count)) : nil }.first
+    }
+}
+
+extension LibraryActions {
+    /// Handles notebooks dropped on `folder`; true when one moved.
+    func drop(_ items: [String], on folder: NotebookInfo) -> Bool {
+        guard let path = NotebookDrag.path(in: items),
+              let notebook = folders.lazy.flatMap(\.sections).first(where: { $0.path == path }),
+              notebook.notebookPath != folder.path
+        else { return false }
+        move(notebook, folder)
+        return true
+    }
 }
 
 /// Cover colours, soft enough for dark velvet.
@@ -56,6 +84,8 @@ struct LibraryHome: View {
 
     @AppStorage("librarySort") private var sortByName = false
     @State private var pendingDelete: LibraryItem?
+    /// The folder a dragged notebook is over.
+    @State private var dropTarget: String?
 
     private var sorted: [NotebookInfo] {
         sortByName
@@ -139,6 +169,13 @@ struct LibraryHome: View {
         Button { actions.openFolder(folder) } label: {
             VStack(alignment: .leading, spacing: 8) {
                 FolderStack(name: folder.name, color: CoverColor.color(folder.color))
+                    .overlay {
+                        if dropTarget == folder.path {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(style.accent, lineWidth: 3)
+                        }
+                    }
+                    .scaleEffect(dropTarget == folder.path ? 1.05 : 1)
+                    .animation(.spring(duration: 0.25), value: dropTarget)
                 Text(folder.sections.count == 1 ? "1 notebook" : "\(folder.sections.count) notebooks")
                     .font(.caption)
                     .foregroundStyle(style.muted)
@@ -146,6 +183,11 @@ struct LibraryHome: View {
         }
         .buttonStyle(.plain)
         .contextMenu { itemMenu(.folder(folder), color: folder.color) }
+        .dropDestination(for: String.self) { items, _ in
+            actions.drop(items, on: folder)
+        } isTargeted: { over in
+            if over { dropTarget = folder.path } else if dropTarget == folder.path { dropTarget = nil }
+        }
         .accessibilityLabel("Folder \(folder.name), \(folder.sections.count) notebooks")
     }
 
@@ -167,17 +209,29 @@ struct FolderView: View {
 
     var body: some View {
         ScrollView {
+            if actions.folders.count > 1 {
+                FolderBar(current: folder, style: style, actions: actions)
+                    .padding(.top, 14)
+            }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 22)], spacing: 26) {
                 ForEach(folder.sections) { notebook in
-                    Button { actions.openNotebook(notebook) } label: {
-                        VStack(alignment: .leading, spacing: 6) {
-                            NotebookCover(notebook: notebook, root: root)
-                            Text(notebook.name).font(.callout.weight(.medium)).foregroundStyle(style.text).lineLimit(1)
-                            Text(notebook.pageCount == 1 ? "1 page" : "\(notebook.pageCount) pages")
-                                .font(.caption).foregroundStyle(style.muted)
-                        }
+                    // A tap rather than a Button: on the Mac a Button keeps
+                    // the mouse, and the cover couldn't be dragged.
+                    VStack(alignment: .leading, spacing: 6) {
+                        NotebookCover(notebook: notebook, root: root)
+                        Text(notebook.name).font(.callout.weight(.medium)).foregroundStyle(style.text).lineLimit(1)
+                        Text(notebook.pageCount == 1 ? "1 page" : "\(notebook.pageCount) pages")
+                            .font(.caption).foregroundStyle(style.muted)
                     }
-                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .onTapGesture { actions.openNotebook(notebook) }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { actions.openNotebook(notebook) }
+                    // Drag a notebook onto another folder to move it there.
+                    .draggable(NotebookDrag.payload(notebook)) {
+                        NotebookCover(notebook: notebook, root: root).frame(width: 90)
+                    }
                     .contextMenu {
                         LibraryItemMenu(item: .notebook(notebook), color: notebook.color, actions: actions) {
                             pendingDelete = .notebook(notebook)
@@ -191,6 +245,58 @@ struct FolderView: View {
         }
         .background(style.ground)
         .deleteConfirmation($pendingDelete, note: deleteNote, delete: actions.delete)
+    }
+}
+
+/// The other folders, above a folder's notebooks: tap one to go there,
+/// or drop a notebook on it to move the notebook there.
+private struct FolderBar: View {
+    let current: NotebookInfo
+    let style: PageGrid.Style
+    let actions: LibraryActions
+    @State private var target: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("OTHER FOLDERS")
+                .font(.caption2.weight(.semibold))
+                .tracking(1)
+                .foregroundStyle(style.muted)
+                .padding(.horizontal, 24)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(actions.folders.filter { $0.path != current.path }) { folder in chip(folder) }
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 4)
+            }
+        }
+    }
+
+    private func chip(_ folder: NotebookInfo) -> some View {
+        let over = target == folder.path
+        return Button { actions.openFolder(folder) } label: {
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(CoverColor.color(folder.color))
+                    .frame(width: 12, height: 12)
+                Text(folder.name).font(.callout.weight(.medium)).lineLimit(1)
+            }
+            .foregroundStyle(over ? style.ground : style.text)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(over ? style.accent : style.control, in: Capsule())
+            .scaleEffect(over ? 1.08 : 1)
+            .animation(.spring(duration: 0.25), value: over)
+        }
+        .buttonStyle(.plain)
+        .dropDestination(for: String.self) { items, _ in
+            actions.drop(items, on: folder)
+        } isTargeted: { now in
+            if now { target = folder.path } else if target == folder.path { target = nil }
+        }
+        .accessibilityLabel("Folder \(folder.name)")
+        .accessibilityHint("Opens the folder. Drop a notebook here to move it.")
     }
 }
 
@@ -270,6 +376,16 @@ private struct LibraryItemMenu: View {
                 Label("Cover", systemImage: "book.closed")
             }
             .pickerStyle(.menu)
+            let others = actions.folders.filter { $0.path != notebook.notebookPath }
+            if !others.isEmpty {
+                Menu {
+                    ForEach(others) { folder in
+                        Button(folder.name) { actions.move(notebook, folder) }
+                    }
+                } label: {
+                    Label("Move to Folder", systemImage: "folder")
+                }
+            }
         }
         Divider()
         Button("Delete…", systemImage: "trash", role: .destructive, action: askDelete)

@@ -227,6 +227,33 @@ impl Workspace {
         self.write_section(dir, &doc)
     }
 
+    /// Moves a section (a "notebook" in the library) into another notebook
+    /// (a "folder"), keeping its name unless the folder already has one by
+    /// that name. Returns where it ended up.
+    pub fn move_section(&self, dir: &Path, to_notebook: &Path) -> Result<PathBuf> {
+        let from_notebook = dir.parent().ok_or("Notebook has no folder")?.to_path_buf();
+        if from_notebook == to_notebook {
+            return Ok(dir.to_path_buf());
+        }
+        if !to_notebook.join("notebook.json").is_file() && !to_notebook.is_dir() {
+            return Err(format!("There's no folder at {}", to_notebook.display()));
+        }
+        let target = unique_dir(to_notebook, &file_name(dir));
+        fs::rename(dir, &target).map_err(|e| io_err("Could not move", dir, e))?;
+        self.forget_section(&from_notebook, dir)?;
+
+        let mut nb = self.read_notebook(to_notebook);
+        nb.section_order.push(file_name(&target));
+        self.write_notebook(to_notebook, &nb)?;
+
+        // The OneNote import remembers pages by path; keep it pointing at
+        // them, or a later import would bring them in again.
+        if let (Ok(from), Ok(to)) = (dir.strip_prefix(&self.root), target.strip_prefix(&self.root)) {
+            crate::onenote::moved(self, &from.to_string_lossy().replace('\\', "/"), &to.to_string_lossy().replace('\\', "/"))?;
+        }
+        Ok(target)
+    }
+
     /// Drops a section folder that has already been removed (e.g. moved to
     /// the Trash by the app) from its notebook's manifest.
     pub fn forget_section(&self, notebook_dir: &Path, section_dir: &Path) -> Result<()> {

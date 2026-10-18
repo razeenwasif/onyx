@@ -8,6 +8,8 @@ struct Sidebar: View {
     var docked = true
 
     @State private var collapsed: Set<String> = []
+    /// The folder a dragged notebook is over.
+    @State private var dropTarget: String?
     @FocusState private var searchFocused: Bool
     @Environment(\.hostAccessory) private var hostAccessory
 
@@ -134,11 +136,23 @@ struct Sidebar: View {
         }
         .buttonStyle(RowButtonStyle())
         .contextMenu { notebookMenu(nb) }
+        // Notebooks dragged from below (or from the library) move here.
+        .dropDestination(for: String.self) { items, _ in
+            app.libraryActions.drop(items, on: nb)
+        } isTargeted: { over in
+            if over { dropTarget = nb.path } else if dropTarget == nb.path { dropTarget = nil }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Velvet.accent, lineWidth: 2)
+                .opacity(dropTarget == nb.path ? 1 : 0)
+        )
     }
 
     private func sectionRow(_ nb: NotebookInfo, _ sec: SectionInfo) -> some View {
         let selected = app.selectedSectionPath == sec.path && app.searchResults == nil
-        return Button { app.selectSection(sec.path) } label: {
+        // Not a Button, so it can be dragged onto another folder.
+        return Group {
             HStack(spacing: 10) {
                 Circle().fill(selected ? Velvet.accent : InkPaint.swatch(sec.color)).frame(width: 6, height: 6)
                 Text(sec.name).lineLimit(1)
@@ -152,8 +166,18 @@ struct Sidebar: View {
             .padding(.horizontal, 12)
             .frame(height: 36)
         }
-        .buttonStyle(RowButtonStyle(selected: selected))
+        .modifier(RowLook(selected: selected))
+        .onTapGesture { app.selectSection(sec.path) }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { app.selectSection(sec.path) }
         .contextMenu { sectionMenu(nb, sec) }
+        .draggable(NotebookDrag.payload(sec)) {
+            Label(sec.name, systemImage: "book.closed")
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Velvet.field, in: Capsule())
+        }
     }
 
     @ViewBuilder private func notebookMenu(_ nb: NotebookInfo) -> some View {
@@ -183,6 +207,14 @@ struct Sidebar: View {
         Button("Rename…") {
             app.prompt = PromptInfo(title: "Rename Notebook", label: "Notebook name", text: sec.name, confirm: "Rename") {
                 app.rename(section: sec, to: $0)
+            }
+        }
+        let others = app.notebooks.filter { $0.path != nb.path }
+        if !others.isEmpty {
+            Menu("Move to Folder") {
+                ForEach(others) { folder in
+                    Button(folder.name) { app.move(section: sec, to: folder) }
+                }
             }
         }
         Button("Show in Finder") { app.revealInFinder(sec.path) }

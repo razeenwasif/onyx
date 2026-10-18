@@ -28,6 +28,24 @@ struct RowButtonStyle: ButtonStyle {
     }
 }
 
+/// RowButtonStyle's look for a row that isn't a Button. A Button keeps the
+/// mouse to itself on the Mac, so rows you can drag use this and a tap.
+struct RowLook: ViewModifier {
+    var selected = false
+    var radius: CGFloat = Velvet.Radius.row
+    @State private var hover = false
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        content
+            .contentShape(shape)
+            .background(shape.fill(selected ? Velvet.accentSoft : Color.white.opacity(hover ? 0.045 : 0)))
+            .overlay { if selected { shape.strokeBorder(Velvet.accentRing, lineWidth: 1) } }
+            .onHover { hover = $0 }
+            .animation(.easeOut(duration: 0.12), value: hover)
+    }
+}
+
 /// A round icon button: 40pt by default, filled softly, accent when active.
 struct RoundButtonStyle: ButtonStyle {
     var size: CGFloat = 40

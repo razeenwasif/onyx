@@ -94,6 +94,11 @@ public final class AppModel {
         pageListCollapsed = loaded.pageListCollapsed
         let fallback = (try? Core.call("default_root", as: String.self)) ?? NSHomeDirectory() + "/Documents/Scribe Notebooks"
         root = loaded.workspaceRoot ?? fallback
+        #if DEBUG
+        // For trying a debug build on a copy of a library:
+        //   .build/debug/Scribe -ScribeTestRoot /path
+        if let test = UserDefaults.standard.string(forKey: "ScribeTestRoot") { root = test }
+        #endif
         applyPenWidths()
     }
 
@@ -437,6 +442,9 @@ public final class AppModel {
                 }
                 loadRecents()
             }
+,
+            folders: notebooks,
+            move: { [weak self] in self?.move(section: $0, to: $1) }
         )
     }
 
@@ -512,6 +520,25 @@ public final class AppModel {
             if wasOpen { openPage(newPath) }
         } catch {
             show(error, title: "Could not move the page")
+        }
+    }
+
+    /// Moves a notebook (section) into another folder; what was open in it
+    /// stays open at its new place.
+    func move(section: SectionInfo, to folder: NotebookInfo) {
+        guard section.notebookPath != folder.path else { return }
+        let openPath = page?.path
+        let wasSelected = selectedSectionPath == section.path
+        let inside = openPath.map { $0.hasPrefix(section.path + "/") } ?? false
+        if inside { commitOpenPage(); closePage() }
+        do {
+            let newPath: String = try Core.call("move_section", ["root": root, "path": section.path, "notebook": folder.path])
+            reloadTree()
+            if wasSelected { selectSection(newPath, openFirst: false) }
+            if inside, let openPath { openPage(newPath + openPath.dropFirst(section.path.count)) }
+            if showingHome { loadRecents() }
+        } catch {
+            show(error, title: "Could not move the notebook")
         }
     }
 

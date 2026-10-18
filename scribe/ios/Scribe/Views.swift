@@ -94,7 +94,9 @@ struct LibraryView: View {
             rename: { prompt = NamePrompt(kind: .rename($0), initial: $0.name) },
             recolor: { store.recolor($0, $1) },
             setCover: { store.setCover($0, $1) },
-            delete: { store.delete($0) }
+            delete: { store.delete($0) },
+            folders: store.notebooks,
+            move: { store.move($0, to: $1) }
         )
     }
 
