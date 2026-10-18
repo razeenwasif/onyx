@@ -15,6 +15,9 @@ regex = { version = "1", default-features = false, features = ["std", "unicode-c
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 uuid = { version = "1", features = ["v4"] }
+# Reads OneNote's own .one section files (desktop and OneDrive downloads).
+onenote_parser = "2.0"
+typed-path = "0.12"
 
 [dev-dependencies]
 tempfile = "3"

@@ -29,6 +29,7 @@ public struct ScribeCommands: Commands {
             button("Import PDF or Goodnotes…", .importPDF)
             button("Import from OneNote…", .importOneNote)
                 .keyboardShortcut("i", modifiers: [.command, .shift])
+            button("Import OneNote Files…", .importOneNoteFiles)
         }
 
         CommandGroup(replacing: .saveItem) {

@@ -10,6 +10,7 @@ pub mod geometry;
 pub mod ink;
 pub mod model;
 pub mod onenote;
+pub mod onenote_file;
 pub mod settings;
 pub mod table;
 pub mod workspace;

@@ -165,6 +165,15 @@ fn dispatch(req: &Value) -> R {
 
         "onenote_imported_ids" => Ok(json!(crate::onenote::imported_ids(&ws(req)?))),
 
+        // OneNote's own files: list the sections in a download, then import
+        // one section file at a time (so the app can show progress).
+        "onenote_file_sections" => Ok(json!(crate::onenote_file::find_sections(&path_arg(req, "path")?))),
+
+        "onenote_file_import_section" => {
+            let w = ws(req)?;
+            Ok(json!(crate::onenote_file::import_section(&w, &path_arg(req, "section")?, &path_arg(req, "file")?)?))
+        }
+
         "page_layouts" => {
             Ok(json!(ws_any().page_layouts(&path_arg(req, "section")?)))
         }

@@ -323,14 +323,14 @@ extension AppModel {
 
     /// The Scribe notebook (folder) for a OneNote notebook: an existing one
     /// of that name, so a second run fills in the same place.
-    private func folder(named name: String, root: String) throws -> String {
+    func folder(named name: String, root: String) throws -> String {
         if let existing = notebooks.first(where: { $0.name == name }) { return existing.path }
         let path: String = try Core.call("create_notebook", ["root": root, "name": name])
         reloadTree()
         return path
     }
 
-    private func notebook(named name: String, in folder: String) throws -> String {
+    func notebook(named name: String, in folder: String) throws -> String {
         let tree: [NotebookInfo] = (try? Core.call("tree", ["root": root])) ?? notebooks
         if let existing = tree.first(where: { $0.path == folder })?.sections.first(where: { $0.name == name }) {
             return existing.path

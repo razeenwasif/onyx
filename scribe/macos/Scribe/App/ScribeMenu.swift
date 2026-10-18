@@ -32,6 +32,7 @@ public enum ScribeMenu {
                 separator,
                 item("Import PDF or Goodnotes…", .importPDF, "Cmd+Shift+I"),
                 item("Import from OneNote…", .importOneNote),
+                item("Import OneNote Files…", .importOneNoteFiles),
                 separator,
                 item("Save", .save, "Cmd+S"),
             ]],

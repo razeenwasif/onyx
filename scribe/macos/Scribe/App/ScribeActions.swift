@@ -6,7 +6,7 @@ import SwiftUI
 /// menu is built from ScribeMenu) both run their items through here, so the
 /// two can't drift apart.
 enum ScribeAction: Hashable {
-    case newPage, newNotebook, newSection, openFolder, revealFolder, save, importPDF, importOneNote
+    case newPage, newNotebook, newSection, openFolder, revealFolder, save, importPDF, importOneNote, importOneNoteFiles
     case pasteOntoPage, search
     case insertTable, insertEquation, insertImage
     case bold, italic, underline, strikethrough, bigger, smaller
@@ -36,7 +36,7 @@ enum ScribeAction: Hashable {
             return
         }
         let simple: [ScribeAction] = [
-            .newPage, .newNotebook, .newSection, .openFolder, .revealFolder, .save, .importPDF, .importOneNote, .pasteOntoPage, .search,
+            .newPage, .newNotebook, .newSection, .openFolder, .revealFolder, .save, .importPDF, .importOneNote, .importOneNoteFiles, .pasteOntoPage, .search,
             .insertTable, .insertEquation, .insertImage,
             .bold, .italic, .underline, .strikethrough, .bigger, .smaller,
             .zoomIn, .zoomOut, .actualSize, .fitWidth,
@@ -74,6 +74,8 @@ enum ScribeAction: Hashable {
             MainActor.assumeIsolated { app.chooseAndImportPDFs() }
         case .importOneNote:
             app.startOneNoteImport()
+        case .importOneNoteFiles:
+            MainActor.assumeIsolated { app.chooseAndImportOneNoteFiles() }
         case .pasteOntoPage:
             app.paste()
         case .search:

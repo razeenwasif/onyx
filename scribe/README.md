@@ -206,6 +206,18 @@ full width, open at a readable zoom with sideways scrolling, grow as you write p
 edge, and show their whole width in thumbnails. Attachments and audio aren't imported.
 The conversion lives in `crates/scribe-core/src/onenote.rs`.
 
+
+### From OneNote's own files
+
+Very large pages make Microsoft's web route time out, so there's a second way that doesn't
+go through Microsoft at all: **File → Import OneNote Files…** reads the notebook's own
+`.one` section files. On onedrive.live.com, select the notebook in **Documents** and click
+**Download**; choose the zip (or the folder inside it, or single `.one` files). The
+`onenote_parser` crate reads them in the core (`crates/scribe-core/src/onenote_file.rs`):
+typed text, handwriting, pictures and tables land where they were, on canvas pages, with no
+token, no rate limits and no size limit. Both imports share one record, and a page already
+brought in by either is skipped (by its OneNote id, or by title for pages the web import made).
+OneNote's recycle bin is left out, and so are attachments and audio.
 ## Searching handwriting
 
 Search finds written words as well as typed ones. Scribe reads each page's ink
