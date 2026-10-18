@@ -6,14 +6,14 @@ import SwiftUI
 /// menu is built from ScribeMenu) both run their items through here, so the
 /// two can't drift apart.
 enum ScribeAction: Hashable {
-    case newPage, newNotebook, openFolder, revealFolder, save, importPDF
+    case newPage, newNotebook, newSection, openFolder, revealFolder, save, importPDF
     case pasteOntoPage, search
     case insertTable, insertEquation, insertImage
     case bold, italic, underline, strikethrough, bigger, smaller
     case heading(HeadingPreset)
     case tool(ToolKind)
     case zoomIn, zoomOut, actualSize, fitWidth
-    case toggleSidebar, togglePages, toggleFocus, pageGrid
+    case toggleSidebar, togglePages, toggleFocus, pageGrid, library
 
     /// The name a host uses for this action, e.g. "newPage" or "tool:pen".
     var id: String {
@@ -36,11 +36,11 @@ enum ScribeAction: Hashable {
             return
         }
         let simple: [ScribeAction] = [
-            .newPage, .newNotebook, .openFolder, .revealFolder, .save, .importPDF, .pasteOntoPage, .search,
+            .newPage, .newNotebook, .newSection, .openFolder, .revealFolder, .save, .importPDF, .pasteOntoPage, .search,
             .insertTable, .insertEquation, .insertImage,
             .bold, .italic, .underline, .strikethrough, .bigger, .smaller,
             .zoomIn, .zoomOut, .actualSize, .fitWidth,
-            .toggleSidebar, .togglePages, .toggleFocus, .pageGrid,
+            .toggleSidebar, .togglePages, .toggleFocus, .pageGrid, .library,
         ]
         guard let match = simple.first(where: { $0.id == id }) else { return nil }
         self = match
@@ -60,9 +60,9 @@ enum ScribeAction: Hashable {
         case .newPage:
             app.newPage()
         case .newNotebook:
-            app.prompt = PromptInfo(title: "New Notebook", label: "Notebook name", text: "My Notebook", confirm: "Create") {
-                app.newNotebook(named: $0)
-            }
+            app.promptNewFolder()
+        case .newSection:
+            app.promptNewNotebook()
         case .openFolder:
             Self.chooseFolder(app)
         case .revealFolder:
@@ -117,13 +117,15 @@ enum ScribeAction: Hashable {
             withAnimation(.spring(duration: 0.35)) { app.focusMode.toggle() }
         case .pageGrid:
             withAnimation(.spring(duration: 0.3)) { app.togglePageGrid() }
+        case .library:
+            withAnimation(.spring(duration: 0.3)) { app.toggleHome() }
         }
     }
 
     private static func chooseFolder(_ app: AppModel) {
         let panel = NSOpenPanel()
-        panel.title = "Choose Notebook Folder"
-        panel.message = "Scribe keeps notebooks as plain folders. Pick the folder that holds them, or an empty one."
+        panel.title = "Choose Library Folder"
+        panel.message = "Scribe keeps your folders and notebooks as plain folders on disk. Pick the folder that holds them, or an empty one."
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true

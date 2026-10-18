@@ -35,7 +35,7 @@ struct Sidebar: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 3) {
-                    SectionLabel(text: "Notebooks").padding(.horizontal, 10).padding(.bottom, 6)
+                    SectionLabel(text: "Folders").padding(.horizontal, 10).padding(.bottom, 6)
                     ForEach(app.notebooks) { nb in
                         notebookRow(nb)
                         if !collapsed.contains(nb.id) {
@@ -51,11 +51,9 @@ struct Sidebar: View {
             .scrollIndicators(.never)
 
             Button {
-                app.prompt = PromptInfo(title: "New Notebook", label: "Notebook name", text: "My Notebook", confirm: "Create") {
-                    app.newNotebook(named: $0)
-                }
+                app.promptNewFolder()
             } label: {
-                Label("New notebook", systemImage: "plus").frame(maxWidth: .infinity)
+                Label("New folder", systemImage: "plus").frame(maxWidth: .infinity)
             }
             .buttonStyle(PillButtonStyle(height: 44))
 
@@ -93,7 +91,7 @@ struct Sidebar: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 14))
                 .focused($searchFocused)
-                .accessibilityLabel("Search all notebooks")
+                .accessibilityLabel("Search all notes")
             if app.searchText.isEmpty {
                 Text("⌘F").font(.system(size: 12, weight: .medium)).foregroundStyle(Velvet.faint)
             } else {
@@ -159,13 +157,9 @@ struct Sidebar: View {
     }
 
     @ViewBuilder private func notebookMenu(_ nb: NotebookInfo) -> some View {
-        Button("New Section…") {
-            app.prompt = PromptInfo(title: "New Section", label: "Section name", text: "New Section", confirm: "Create") {
-                app.newSection(in: nb, named: $0)
-            }
-        }
+        Button("New Notebook…") { app.promptNewNotebook(in: nb) }
         Button("Rename…") {
-            app.prompt = PromptInfo(title: "Rename Notebook", label: "Notebook name", text: nb.name, confirm: "Rename") {
+            app.prompt = PromptInfo(title: "Rename Folder", label: "Folder name", text: nb.name, confirm: "Rename") {
                 app.rename(notebook: nb, to: $0)
             }
         }
@@ -174,7 +168,7 @@ struct Sidebar: View {
         Button("Move to Trash", role: .destructive) {
             app.confirm = ConfirmInfo(
                 title: "Move “\(nb.name)” to the Trash?",
-                message: "The notebook folder and everything in it go to the Trash, where you can still recover them.",
+                message: "The folder and every notebook in it go to the Trash, where you can still recover them.",
                 action: "Move to Trash"
             ) { app.trash(notebook: nb) }
         }
@@ -185,13 +179,9 @@ struct Sidebar: View {
             app.selectSection(sec.path, openFirst: false)
             app.newPage()
         }
-        Button("New Section…") {
-            app.prompt = PromptInfo(title: "New Section", label: "Section name", text: "New Section", confirm: "Create") {
-                app.newSection(in: nb, named: $0)
-            }
-        }
+        Button("New Notebook…") { app.promptNewNotebook(in: nb) }
         Button("Rename…") {
-            app.prompt = PromptInfo(title: "Rename Section", label: "Section name", text: sec.name, confirm: "Rename") {
+            app.prompt = PromptInfo(title: "Rename Notebook", label: "Notebook name", text: sec.name, confirm: "Rename") {
                 app.rename(section: sec, to: $0)
             }
         }
@@ -200,7 +190,7 @@ struct Sidebar: View {
         Button("Move to Trash", role: .destructive) {
             app.confirm = ConfirmInfo(
                 title: "Move “\(sec.name)” to the Trash?",
-                message: "The section folder and its pages go to the Trash, where you can still recover them.",
+                message: "The notebook and its pages go to the Trash, where you can still recover them.",
                 action: "Move to Trash"
             ) { app.trash(section: sec) }
         }
@@ -392,8 +382,8 @@ struct Rail: View {
                 if narrow { app.showLibrary.toggle() } else { app.sidebarCollapsed = false }
             } label: { Image(systemName: narrow ? "books.vertical" : "sidebar.left") }
                 .buttonStyle(RoundButtonStyle(size: 44, fill: Velvet.accentSoft, foreground: Velvet.accent))
-                .help(narrow ? "Notebooks and pages" : "Expand sidebar (⌃⌘S)")
-                .accessibilityLabel(narrow ? "Notebooks and pages" : "Expand sidebar")
+                .help(narrow ? "Folders and pages" : "Expand sidebar (⌃⌘S)")
+                .accessibilityLabel(narrow ? "Folders and pages" : "Expand sidebar")
                 .popover(isPresented: $app.showLibrary, arrowEdge: .trailing) { LibraryPopover(app: app) }
             Button {
                 if narrow { app.showLibrary = true } else { app.sidebarCollapsed = false }

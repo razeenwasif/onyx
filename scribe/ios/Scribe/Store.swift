@@ -26,7 +26,12 @@ struct Ink {
 @Observable
 final class Store {
     private(set) var root: URL?
+    /// Scribe's notebooks, which the library calls folders.
     private(set) var notebooks: [NotebookInfo] = []
+    /// Pages edited most recently, for the library's Recent row.
+    private(set) var recents: [PageInfo] = []
+    /// Where you are: the library, then a folder, then a notebook's pages.
+    var route: [Route] = []
     var sectionPath: String? {
         didSet { if sectionPath != oldValue { reloadPages() } }
     }
@@ -103,6 +108,8 @@ final class Store {
         Library.forget()
         root = nil
         notebooks = []
+        recents = []
+        route = []
         sectionPath = nil
         closePage()
     }
@@ -110,24 +117,84 @@ final class Store {
     private func open(_ url: URL) {
         root = url
         refresh()
-        // Back to the page you were on, else the first section.
+        // Back to the page you were on; the back button leads to its folder
+        // and then the library.
         if let rel = UserDefaults.standard.string(forKey: Self.lastPageKey) {
             let path = url.appendingPathComponent(rel).path
-            if FileManager.default.fileExists(atPath: path) {
-                sectionPath = (path as NSString).deletingLastPathComponent
-                openPage(path)
-            }
+            if FileManager.default.fileExists(atPath: path) { show(pageAt: path) }
         }
-        if sectionPath == nil { sectionPath = notebooks.first?.sections.first?.path }
         startPolling()
     }
 
     private static let lastPageKey = "lastPage"
+    private static let lastInNotebookKey = "lastPageInNotebook"
 
-    /// Notes `path` as the page to reopen next launch.
+    /// Notes `path` as the page to reopen next launch, and in its notebook.
     private func remember(_ path: String) {
-        guard let root, path.hasPrefix(root.path + "/") else { return }
-        UserDefaults.standard.set(String(path.dropFirst(root.path.count + 1)), forKey: Self.lastPageKey)
+        guard let rel = relative(path) else { return }
+        UserDefaults.standard.set(rel, forKey: Self.lastPageKey)
+        if let section = relative((path as NSString).deletingLastPathComponent) {
+            var last = UserDefaults.standard.dictionary(forKey: Self.lastInNotebookKey) as? [String: String] ?? [:]
+            last[section] = rel
+            UserDefaults.standard.set(last, forKey: Self.lastInNotebookKey)
+        }
+    }
+
+    private func relative(_ path: String) -> String? {
+        guard let root, path.hasPrefix(root.path + "/") else { return nil }
+        return String(path.dropFirst(root.path.count + 1))
+    }
+
+    // ------------------------------------------------------------- library
+
+    enum Route: Hashable {
+        case folder(String)
+        case notebook(String)
+    }
+
+    func folder(at path: String) -> NotebookInfo? { notebooks.first { $0.path == path } }
+
+    func notebook(at path: String) -> SectionInfo? { notebooks.lazy.flatMap(\.sections).first { $0.path == path } }
+
+    func openFolder(_ folder: NotebookInfo) {
+        route = [.folder(folder.path)]
+    }
+
+    /// Opens a notebook at the page you last had open in it, else its first
+    /// page; an empty notebook gets one.
+    func openNotebook(_ notebook: SectionInfo) {
+        flush()
+        showingGrid = false
+        sectionPath = notebook.path
+        let last = (UserDefaults.standard.dictionary(forKey: Self.lastInNotebookKey) as? [String: String])?[relative(notebook.path) ?? ""]
+        if let last, let root, let page = pages.first(where: { $0.path == root.appendingPathComponent(last).path }) {
+            openPage(page.path)
+        } else if let first = pages.first {
+            openPage(first.path)
+        } else {
+            newPage()
+        }
+        route = [.folder(notebook.notebookPath), .notebook(notebook.path)]
+    }
+
+    func openRecent(_ page: PageInfo) {
+        flush()
+        showingGrid = false
+        show(pageAt: page.path)
+    }
+
+    /// Opens the page at `path` with the library behind it.
+    private func show(pageAt path: String) {
+        let section = (path as NSString).deletingLastPathComponent
+        sectionPath = section
+        openPage(path)
+        route = [.folder((section as NSString).deletingLastPathComponent), .notebook(section)]
+    }
+
+    /// Back out of a notebook: save, and leave the grid.
+    func leftNotebook() {
+        flush()
+        showingGrid = false
     }
 
     /// Picks up changes made on the Mac: downloads new files, rereads the
@@ -139,6 +206,8 @@ final class Store {
         do {
             let tree: [NotebookInfo] = try Core.call("tree", ["root": root.path])
             if tree != notebooks { notebooks = tree }
+            let recent: [PageInfo] = try Core.call("recent_pages", ["root": root.path, "limit": 10])
+            if recent != recents { recents = recent }
         } catch {
             problem = error.localizedDescription
         }
@@ -256,17 +325,8 @@ final class Store {
         let wasOpen = page.path == pagePath
         let index = pages.firstIndex(of: page)
         if wasOpen { flush() }
-        let url = URL(fileURLWithPath: page.path)
         do {
-            do {
-                try FileManager.default.trashItem(at: url, resultingItemURL: nil)
-            } catch {
-                guard let root else { throw error }
-                let bin = root.appendingPathComponent(".scribe/Recently Deleted", isDirectory: true)
-                try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
-                let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-                try FileManager.default.moveItem(at: url, to: bin.appendingPathComponent("\(stamp) \(url.lastPathComponent)"))
-            }
+            try discard(page.path)
             try Core.run("forget_page", ["section": page.sectionPath, "path": page.path])
         } catch {
             problem = "Could not delete the page: \(error.localizedDescription)"
@@ -280,31 +340,109 @@ final class Store {
         }
     }
 
-    // ------------------------------------------- notebooks, sections, names
-
-    /// A new section (a folder of pages) at the end of `notebook`, opened.
-    func newSection(in notebook: NotebookInfo, named name: String) {
-        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
+    /// Moves a file or folder to Recently Deleted (iCloud Drive's, in the
+    /// Files app), or, where the system has no bin for it, to the
+    /// workspace's own `.scribe/Recently Deleted` folder.
+    private func discard(_ path: String) throws {
+        let url = URL(fileURLWithPath: path)
         do {
-            let path: String = try Core.call("create_section", ["notebook": notebook.path, "name": name])
-            refresh()
-            sectionPath = path
+            try FileManager.default.trashItem(at: url, resultingItemURL: nil)
         } catch {
-            problem = "Could not create the section: \(error.localizedDescription)"
+            guard let root else { throw error }
+            let bin = root.appendingPathComponent(".scribe/Recently Deleted", isDirectory: true)
+            try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+            let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+            try FileManager.default.moveItem(at: url, to: bin.appendingPathComponent("\(stamp) \(url.lastPathComponent)"))
         }
     }
 
-    func newNotebook(named name: String) {
+    // ----------------------------------------- folders, notebooks, names
+    // (A "folder" is a Scribe notebook; a "notebook" is a Scribe section.)
+
+    /// A new notebook at the end of `folder`, opened on its first page.
+    func newNotebook(in folder: NotebookInfo, named name: String) {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let root, !name.isEmpty else { return }
+        guard !name.isEmpty else { return }
         do {
-            _ = try Core.call("create_notebook", ["root": root.path, "name": name, "firstSection": "New Section"], as: String.self)
+            let path: String = try Core.call("create_section", ["notebook": folder.path, "name": name])
             refresh()
-            sectionPath = notebooks.first { $0.name == name }?.sections.first?.path ?? sectionPath
+            if let created = notebook(at: path) { openNotebook(created) }
         } catch {
             problem = "Could not create the notebook: \(error.localizedDescription)"
         }
+    }
+
+    /// A new folder holding one empty notebook, opened.
+    func newFolder(named name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let root, !name.isEmpty else { return }
+        do {
+            let path: String = try Core.call("create_notebook", ["root": root.path, "name": name, "firstSection": "Notebook"])
+            refresh()
+            route = [.folder(path)]
+        } catch {
+            problem = "Could not create the folder: \(error.localizedDescription)"
+        }
+    }
+
+    func rename(_ item: LibraryItem, to name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        do {
+            switch item {
+            case .folder(let f): try Core.run("rename_notebook", ["path": f.path, "name": name])
+            case .notebook(let n): try Core.run("rename_section", ["path": n.path, "name": name])
+            }
+            refresh()
+        } catch {
+            problem = "Could not rename it: \(error.localizedDescription)"
+        }
+    }
+
+    func recolor(_ item: LibraryItem, _ hex: String) {
+        do {
+            switch item {
+            case .folder(let f): try Core.run("set_notebook_color", ["path": f.path, "color": hex])
+            case .notebook(let n): try Core.run("set_section_color", ["path": n.path, "color": hex])
+            }
+            refresh()
+        } catch {
+            problem = "Could not change the colour: \(error.localizedDescription)"
+        }
+    }
+
+    func setCover(_ notebook: SectionInfo, _ choice: String) {
+        do {
+            try Core.run("set_section_cover", ["path": notebook.path, "cover": choice])
+            refresh()
+        } catch {
+            problem = "Could not change the cover: \(error.localizedDescription)"
+        }
+    }
+
+    func delete(_ item: LibraryItem) {
+        let path: String
+        switch item {
+        case .folder(let f): path = f.path
+        case .notebook(let n): path = n.path
+        }
+        // Closing what's being deleted first.
+        if let pagePath, pagePath.hasPrefix(path + "/") {
+            flush()
+            closePage()
+            route = []
+        }
+        do {
+            try discard(path)
+            if case .notebook(let n) = item {
+                try Core.run("forget_section", ["notebook": n.notebookPath, "section": n.path])
+            }
+        } catch {
+            problem = "Could not delete it: \(error.localizedDescription)"
+        }
+        if sectionPath?.hasPrefix(path) == true { sectionPath = nil }
+        if case .folder = item { route.removeAll { $0 == .folder(path) } }
+        refresh()
     }
 
     /// Retitles a page. Its file is renamed to match, as on the Mac.

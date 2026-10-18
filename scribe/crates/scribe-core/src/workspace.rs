@@ -40,6 +40,8 @@ pub struct NotebookInfo {
     pub color: String,
     pub path: String,
     pub sections: Vec<SectionInfo>,
+    /// The latest `modified` of its sections.
+    pub modified: f64,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -52,6 +54,15 @@ pub struct SectionInfo {
     pub notebook_path: String,
     #[serde(rename = "pageCount")]
     pub page_count: usize,
+    /// When a page in it last changed (file time, Unix seconds; 0 if empty).
+    pub modified: f64,
+    /// The page shown as the notebook's cover in the library: the first
+    /// page, or the latest-edited one when the section's `cover` is
+    /// "latest".
+    pub cover: Option<PageInfo>,
+    /// "first" or "latest".
+    #[serde(rename = "coverChoice")]
+    pub cover_choice: String,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -251,32 +262,83 @@ impl Workspace {
     }
 
     pub fn list_pages(&self, section_dir: &Path) -> Vec<PageInfo> {
-        self.list_page_files(section_dir)
-            .into_iter()
-            .map(|f| {
-                let header: Option<PageHeader> = read_json(&f);
-                let (title, modified, snippet, id, bookmarked) = match header {
-                    Some(h) => (
-                        h.title,
-                        h.modified,
-                        snippet_of(h.text_boxes.iter().map(|t| t.text.as_str())),
-                        h.id.unwrap_or_default(),
-                        h.bookmarked.unwrap_or(false),
-                    ),
-                    None => (None, None, String::new(), String::new(), false),
-                };
-                PageInfo {
-                    title: title.unwrap_or_else(|| file_stem(&f)),
-                    modified: parse_stamp(modified.as_deref()),
-                    path: path_str(&f),
-                    section_path: path_str(section_dir),
-                    snippet,
-                    page_id: id,
-                    bookmarked,
-                }
-            })
-            .collect()
+        self.list_page_files(section_dir).into_iter().map(|f| page_info(&f, section_dir)).collect()
     }
+
+    /// The pages most recently changed anywhere in the workspace, newest
+    /// first, for the library's Recent row. Ranked by file time, so only the
+    /// pages returned are read.
+    pub fn recent_pages(&self, limit: usize) -> Vec<PageInfo> {
+        let mut all: Vec<(f64, PathBuf, PathBuf)> = Vec::new();
+        for nb in self.list_notebook_dirs() {
+            for sec in self.list_section_dirs(&nb) {
+                for f in self.list_page_files(&sec) {
+                    all.push((file_time(&f), f, sec.clone()));
+                }
+            }
+        }
+        all.sort_by(|a, b| b.0.total_cmp(&a.0));
+        all.into_iter().take(limit).map(|(_, f, sec)| page_info(&f, &sec)).collect()
+    }
+
+    pub fn set_notebook_color(&self, dir: &Path, color: &str) -> Result<()> {
+        let mut doc = self.read_notebook(dir);
+        doc.color = color.to_string();
+        self.write_notebook(dir, &doc)
+    }
+
+    pub fn set_section_color(&self, dir: &Path, color: &str) -> Result<()> {
+        let mut doc = self.read_section(dir);
+        doc.color = color.to_string();
+        self.write_section(dir, &doc)
+    }
+
+    /// Which page a notebook (section) shows as its cover: "first" or "latest".
+    pub fn set_section_cover(&self, dir: &Path, choice: &str) -> Result<()> {
+        let mut doc = self.read_section(dir);
+        if choice == "latest" {
+            doc.extra.insert("cover".into(), serde_json::Value::String("latest".into()));
+        } else {
+            doc.extra.remove("cover");
+        }
+        self.write_section(dir, &doc)
+    }
+}
+
+/// One page's listing entry, read from just its header.
+fn page_info(f: &Path, section_dir: &Path) -> PageInfo {
+    let header: Option<PageHeader> = read_json(f);
+    let (title, modified, snippet, id, bookmarked) = match header {
+        Some(h) => (
+            h.title,
+            h.modified,
+            snippet_of(h.text_boxes.iter().map(|t| t.text.as_str())),
+            h.id.unwrap_or_default(),
+            h.bookmarked.unwrap_or(false),
+        ),
+        None => (None, None, String::new(), String::new(), false),
+    };
+    PageInfo {
+        title: title.unwrap_or_else(|| file_stem(f)),
+        modified: parse_stamp(modified.as_deref()),
+        path: path_str(f),
+        section_path: path_str(section_dir),
+        snippet,
+        page_id: id,
+        bookmarked,
+    }
+}
+
+/// A file's modification time in Unix seconds, or 0.
+fn file_time(f: &Path) -> f64 {
+    fs::metadata(f)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0.0, |d| d.as_secs_f64())
+}
+
+impl Workspace {
 
     pub fn read_page(&self, file: &Path) -> Result<PageDoc> {
         let text = fs::read_to_string(file).map_err(|e| io_err("Could not read", file, e))?;
@@ -441,17 +503,30 @@ impl Workspace {
                     .into_iter()
                     .map(|s| {
                         let sec = self.read_section(&s);
+                        let files = self.list_page_files(&s);
+                        let times: Vec<f64> = files.iter().map(|f| file_time(f)).collect();
+                        let modified = times.iter().copied().fold(0.0, f64::max);
+                        let latest = sec.extra.get("cover").and_then(|v| v.as_str()) == Some("latest");
+                        let cover_file = if latest {
+                            files.iter().zip(&times).max_by(|a, b| a.1.total_cmp(b.1)).map(|(f, _)| f)
+                        } else {
+                            files.first()
+                        };
                         SectionInfo {
                             id: sec.id,
                             name: sec.name,
                             color: sec.color,
-                            page_count: self.list_page_files(&s).len(),
+                            page_count: files.len(),
+                            modified,
+                            cover: cover_file.map(|f| page_info(f, &s)),
+                            cover_choice: if latest { "latest" } else { "first" }.into(),
                             path: path_str(&s),
                             notebook_path: path_str(&nb_dir),
                         }
                     })
-                    .collect();
-                NotebookInfo { id: nb.id, name: nb.name, color: nb.color, path: path_str(&nb_dir), sections }
+                    .collect::<Vec<_>>();
+                let modified = sections.iter().map(|s| s.modified).fold(0.0, f64::max);
+                NotebookInfo { id: nb.id, name: nb.name, color: nb.color, path: path_str(&nb_dir), sections, modified }
             })
             .collect()
     }

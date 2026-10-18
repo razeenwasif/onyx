@@ -206,6 +206,19 @@ the host draws its app switcher where the window's traffic lights would be (Elec
 hides them), and nothing else about the interface changes. `../desktop/scripts/build-scribe.sh`
 builds and stages it.
 
+## The library
+
+Scribe opens on a library, like Goodnotes: recent pages along the top, then your folders
+as coloured stacks. Open a folder to see its notebooks as covers (each notebook's first
+page, or its latest-edited page if you choose that from its menu) with a spine in the
+notebook's colour. Long-press (or right-click) a folder or notebook to rename, recolour
+or delete it. On the Mac the library shows when no page is open, and View → Library (⌘L)
+brings it back.
+
+The library's words map onto the files like this: a **folder** is a Scribe notebook
+folder (`notebook.json`), and a **notebook** is a section folder (`section.json`) holding
+pages. Only the labels changed; the format is the same (docs/FORMAT.md).
+
 ## All pages
 
 The grid button by a page's title (or View → All Pages, ⇧⌘G, on the Mac) shows every
@@ -236,9 +249,9 @@ rather than growing the page (a page only grows to fit what is already on it, su
 writing from the Mac). The iPad's pen is a little heavier than the Mac's, and its curve
 lifts the light pressure of everyday Pencil writing.
 
-**New Section** at the end of each notebook in the sidebar adds a section, and the **⋯**
-menu adds notebooks. To rename a page, long-press it in the page list, or tap the open
-page's title. You get the pen, the highlighter, the stroke
+Folders and notebooks are made from the library (the **⋯** menu, the **+** in a folder, or
+the dashed tiles). To rename a page, tap the open page's title, or long-press it in the
+page grid. You get the pen, the highlighter, the stroke
 eraser, the Mac's ink colours, three nib sizes and undo. Typed text, pictures, tables and
 imported PDFs show as on the Mac; for now they're edited on the Mac, and formulas show
 their LaTeX source.

@@ -110,14 +110,18 @@ struct SourceDTO: Codable, Equatable {
 
 // ------------------------------------------------------------- workspace
 
+/// A Scribe notebook, shown in the library as a "folder" of notebooks.
 struct NotebookInfo: Codable, Identifiable, Hashable {
     var id: String
     var name: String
     var color: String
     var path: String
     var sections: [SectionInfo]
+    /// When a page in it last changed (Unix seconds).
+    var modified: Double?
 }
 
+/// A Scribe section, shown in the library as a "notebook" with a cover.
 struct SectionInfo: Codable, Identifiable, Hashable {
     var id: String
     var name: String
@@ -125,6 +129,12 @@ struct SectionInfo: Codable, Identifiable, Hashable {
     var path: String
     var notebookPath: String
     var pageCount: Int
+    /// When a page in it last changed (Unix seconds).
+    var modified: Double?
+    /// The page shown as its cover: the first, or the latest edited.
+    var cover: PageInfo?
+    /// "first" or "latest".
+    var coverChoice: String?
 }
 
 struct PageInfo: Codable, Identifiable, Hashable {

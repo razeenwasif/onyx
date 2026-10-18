@@ -10,7 +10,7 @@ extension AppModel {
     func chooseAndImportPDFs() {
         let panel = NSOpenPanel()
         panel.title = "Import PDF or Goodnotes Export"
-        panel.message = "Each PDF becomes a section, one page per PDF page, ready to write on. "
+        panel.message = "Each PDF becomes a notebook, one page per PDF page, ready to write on. "
             + "From Goodnotes, export a notebook as PDF (Share → Export → PDF)."
         panel.prompt = "Import"
         panel.allowedContentTypes = [.pdf]

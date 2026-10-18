@@ -135,6 +135,26 @@ fn dispatch(req: &Value) -> R {
             Ok(json!(path_str(&dir)))
         }
 
+        "set_notebook_color" => {
+            ws_any().set_notebook_color(&path_arg(req, "path")?, &arg::<String>(req, "color")?)?;
+            Ok(Value::Null)
+        }
+
+        "set_section_color" => {
+            ws_any().set_section_color(&path_arg(req, "path")?, &arg::<String>(req, "color")?)?;
+            Ok(Value::Null)
+        }
+
+        "set_section_cover" => {
+            ws_any().set_section_cover(&path_arg(req, "path")?, &arg::<String>(req, "cover")?)?;
+            Ok(Value::Null)
+        }
+
+        "recent_pages" => {
+            let limit: Option<usize> = arg(req, "limit")?;
+            Ok(json!(ws(req)?.recent_pages(limit.unwrap_or(8))))
+        }
+
         "rename_section" => {
             ws_any().rename_section(&path_arg(req, "path")?, &arg::<String>(req, "name")?)?;
             Ok(Value::Null)

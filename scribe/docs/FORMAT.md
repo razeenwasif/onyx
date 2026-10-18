@@ -56,6 +56,9 @@ dropping a folder in by hand works.
 }
 ```
 
+`cover` (optional, `"latest"`) makes the library show the most recently edited page
+as the section's cover instead of its first page.
+
 `pageOrder` lists **file names** in display order, with the same
 append-if-missing rule.
 

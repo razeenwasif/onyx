@@ -54,124 +54,87 @@ struct WelcomeView: View {
     }
 }
 
-/// Notebooks and sections, then the section's pages, then the page.
+/// The library, a folder's notebooks, then a notebook's pages, as one stack
+/// with back buttons, the way Goodnotes-style apps move around.
 struct LibraryView: View {
     @Bindable var store: Store
-    @State private var columns: NavigationSplitViewVisibility
     @State private var picking = false
     @State private var prompt: NamePrompt?
 
-    init(store: Store) {
-        self.store = store
-        // Reopening on a page: give it the whole screen.
-        _columns = State(initialValue: store.doc == nil ? .doubleColumn : .detailOnly)
+    static let style = PageGrid.Style(
+        ground: .velvetBackdrop, text: Color(uiColor: Velvet.text), muted: .velvetMuted,
+        accent: .velvetAccent, control: Color(uiColor: Velvet.control)
+    )
+    static let deleteNote = "It moves to Recently Deleted, so you can get it back."
+
+    private var actions: LibraryActions {
+        LibraryActions(
+            openFolder: { store.openFolder($0) },
+            openNotebook: { store.openNotebook($0) },
+            openPage: { store.openRecent($0) },
+            newFolder: { prompt = NamePrompt(kind: .newFolder) },
+            newNotebook: { prompt = NamePrompt(kind: .newNotebook($0)) },
+            rename: { prompt = NamePrompt(kind: .rename($0), initial: $0.name) },
+            recolor: { store.recolor($0, $1) },
+            setCover: { store.setCover($0, $1) },
+            delete: { store.delete($0) }
+        )
     }
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columns) {
-            List(selection: $store.sectionPath) {
-                ForEach(store.notebooks) { notebook in
-                    Section(notebook.name) {
-                        ForEach(notebook.sections) { section in
-                            Label {
-                                Text(section.name)
-                            } icon: {
-                                Circle().fill(Color(uiColor: UIColor(hex: section.color))).frame(width: 10, height: 10)
-                            }
-                            .badge(section.pageCount)
-                            .tag(section.path)
-                        }
-                        Button {
-                            prompt = NamePrompt(kind: .section(notebook))
+        NavigationStack(path: $store.route) {
+            LibraryHome(folders: store.notebooks, recents: store.recents, root: store.rootPath,
+                        style: Self.style, actions: actions, deleteNote: Self.deleteNote)
+                .navigationTitle("Library")
+                .safeAreaInset(edge: .bottom) {
+                    if store.downloading > 0 {
+                        Label("Downloading \(store.downloading) from iCloud…", systemImage: "icloud.and.arrow.down")
+                            .font(.footnote)
+                            .foregroundStyle(Color.velvetMuted)
+                            .padding(10)
+                    }
+                }
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Button("New Folder…", systemImage: "folder.badge.plus") { prompt = NamePrompt(kind: .newFolder) }
+                            Divider()
+                            Button("Sync Now", systemImage: "arrow.clockwise") { store.refresh() }
+                            Button("Change Library Location…", systemImage: "externaldrive") { picking = true }
                         } label: {
-                            Label("New Section", systemImage: "plus")
-                                .foregroundStyle(Color.velvetMuted)
+                            Image(systemName: "ellipsis.circle")
                         }
                     }
                 }
-            }
-            .navigationTitle("Notebooks")
-            .scrollContentBackground(.hidden)
-            .background(Color.velvetSidebar)
-            .safeAreaInset(edge: .bottom) {
-                if store.downloading > 0 {
-                    Label("Downloading \(store.downloading) from iCloud…", systemImage: "icloud.and.arrow.down")
-                        .font(.footnote)
-                        .foregroundStyle(Color.velvetMuted)
-                        .padding(10)
+                .navigationDestination(for: Store.Route.self) { route in
+                    switch route {
+                    case .folder(let path):
+                        if let folder = store.folder(at: path) {
+                            FolderView(folder: folder, root: store.rootPath, style: Self.style, actions: actions, deleteNote: Self.deleteNote)
+                                .navigationTitle(folder.name)
+                                .toolbar {
+                                    ToolbarItem(placement: .topBarTrailing) {
+                                        Button("New Notebook", systemImage: "plus") { prompt = NamePrompt(kind: .newNotebook(folder)) }
+                                    }
+                                }
+                        } else {
+                            ContentUnavailableView("Folder Not Found", systemImage: "folder", description: Text("It may have been moved or deleted on another device."))
+                        }
+                    case .notebook:
+                        WritingView(store: store, prompt: $prompt)
+                    }
                 }
-            }
-            .toolbar {
-                Menu {
-                    Button("New Notebook…", systemImage: "book.closed") { prompt = NamePrompt(kind: .notebook) }
-                    Button("Change Notebook Folder…", systemImage: "folder") { picking = true }
-                    Button("Sync Now", systemImage: "arrow.clockwise") { store.refresh() }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-            }
-        } content: {
-            PageList(store: store, columns: $columns, prompt: $prompt)
-        } detail: {
-            WritingView(store: store, prompt: $prompt)
         }
-        .navigationSplitViewStyle(.balanced)
+        .onChange(of: store.route) { old, now in
+            let inNotebook = { (r: [Store.Route]) in r.contains { if case .notebook = $0 { true } else { false } } }
+            if inNotebook(old) && !inNotebook(now) { store.leftNotebook() }
+        }
         .namePrompt($prompt, store: store)
         .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result {
                 store.forgetFolder()
                 store.choose(url)
             }
-        }
-    }
-}
-
-struct PageList: View {
-    let store: Store
-    @Binding var columns: NavigationSplitViewVisibility
-    @Binding var prompt: NamePrompt?
-
-    private var selection: Binding<String?> {
-        Binding(get: { store.pagePath }, set: { path in
-            guard let path else { return }
-            store.openPage(path)
-            // On the iPad mini the page wants the whole screen.
-            columns = .detailOnly
-        })
-    }
-
-    var body: some View {
-        List(store.pages, selection: selection) { page in
-            VStack(alignment: .leading, spacing: 3) {
-                Text(page.title).lineLimit(1)
-                if let date = page.modifiedDate {
-                    Text(date, format: .relative(presentation: .named))
-                        .font(.caption)
-                        .foregroundStyle(Color.velvetMuted)
-                }
-            }
-            .tag(page.path)
-            .contextMenu {
-                Button(page.isBookmarked ? "Unstar" : "Star", systemImage: page.isBookmarked ? "star.slash" : "star") {
-                    store.toggleStar(page)
-                }
-                Button("Rename…", systemImage: "pencil") {
-                    prompt = NamePrompt(kind: .page(page.path), initial: page.title)
-                }
-            }
-        }
-        .overlay {
-            if store.sectionPath != nil, store.pages.isEmpty {
-                ContentUnavailableView("No Pages", systemImage: "doc", description: Text("Tap + to start one."))
-            }
-        }
-        .navigationTitle(store.section?.name ?? "Pages")
-        .toolbar {
-            Button("New Page", systemImage: "square.and.pencil") {
-                store.newPage()
-                columns = .detailOnly
-            }
-            .disabled(store.sectionPath == nil)
         }
     }
 }
@@ -210,7 +173,7 @@ struct WritingView: View {
                 ToolDock(store: store)
                     .padding(.bottom, 14)
             } else {
-                ContentUnavailableView("No Page Open", systemImage: "pencil.and.scribble", description: Text("Pick a page to write on."))
+                ContentUnavailableView("No Page Open", systemImage: "pencil.and.scribble", description: Text("Open a notebook from the library."))
             }
         }
         .navigationTitle(store.showingGrid ? (store.section?.name ?? "All Pages") : (store.doc?.title ?? ""))
@@ -249,11 +212,12 @@ private struct RenameTitleMenu: ViewModifier {
     }
 }
 
-/// Asking for a name: a new section or notebook, or a page's new title.
+/// Asking for a name: a new folder or notebook, or a new name for one.
 struct NamePrompt {
     enum Kind {
-        case section(NotebookInfo)
-        case notebook
+        case newFolder
+        case newNotebook(NotebookInfo)
+        case rename(LibraryItem)
         case page(String)
     }
 
@@ -262,14 +226,19 @@ struct NamePrompt {
 
     var title: String {
         switch kind {
-        case .section(let notebook): "New Section in \(notebook.name)"
-        case .notebook: "New Notebook"
+        case .newFolder: "New Folder"
+        case .newNotebook(let folder): "New Notebook in \(folder.name)"
+        case .rename(.folder): "Rename Folder"
+        case .rename(.notebook): "Rename Notebook"
         case .page: "Rename Page"
         }
     }
 
     var action: String {
-        if case .page = kind { "Rename" } else { "Create" }
+        switch kind {
+        case .rename, .page: "Rename"
+        default: "Create"
+        }
     }
 }
 
@@ -291,8 +260,9 @@ private struct NamePromptModifier: ViewModifier {
     private func commit() {
         guard let prompt else { return }
         switch prompt.kind {
-        case .section(let notebook): store.newSection(in: notebook, named: text)
-        case .notebook: store.newNotebook(named: text)
+        case .newFolder: store.newFolder(named: text)
+        case .newNotebook(let folder): store.newNotebook(in: folder, named: text)
+        case .rename(let item): store.rename(item, to: text)
         case .page(let path): store.renamePage(path, to: text)
         }
     }

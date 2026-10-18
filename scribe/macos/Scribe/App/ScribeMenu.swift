@@ -24,10 +24,11 @@ public enum ScribeMenu {
         let menus: [[String: Any]] = [
             ["label": "File", "submenu": [
                 item("New Page", .newPage, "Cmd+N"),
-                item("New Notebook…", .newNotebook, "Cmd+Shift+N"),
+                item("New Notebook…", .newSection, "Cmd+Alt+N"),
+                item("New Folder…", .newNotebook, "Cmd+Shift+N"),
                 separator,
-                item("Open Notebook Folder…", .openFolder, "Cmd+O"),
-                item("Show Notebook Folder in Finder", .revealFolder),
+                item("Open Library Folder…", .openFolder, "Cmd+O"),
+                item("Show Library in Finder", .revealFolder),
                 separator,
                 item("Import PDF or Goodnotes…", .importPDF, "Cmd+Shift+I"),
                 separator,
@@ -38,7 +39,7 @@ public enum ScribeMenu {
                 role("cut"), role("copy"), role("paste"),
                 item("Paste onto Page", .pasteOntoPage, "Alt+Cmd+V"),
                 role("selectAll"), separator,
-                item("Search All Notebooks", .search, "Cmd+F"),
+                item("Search All Notes", .search, "Cmd+F"),
             ]],
             ["label": "Insert", "submenu": [
                 item("Table…", .insertTable, "Alt+Cmd+T"),
@@ -66,6 +67,7 @@ public enum ScribeMenu {
                 item("Toggle Sidebar", .toggleSidebar, "Ctrl+Cmd+S"),
                 item("Toggle Pages", .togglePages, "Ctrl+Cmd+P"),
                 item("Focus on Page", .toggleFocus, "Cmd+\\"),
+                item("Library", .library, "Cmd+L"),
                 item("All Pages", .pageGrid, "Cmd+Shift+G"),
             ]],
         ]

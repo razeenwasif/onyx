@@ -262,6 +262,57 @@ fn bookmarks_survive_saves_and_do_not_count_as_edits() {
 }
 
 #[test]
+fn library_covers_recents_and_colours() {
+    use std::time::{Duration, SystemTime};
+    let (_d, ws) = temp_ws();
+    let nb = ws.create_notebook("Uni").unwrap();
+    let sec = ws.create_section(&nb, "Lectures").unwrap();
+    let first = ws.create_page(&sec, "Week 1").unwrap();
+    let second = ws.create_page(&sec, "Week 2").unwrap();
+    let other = ws.create_section(&nb, "Labs").unwrap();
+    let lab = ws.create_page(&other, "Lab 1").unwrap();
+
+    // Week 1 edited last, then Lab 1, then Week 2.
+    let age = |f: &std::path::Path, secs: u64| {
+        let t = SystemTime::now() - Duration::from_secs(secs);
+        fs::File::options().write(true).open(f).unwrap().set_modified(t).unwrap();
+    };
+    age(&second, 300);
+    age(&lab, 200);
+    age(&first, 100);
+
+    let tree = ws.tree();
+    let lectures = tree[0].sections.iter().find(|s| s.name == "Lectures").unwrap();
+    assert_eq!(lectures.cover.as_ref().unwrap().title, "Week 1");
+    assert_eq!(lectures.cover_choice, "first");
+    assert!(lectures.modified > 0.0);
+    assert_eq!(tree[0].modified, lectures.modified);
+
+    ws.set_section_cover(&sec, "latest").unwrap();
+    age(&second, 10);
+    let tree = ws.tree();
+    let lectures = tree[0].sections.iter().find(|s| s.name == "Lectures").unwrap();
+    assert_eq!(lectures.cover.as_ref().unwrap().title, "Week 2");
+    assert_eq!(lectures.cover_choice, "latest");
+
+    let recent: Vec<String> = ws.recent_pages(2).into_iter().map(|p| p.title).collect();
+    assert_eq!(recent, ["Week 2", "Week 1"]);
+
+    ws.set_notebook_color(&nb, "#C7B6F2").unwrap();
+    ws.set_section_color(&other, "#A9D8C3").unwrap();
+    let tree = ws.tree();
+    assert_eq!(tree[0].color, "#C7B6F2");
+    assert_eq!(tree[0].sections.iter().find(|s| s.name == "Labs").unwrap().color, "#A9D8C3");
+
+    // An empty notebook has no cover.
+    let empty = ws.create_section(&nb, "Empty").unwrap();
+    let tree = ws.tree();
+    let e = tree[0].sections.iter().find(|s| s.path == empty.to_string_lossy()).unwrap();
+    assert!(e.cover.is_none());
+    assert_eq!(e.modified, 0.0);
+}
+
+#[test]
 fn starter_is_created_once() {
     let (_d, ws) = temp_ws();
     assert!(ws.ensure_starter().unwrap().is_some());

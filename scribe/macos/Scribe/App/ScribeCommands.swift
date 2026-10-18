@@ -17,12 +17,14 @@ public struct ScribeCommands: Commands {
         CommandGroup(replacing: .newItem) {
             button("New Page", .newPage)
                 .keyboardShortcut("n")
-            button("New Notebook…", .newNotebook)
+            button("New Notebook…", .newSection)
+                .keyboardShortcut("n", modifiers: [.command, .option])
+            button("New Folder…", .newNotebook)
                 .keyboardShortcut("n", modifiers: [.command, .shift])
             Divider()
-            button("Open Notebook Folder…", .openFolder)
+            button("Open Library Folder…", .openFolder)
                 .keyboardShortcut("o")
-            button("Show Notebook Folder in Finder", .revealFolder)
+            button("Show Library in Finder", .revealFolder)
             Divider()
             button("Import PDF or Goodnotes…", .importPDF)
                 .keyboardShortcut("i", modifiers: [.command, .shift])
@@ -41,7 +43,7 @@ public struct ScribeCommands: Commands {
         }
 
         CommandGroup(after: .textEditing) {
-            button("Search All Notebooks", .search)
+            button("Search All Notes", .search)
                 .keyboardShortcut("f")
         }
 
@@ -99,8 +101,10 @@ public struct ScribeCommands: Commands {
                 .keyboardShortcut("s", modifiers: [.command, .control])
             button(app.pageListCollapsed ? "Show Pages" : "Hide Pages", .togglePages)
                 .keyboardShortcut("p", modifiers: [.command, .control])
-            button(app.focusMode ? "Show Notebooks" : "Focus on Page", .toggleFocus)
+            button(app.focusMode ? "Show Folders" : "Focus on Page", .toggleFocus)
                 .keyboardShortcut("\\", modifiers: .command)
+            button("Library", .library)
+                .keyboardShortcut("l", modifiers: .command)
             button(app.showingPageGrid ? "Hide All Pages" : "All Pages", .pageGrid)
                 .keyboardShortcut("g", modifiers: [.command, .shift])
             Divider()

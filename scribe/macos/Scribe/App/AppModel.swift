@@ -14,6 +14,12 @@ public final class AppModel {
     var selectedPagePath: String?
     /// The section's pages as a grid of thumbnails, in place of the editor.
     var showingPageGrid = false
+    /// The library (folders and notebook covers), in place of the editor.
+    var showingHome = false
+    /// The folder open in the library, or nil for the library's front.
+    var homeFolderPath: String?
+    /// Pages edited most recently, for the library's Recent row.
+    var recents: [PageInfo] = []
 
     var searchText = "" {
         didSet { scheduleSearch() }
@@ -95,7 +101,7 @@ public final class AppModel {
         do {
             _ = try Core.call("ensure_starter", ["root": root], as: String?.self)
         } catch {
-            show(error, title: "Could not open your notebooks")
+            show(error, title: "Could not open your library")
         }
         reloadTree()
         restoreLastPage()
@@ -147,7 +153,7 @@ public final class AppModel {
         do {
             notebooks = try Core.call("tree", ["root": root])
         } catch {
-            show(error, title: "Could not read the notebook folder")
+            show(error, title: "Could not read the library folder")
         }
         if let sel = selectedSectionPath, section(at: sel) == nil {
             selectedSectionPath = nil
@@ -347,6 +353,108 @@ public final class AppModel {
         }
     }
 
+    // -------------------------------------------------------------- library
+    // The library calls Scribe's notebooks "folders" and its sections
+    // "notebooks"; the files keep their own names.
+
+    func toggleHome() {
+        if showingHome && page != nil {
+            showingHome = false
+            return
+        }
+        commitOpenPage()
+        reloadTree()
+        loadRecents()
+        focusMode = false
+        showingPageGrid = false
+        homeFolderPath = nil
+        showingHome = true
+    }
+
+    func loadRecents() {
+        recents = (try? Core.call("recent_pages", ["root": root, "limit": 12], as: [PageInfo].self)) ?? []
+    }
+
+    var libraryActions: LibraryActions {
+        LibraryActions(
+            openFolder: { [weak self] in self?.homeFolderPath = $0.path },
+            openNotebook: { [weak self] notebook in
+                self?.showingHome = false
+                self?.selectSection(notebook.path)
+            },
+            openPage: { [weak self] info in
+                guard let self else { return }
+                showingHome = false
+                selectSection(info.sectionPath, openFirst: false)
+                openPage(info.path)
+            },
+            newFolder: { [weak self] in self?.promptNewFolder() },
+            newNotebook: { [weak self] in self?.promptNewNotebook(in: $0) },
+            rename: { [weak self] item in
+                guard let self else { return }
+                switch item {
+                case .folder(let f):
+                    prompt = PromptInfo(title: "Rename Folder", label: "Folder name", text: f.name, confirm: "Rename") { [weak self] in
+                        self?.rename(notebook: f, to: $0)
+                    }
+                case .notebook(let n):
+                    prompt = PromptInfo(title: "Rename Notebook", label: "Notebook name", text: n.name, confirm: "Rename") { [weak self] in
+                        self?.rename(section: n, to: $0)
+                    }
+                }
+            },
+            recolor: { [weak self] item, hex in
+                guard let self else { return }
+                do {
+                    switch item {
+                    case .folder(let f): try Core.run("set_notebook_color", ["path": f.path, "color": hex])
+                    case .notebook(let n): try Core.run("set_section_color", ["path": n.path, "color": hex])
+                    }
+                    reloadTree()
+                } catch {
+                    show(error, title: "Could not change the colour")
+                }
+            },
+            setCover: { [weak self] notebook, choice in
+                guard let self else { return }
+                do {
+                    try Core.run("set_section_cover", ["path": notebook.path, "cover": choice])
+                    reloadTree()
+                } catch {
+                    show(error, title: "Could not change the cover")
+                }
+            },
+            delete: { [weak self] item in
+                guard let self else { return }
+                switch item {
+                case .folder(let f):
+                    trash(notebook: f)
+                    if homeFolderPath == f.path { homeFolderPath = nil }
+                case .notebook(let n):
+                    trash(section: n)
+                }
+                loadRecents()
+            }
+        )
+    }
+
+    func promptNewFolder() {
+        prompt = PromptInfo(title: "New Folder", label: "Folder name", text: "New Folder", confirm: "Create") { [weak self] in
+            self?.newNotebook(named: $0)
+        }
+    }
+
+    /// A new notebook (Scribe section) in `folder`, else the current one.
+    func promptNewNotebook(in folder: NotebookInfo? = nil) {
+        guard let folder = folder
+            ?? section(at: selectedSectionPath).flatMap({ notebook(containing: $0) })
+            ?? notebooks.first
+        else { return promptNewFolder() }
+        prompt = PromptInfo(title: "New Notebook in \(folder.name)", label: "Notebook name", text: "New Notebook", confirm: "Create") { [weak self] in
+            self?.newSection(in: folder, named: $0)
+        }
+    }
+
     // ------------------------------------------------------------ page grid
 
     func togglePageGrid() {
@@ -411,10 +519,11 @@ public final class AppModel {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         do {
-            _ = try Core.call("create_notebook", ["root": root, "name": name, "firstSection": "New Section"], as: String.self)
+            let path: String = try Core.call("create_notebook", ["root": root, "name": name, "firstSection": "Notebook"])
             reloadTree()
+            if showingHome { homeFolderPath = path; loadRecents() }
         } catch {
-            show(error, title: "Could not create the notebook")
+            show(error, title: "Could not create the folder")
         }
     }
 
@@ -424,9 +533,10 @@ public final class AppModel {
         do {
             let path: String = try Core.call("create_section", ["notebook": notebook.path, "name": name])
             reloadTree()
+            showingHome = false
             selectSection(path)
         } catch {
-            show(error, title: "Could not create the section")
+            show(error, title: "Could not create the notebook")
         }
     }
 
@@ -436,7 +546,7 @@ public final class AppModel {
             try Core.run("rename_notebook", ["path": notebook.path, "name": name])
             reloadTree()
         } catch {
-            show(error, title: "Could not rename the notebook")
+            show(error, title: "Could not rename the folder")
         }
     }
 
@@ -446,7 +556,7 @@ public final class AppModel {
             try Core.run("rename_section", ["path": section.path, "name": name])
             reloadTree()
         } catch {
-            show(error, title: "Could not rename the section")
+            show(error, title: "Could not rename the notebook")
         }
     }
 
@@ -455,7 +565,7 @@ public final class AppModel {
         do {
             try FileManager.default.trashItem(at: URL(fileURLWithPath: notebook.path), resultingItemURL: nil)
         } catch {
-            show(error, title: "Could not delete the notebook")
+            show(error, title: "Could not delete the folder")
         }
         afterRemoval()
     }
@@ -466,7 +576,7 @@ public final class AppModel {
             try FileManager.default.trashItem(at: URL(fileURLWithPath: section.path), resultingItemURL: nil)
             try Core.run("forget_section", ["notebook": section.notebookPath, "section": section.path])
         } catch {
-            show(error, title: "Could not delete the section")
+            show(error, title: "Could not delete the notebook")
         }
         afterRemoval()
     }

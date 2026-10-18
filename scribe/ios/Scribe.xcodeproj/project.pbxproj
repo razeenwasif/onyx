@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		0E65E97DE98AEC0D5CCAB2DF /* Velvet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45F59826CA139258AB536628 /* Velvet.swift */; };
-		2C6538AC5506B83EA7BB5F89 /* Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E35BC6138C556D57583E77A /* Library.swift */; };
 		7A96DE04F655CEAF1AC10883 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F50B0C1B73148655154DC4C /* Store.swift */; };
 		A7ACA6CFC92A5C3FBDD8A401 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8650DE64B4BDACE4CDCEC84F /* Assets.xcassets */; };
 		B5FE8681AB132633604FB772 /* Model.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E329633AFA168D7DC1B4E70 /* Model.swift */; };
@@ -18,8 +17,10 @@
 		D4A6DD7A8D98E8CB3119B1F8 /* PDFBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9017CAEE01B5AC8085F73E9 /* PDFBackground.swift */; };
 		DE1FECFCBE5F19EBAA62AC7E /* PageGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = A01DAF81BFF5F19B0C8A8E66 /* PageGrid.swift */; };
 		E05B9C001E4E76D6CF053D77 /* PageCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E90B89CCA9C197405CACDA /* PageCanvas.swift */; };
+		F244FA5829D8033601AB3D02 /* Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BE1E6F13ED1FC990425AA82 /* Library.swift */; };
 		F9C39EC7D1F0EB83BD46CC0D /* Tools.swift in Sources */ = {isa = PBXBuildFile; fileRef = C50D08615E70ECA0AD221386 /* Tools.swift */; };
 		FDECDAD04F07FC6C8CA218CB /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8930E33BFE96CC0DF6861196 /* Views.swift */; };
+		FFB1C571B5B76C90F0C6AE97 /* FolderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94B50B840A6F28ACEF2FC4C8 /* FolderAccess.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,12 +28,13 @@
 		11345C81116DC36BA7419B25 /* Scribe.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Scribe.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		45F59826CA139258AB536628 /* Velvet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Velvet.swift; sourceTree = "<group>"; };
 		572ACD849DC28AE0C35FCA9B /* ScribeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeApp.swift; sourceTree = "<group>"; };
+		5BE1E6F13ED1FC990425AA82 /* Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
 		5F50B0C1B73148655154DC4C /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
 		60E1FAA8E2DD1D5F03EB5B57 /* Core.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core.swift; sourceTree = "<group>"; };
 		6E329633AFA168D7DC1B4E70 /* Model.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model.swift; sourceTree = "<group>"; };
-		7E35BC6138C556D57583E77A /* Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
 		8650DE64B4BDACE4CDCEC84F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8930E33BFE96CC0DF6861196 /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
+		94B50B840A6F28ACEF2FC4C8 /* FolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderAccess.swift; sourceTree = "<group>"; };
 		A01DAF81BFF5F19B0C8A8E66 /* PageGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageGrid.swift; sourceTree = "<group>"; };
 		C2E90B89CCA9C197405CACDA /* PageCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageCanvas.swift; sourceTree = "<group>"; };
 		C50D08615E70ECA0AD221386 /* Tools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tools.swift; sourceTree = "<group>"; };
@@ -43,6 +45,7 @@
 		028E0D777A83853150FC7C5F /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				5BE1E6F13ED1FC990425AA82 /* Library.swift */,
 				A01DAF81BFF5F19B0C8A8E66 /* PageGrid.swift */,
 			);
 			path = Views;
@@ -113,7 +116,7 @@
 		CE0A276A257FD1674B6227E6 /* Scribe */ = {
 			isa = PBXGroup;
 			children = (
-				7E35BC6138C556D57583E77A /* Library.swift */,
+				94B50B840A6F28ACEF2FC4C8 /* FolderAccess.swift */,
 				C2E90B89CCA9C197405CACDA /* PageCanvas.swift */,
 				572ACD849DC28AE0C35FCA9B /* ScribeApp.swift */,
 				5F50B0C1B73148655154DC4C /* Store.swift */,
@@ -228,7 +231,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				C0AC686D602BDD92D5E4FE0C /* Core.swift in Sources */,
-				2C6538AC5506B83EA7BB5F89 /* Library.swift in Sources */,
+				FFB1C571B5B76C90F0C6AE97 /* FolderAccess.swift in Sources */,
+				F244FA5829D8033601AB3D02 /* Library.swift in Sources */,
 				B5FE8681AB132633604FB772 /* Model.swift in Sources */,
 				D4A6DD7A8D98E8CB3119B1F8 /* PDFBackground.swift in Sources */,
 				E05B9C001E4E76D6CF053D77 /* PageCanvas.swift in Sources */,

@@ -10,7 +10,9 @@ struct EditorView: View {
 
     var body: some View {
         Group {
-            if app.showingPageGrid {
+            if app.showingHome || (app.page == nil && !app.showingPageGrid) {
+                LibraryPanel(app: app)
+            } else if app.showingPageGrid {
                 PageGridPanel(app: app)
             } else if let page = app.page {
                 VStack(spacing: 0) {
@@ -154,8 +156,8 @@ struct SlimHeader: View {
                 withAnimation(.spring(duration: 0.35)) { app.focusMode = false }
             } label: { Image(systemName: "sidebar.left") }
                 .buttonStyle(RoundButtonStyle(size: 36))
-                .help("Show notebooks (⌘\\)")
-                .accessibilityLabel("Show notebooks")
+                .help("Show folders (⌘\\)")
+                .accessibilityLabel("Show folders")
             Spacer(minLength: 8)
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 TitleField(app: app, page: page, size: 19, focused: $titleFocused)
@@ -586,5 +588,64 @@ struct PageGridPanel: View {
                 }
             )
         }
+    }
+}
+
+/// The library in place of the page: recent pages and folders, or one
+/// folder's notebooks (Library.swift).
+struct LibraryPanel: View {
+    @Bindable var app: AppModel
+
+    private var folder: NotebookInfo? { app.notebooks.first { $0.path == app.homeFolderPath } }
+    private static let style = PageGrid.Style(ground: .clear, text: Velvet.text, muted: Velvet.muted, accent: Velvet.accent, control: Velvet.control)
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .bottom, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    if folder != nil {
+                        Button { withAnimation(.spring(duration: 0.3)) { app.homeFolderPath = nil } } label: {
+                            Label("Library", systemImage: "chevron.left").font(.system(size: 12, weight: .semibold))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Velvet.accent)
+                    } else {
+                        Text("Scribe").font(.system(size: 12, weight: .semibold)).foregroundStyle(Velvet.faint)
+                    }
+                    Text(folder?.name ?? "Library").font(.system(size: 34, weight: .semibold)).lineLimit(1)
+                }
+                Spacer(minLength: 12)
+                Menu {
+                    if let folder {
+                        Button("New Notebook…") { app.promptNewNotebook(in: folder) }
+                    }
+                    Button("New Folder…") { app.promptNewFolder() }
+                    Divider()
+                    Button("Import PDF or Goodnotes…") { app.chooseAndImportPDFs() }
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("New")
+                if app.page != nil {
+                    Button("Done") { withAnimation(.spring(duration: 0.3)) { app.showingHome = false } }
+                        .keyboardShortcut(.cancelAction)
+                        .buttonStyle(.borderedProminent)
+                }
+            }
+            .padding(.horizontal, 30)
+            .padding(.top, 26)
+            .padding(.bottom, 4)
+            .contentShape(Rectangle())
+            .windowDraggable()
+
+            if let folder {
+                FolderView(folder: folder, root: app.root, style: Self.style, actions: app.libraryActions)
+            } else {
+                LibraryHome(folders: app.notebooks, recents: app.recents, root: app.root, style: Self.style, actions: app.libraryActions)
+            }
+        }
+        .onAppear { app.loadRecents() }
     }
 }
