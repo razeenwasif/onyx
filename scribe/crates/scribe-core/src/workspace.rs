@@ -293,6 +293,14 @@ impl Workspace {
         self.write_section(dir, &doc)
     }
 
+    /// The paper new pages in a section start on: "ruled", "grid", "dots"
+    /// or "blank", with line spacing in page units.
+    pub fn set_section_paper(&self, dir: &Path, kind: &str, spacing: f64) -> Result<()> {
+        let mut doc = self.read_section(dir);
+        doc.extra.insert("paper".into(), serde_json::json!({ "kind": kind, "spacing": spacing }));
+        self.write_section(dir, &doc)
+    }
+
     /// Which page a notebook (section) shows as its cover: "first" or "latest".
     pub fn set_section_cover(&self, dir: &Path, choice: &str) -> Result<()> {
         let mut doc = self.read_section(dir);
@@ -445,10 +453,19 @@ impl Workspace {
 
     pub fn create_page(&self, section_dir: &Path, title: &str) -> Result<PathBuf> {
         let file = unique_file(section_dir, title, ".json");
-        let doc = PageDoc { title: title.to_string(), ..PageDoc::default() };
+        let mut sec = self.read_section(section_dir);
+        let mut doc = PageDoc { title: title.to_string(), ..PageDoc::default() };
+        // New pages take the notebook's paper (see set_section_paper).
+        if let Some(paper) = sec.extra.get("paper") {
+            if let Some(kind) = paper.get("kind").and_then(|v| v.as_str()) {
+                doc.background.kind = kind.to_string();
+            }
+            if let Some(spacing) = paper.get("spacing").and_then(|v| v.as_f64()) {
+                doc.background.spacing = spacing;
+            }
+        }
         write_json(&file, &doc)?;
 
-        let mut sec = self.read_section(section_dir);
         sec.page_order.push(file_name(&file));
         self.write_section(section_dir, &sec)?;
         Ok(file)

@@ -1,9 +1,10 @@
-import AppKit
+import CoreGraphics
+import Foundation
 import PDFKit
 import Vision
 
-/// Reads handwriting into text so search can find written words, using macOS's
-/// own text recognition (Vision). The core keeps the results in the
+/// Reads handwriting into text so search can find written words, using the
+/// system's own text recognition (Vision). Shared by the Mac and the iPad. The core keeps the results in the
 /// workspace's ink-text index (crates/scribe-core/src/ink.rs); page files are
 /// never touched.
 ///
@@ -76,10 +77,12 @@ final class InkReader {
     /// The page's ink, black on white, cropped to the writing. Highlighter
     /// strokes are left out: they cover words rather than form them.
     static func render(_ doc: PageDoc) -> CGImage? {
-        let strokes = doc.strokes.filter { !$0.highlighter && !$0.points.isEmpty }.map(InkStroke.init)
+        let strokes = doc.strokes.filter { !$0.highlighter && !$0.points.isEmpty }.map {
+            Core.outlinePath(points: $0.points, width: max($0.width, $0.height), pressureSensitive: $0.pressureSensitive, fit: $0.fit, taper: true)
+        }
         guard !strokes.isEmpty else { return nil }
         let bounds = strokes
-            .map { $0.path.boundingBoxOfPath }
+            .map { $0.boundingBoxOfPath }
             .reduce(CGRect.null) { $0.union($1) }
             .insetBy(dx: -24, dy: -24)
         guard bounds.width > 0, bounds.height > 0 else { return nil }
@@ -101,7 +104,7 @@ final class InkReader {
         ctx.translateBy(x: -bounds.minX, y: -bounds.minY)
         ctx.setFillColor(gray: 0, alpha: 1)
         for stroke in strokes {
-            ctx.addPath(stroke.path)
+            ctx.addPath(stroke)
             ctx.fillPath(using: .winding)
         }
         return ctx.makeImage()

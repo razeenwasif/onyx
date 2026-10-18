@@ -58,14 +58,22 @@ struct WelcomeView: View {
 /// with back buttons, the way Goodnotes-style apps move around.
 struct LibraryView: View {
     @Bindable var store: Store
-    @State private var picking = false
     @State private var prompt: NamePrompt?
+    @State private var query = ""
+    @State private var results: [PageInfo] = []
+    /// The query the results are for, so "no results" waits for the search.
+    @State private var searched = ""
+    @State private var showingDeleted = false
+
+    /// One file picker for both jobs (SwiftUI allows one per view).
+    private enum Picking { case library, pdfs(NotebookInfo?) }
+    @State private var picking: Picking?
 
     static let style = PageGrid.Style(
         ground: .velvetBackdrop, text: Color(uiColor: Velvet.text), muted: .velvetMuted,
         accent: .velvetAccent, control: Color(uiColor: Velvet.control)
     )
-    static let deleteNote = "It moves to Recently Deleted, so you can get it back."
+    static let deleteNote = "It stays in Recently Deleted for 30 days."
 
     private var actions: LibraryActions {
         LibraryActions(
@@ -83,9 +91,23 @@ struct LibraryView: View {
 
     var body: some View {
         NavigationStack(path: $store.route) {
-            LibraryHome(folders: store.notebooks, recents: store.recents, root: store.rootPath,
-                        style: Self.style, actions: actions, deleteNote: Self.deleteNote)
+            Group {
+                if query.trimmingCharacters(in: .whitespaces).isEmpty {
+                    LibraryHome(folders: store.notebooks, recents: store.recents, root: store.rootPath,
+                                style: Self.style, actions: actions, deleteNote: Self.deleteNote)
+                } else {
+                    SearchResults(store: store, results: results, query: query, finished: searched == query)
+                }
+            }
                 .navigationTitle("Library")
+                .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search notes and handwriting")
+                .task(id: query) {
+                    // A short pause so typing doesn't search every letter.
+                    try? await Task.sleep(for: .milliseconds(250))
+                    guard !Task.isCancelled else { return }
+                    results = store.search(query)
+                    searched = query
+                }
                 .safeAreaInset(edge: .bottom) {
                     if store.downloading > 0 {
                         Label("Downloading \(store.downloading) from iCloud…", systemImage: "icloud.and.arrow.down")
@@ -98,9 +120,11 @@ struct LibraryView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             Button("New Folder…", systemImage: "folder.badge.plus") { prompt = NamePrompt(kind: .newFolder) }
+                            Button("Import PDF or Goodnotes…", systemImage: "doc.badge.plus") { picking = .pdfs(nil) }
                             Divider()
+                            Button("Recently Deleted", systemImage: "trash") { showingDeleted = true }
                             Button("Sync Now", systemImage: "arrow.clockwise") { store.refresh() }
-                            Button("Change Library Location…", systemImage: "externaldrive") { picking = true }
+                            Button("Change Library Location…", systemImage: "externaldrive") { picking = .library }
                         } label: {
                             Image(systemName: "ellipsis.circle")
                         }
@@ -114,7 +138,13 @@ struct LibraryView: View {
                                 .navigationTitle(folder.name)
                                 .toolbar {
                                     ToolbarItem(placement: .topBarTrailing) {
-                                        Button("New Notebook", systemImage: "plus") { prompt = NamePrompt(kind: .newNotebook(folder)) }
+                                        Menu {
+                                            Button("New Notebook…", systemImage: "book.closed") { prompt = NamePrompt(kind: .newNotebook(folder)) }
+                                            Button("Import PDF or Goodnotes…", systemImage: "doc.badge.plus") { picking = .pdfs(folder) }
+                                        } label: {
+                                            Image(systemName: "plus")
+                                        }
+                                        .accessibilityLabel("New")
                                     }
                                 }
                         } else {
@@ -130,12 +160,23 @@ struct LibraryView: View {
             if inNotebook(old) && !inNotebook(now) { store.leftNotebook() }
         }
         .namePrompt($prompt, store: store)
-        .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
-            if case .success(let url) = result {
-                store.forgetFolder()
-                store.choose(url)
+        .fileImporter(
+            isPresented: Binding(get: { picking != nil }, set: { if !$0 { picking = nil } }),
+            allowedContentTypes: { if case .pdfs = picking { [.pdf] } else { [.folder] } }(),
+            allowsMultipleSelection: { if case .pdfs = picking { true } else { false } }()
+        ) { result in
+            guard case .success(let urls) = result, let job = picking else { return }
+            switch job {
+            case .library:
+                if let url = urls.first {
+                    store.forgetFolder()
+                    store.choose(url)
+                }
+            case .pdfs(let folder):
+                store.importPDFs(urls, into: folder)
             }
         }
+        .sheet(isPresented: $showingDeleted) { RecentlyDeletedView(store: store) }
     }
 }
 
@@ -177,8 +218,22 @@ struct WritingView: View {
                     // Writing near the screen's edges comes before the
                     // system's edge swipes.
                     .defersSystemGestures(on: .all)
-                ToolDock(store: store)
-                    .padding(.bottom, 14)
+                VStack(spacing: 10) {
+                    if store.hasSelection {
+                        HStack(spacing: 18) {
+                            Button("Delete", systemImage: "trash", role: .destructive) { store.deleteSelection() }
+                            Button("Done") { store.clearSelection() }
+                        }
+                        .font(.callout.weight(.medium))
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 9)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .transition(.scale(scale: 0.9).combined(with: .opacity))
+                    }
+                    ToolDock(store: store)
+                }
+                .padding(.bottom, 14)
+                .animation(.spring(duration: 0.25), value: store.hasSelection)
             } else {
                 ContentUnavailableView("No Page Open", systemImage: "pencil.and.scribble", description: Text("Open a notebook from the library."))
             }
@@ -188,9 +243,32 @@ struct WritingView: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             if store.tabs.count > 1 { NotebookTabs(store: store) }
         }
+        .onChange(of: store.tool) { _, tool in
+            if tool != .select { store.clearSelection() }
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Picker(selection: Binding(get: { store.paperKind }, set: { store.setPaper(kind: $0) })) {
+                        Text("Ruled").tag("ruled")
+                        Text("Grid").tag("grid")
+                        Text("Dots").tag("dots")
+                        Text("Blank").tag("blank")
+                    } label: {
+                        Label("Paper", systemImage: "doc.plaintext")
+                    }
+                    .pickerStyle(.menu)
+                    .disabled(store.pageIsPDF)
+                    Picker(selection: Binding(get: { store.paperSpacing }, set: { store.setPaper(spacing: $0) })) {
+                        Text("Narrow").tag(24.0)
+                        Text("Medium").tag(32.0)
+                        Text("Wide").tag(40.0)
+                    } label: {
+                        Label("Line Spacing", systemImage: "line.3.horizontal")
+                    }
+                    .pickerStyle(.menu)
+                    .disabled(store.pageIsPDF || store.paperKind == "blank")
+                    Divider()
                     Toggle(isOn: $store.continuous) {
                         Label("Scroll Through Pages", systemImage: "arrow.up.and.down.text.horizontal")
                     }
@@ -213,6 +291,88 @@ struct WritingView: View {
             }
         }
         .modifier(RenameTitleMenu(store: store, prompt: $prompt))
+    }
+}
+
+/// Pages matching a search, newest first, with where they live.
+struct SearchResults: View {
+    let store: Store
+    let results: [PageInfo]
+    let query: String
+    var finished = true
+
+    var body: some View {
+        List(results) { page in
+            Button { store.openRecent(page) } label: {
+                HStack(spacing: 14) {
+                    PageThumbnail(page: page, root: store.rootPath).frame(width: 54)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(page.title).font(.body.weight(.medium)).foregroundStyle(Color(uiColor: Velvet.text))
+                        Text(store.notebook(at: page.sectionPath)?.name ?? "")
+                            .font(.caption).foregroundStyle(Color.velvetMuted)
+                        if !page.snippet.isEmpty {
+                            Text(page.snippet).font(.callout).foregroundStyle(Color.velvetMuted).lineLimit(2)
+                        }
+                    }
+                }
+            }
+            .listRowBackground(Color.velvetBackdrop)
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color.velvetBackdrop)
+        .overlay {
+            if results.isEmpty && finished {
+                ContentUnavailableView.search(text: query)
+            }
+        }
+    }
+}
+
+/// What was deleted on this iPad in the last 30 days, to put back.
+struct RecentlyDeletedView: View {
+    let store: Store
+    @Environment(\.dismiss) private var dismiss
+    @State private var items: [Store.DeletedItem] = []
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(items) { item in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(item.name).font(.body.weight(.medium))
+                            Text("\(item.kind) · \(item.place.isEmpty ? "Library" : item.place) · \(item.deleted, format: .relative(presentation: .named))")
+                                .font(.caption).foregroundStyle(Color.velvetMuted)
+                        }
+                        Spacer()
+                        Button("Restore") {
+                            store.restore(item)
+                            items = store.recentlyDeleted()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .swipeActions {
+                        Button("Delete Now", role: .destructive) {
+                            store.deleteForever(item)
+                            items = store.recentlyDeleted()
+                        }
+                    }
+                }
+            }
+            .overlay {
+                if items.isEmpty {
+                    ContentUnavailableView("Nothing Deleted", systemImage: "trash", description: Text("Pages, notebooks and folders you delete here stay for 30 days."))
+                }
+            }
+            .navigationTitle("Recently Deleted")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+            .onAppear { items = store.recentlyDeleted() }
+        }
+        .preferredColorScheme(.dark)
     }
 }
 
@@ -363,6 +523,8 @@ struct ToolDock: View {
     private var currentColor: String { store.tool == .highlighter ? store.highlighter.color : store.pen.color }
 
     private func setColor(_ hex: String) {
+        // With writing selected, a colour recolours it.
+        if store.hasSelection { return store.recolorSelection(hex) }
         if store.tool == .highlighter { store.highlighter.color = hex } else { store.pen.color = hex }
     }
 
@@ -371,6 +533,7 @@ struct ToolDock: View {
             tool(.pen, "pencil.tip")
             tool(.highlighter, "highlighter")
             tool(.strokeEraser, "eraser")
+            tool(.select, "lasso")
             divider
             if compact {
                 colorMenu
@@ -404,7 +567,7 @@ struct ToolDock: View {
             ForEach(colors) { color in
                 Button {
                     setColor(color.hex)
-                    if store.tool.isEraser { store.tool = .pen }
+                    if store.tool.isEraser || (store.tool == .select && !store.hasSelection) { store.tool = .pen }
                 } label: {
                     if color.hex.caseInsensitiveCompare(currentColor) == .orderedSame {
                         Label(color.name, systemImage: "checkmark")
@@ -445,7 +608,7 @@ struct ToolDock: View {
         let selected = color.hex.caseInsensitiveCompare(current) == .orderedSame
         return Button {
             set(color.hex)
-            if store.tool.isEraser { store.tool = .pen }
+            if store.tool.isEraser || (store.tool == .select && !store.hasSelection) { store.tool = .pen }
         } label: {
             Circle()
                 .fill(Color.ink(color.hex))

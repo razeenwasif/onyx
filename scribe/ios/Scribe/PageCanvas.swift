@@ -29,6 +29,7 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
     private let page = PageView()
     private var shownPageID: String?
     private let pen: PenInput
+    private var undoTaps: UndoTaps?
 
     init(store: Store) {
         self.store = store
@@ -51,6 +52,8 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
         page.pen = pen
         pen.zoom = { [weak self] in self?.scroll.zoomScale ?? 1 }
         pen.pencilSeen = { [weak self] in self?.configureGestures() }
+        pen.activePage = { [weak self] in self?.page }
+        undoTaps = UndoTaps(store: store, on: scroll)
         let pencil = UIPencilInteraction(delegate: self)
         addInteraction(pencil)
 
@@ -191,6 +194,11 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
     /// Redraws `area` of the page after the ink changed, or everything when
     /// nil (another page, or this one reloaded from disk).
     private func inkChanged(_ area: CGRect?) {
+        redraw(area)
+        pen.refreshSelection()
+    }
+
+    private func redraw(_ area: CGRect?) {
         if let area {
             page.update { $0.ink = store.ink }
             resize()

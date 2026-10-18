@@ -36,6 +36,7 @@ targets:
       - path: ../macos/Scribe/Core/Thumbnails.swift
       - path: ../macos/Scribe/Views/PageGrid.swift
       - path: ../macos/Scribe/Views/Library.swift
+      - path: ../macos/Scribe/App/InkReader.swift
     preBuildScripts:
       - name: Build the Rust core
         basedOnDependencyAnalysis: false

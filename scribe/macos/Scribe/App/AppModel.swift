@@ -692,6 +692,8 @@ public final class AppModel {
         var after = before
         after.kind = kind
         page.perform("Change Paper", { page.background = after }, undo: { page.background = before })
+        // New pages in this notebook follow.
+        try? Core.run("set_section_paper", ["path": page.sectionPath, "kind": kind, "spacing": after.spacing])
     }
 
     func recolorSelection(_ hex: String) {

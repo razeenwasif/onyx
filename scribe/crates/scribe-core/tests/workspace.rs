@@ -334,6 +334,21 @@ fn page_layouts_report_extent_and_blankness() {
 }
 
 #[test]
+fn new_pages_take_the_notebooks_paper() {
+    let (_d, ws) = temp_ws();
+    let nb = ws.create_notebook("Uni").unwrap();
+    let sec = ws.create_section(&nb, "Maths").unwrap();
+    let before = ws.create_page(&sec, "Ruled").unwrap();
+    ws.set_section_paper(&sec, "grid", 24.0).unwrap();
+    let after = ws.create_page(&sec, "Grid").unwrap();
+    assert_eq!(ws.read_page(&before).unwrap().background.kind, "ruled");
+    let grid = ws.read_page(&after).unwrap().background;
+    assert_eq!((grid.kind.as_str(), grid.spacing), ("grid", 24.0));
+    // The setting doesn't disturb the page order.
+    assert_eq!(ws.list_pages(&sec).len(), 2);
+}
+
+#[test]
 fn starter_is_created_once() {
     let (_d, ws) = temp_ws();
     assert!(ws.ensure_starter().unwrap().is_some());

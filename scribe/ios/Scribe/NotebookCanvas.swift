@@ -36,6 +36,7 @@ final class NotebookCanvas: UIView, UIScrollViewDelegate, UIPencilInteractionDel
     /// Holds the pages, in page units; the scroll view zooms it.
     private let stack = UIView()
     private let pen: PenInput
+    private var undoTaps: UndoTaps?
     private var slots: [Slot] = []
     private var views: [String: PageView] = [:]
     private var spare: [PageView] = []
@@ -72,6 +73,8 @@ final class NotebookCanvas: UIView, UIScrollViewDelegate, UIPencilInteractionDel
 
         pen.zoom = { [weak self] in self?.scroll.zoomScale ?? 1 }
         pen.pencilSeen = { [weak self] in self?.configureGestures() }
+        pen.activePage = { [weak self] in self.flatMap { $0.views[$0.store.pagePath ?? ""] } }
+        undoTaps = UndoTaps(store: store, on: scroll)
         pen.willWrite = { [weak self] page in
             guard let self, let path = page.path else { return false }
             store.activate(path)
@@ -258,6 +261,11 @@ final class NotebookCanvas: UIView, UIScrollViewDelegate, UIPencilInteractionDel
     /// Redraws part of the store's page after writing, or all of it when it
     /// changed hands or was reloaded.
     private func inkChanged(_ area: CGRect?) {
+        redraw(area)
+        pen.refreshSelection()
+    }
+
+    private func redraw(_ area: CGRect?) {
         guard let path = store.pagePath else { return }
         if !slots.contains(where: { $0.layout.path == path }) {
             reloadLayout()

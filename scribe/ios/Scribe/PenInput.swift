@@ -16,6 +16,22 @@ final class PenInput {
     var willWrite: (PageView) -> Bool = { _ in true }
     /// Wet strokes are drawn at this many pixels per page unit.
     var wetScale: CGFloat = 2
+    /// The page view showing the store's page, for the selection outline.
+    var activePage: () -> PageView? = { nil }
+
+    /// With the lasso: drawing a loop, or dragging the selection.
+    private enum Lasso { case drawing, moving }
+    private var lasso: Lasso?
+    private var lassoLayer: CAShapeLayer?
+    private var lastPoint: CGPoint?
+    private var firstMove = true
+    private let selectionLayer: CAShapeLayer = {
+        let layer = CAShapeLayer()
+        layer.fillColor = Velvet.accent.withAlphaComponent(0.07).cgColor
+        layer.strokeColor = Velvet.accent.cgColor
+        layer.lineDashPattern = [6, 5]
+        return layer
+    }()
 
     private var touch: UITouch?
     private weak var page: PageView?
@@ -44,6 +60,10 @@ final class PenInput {
         self.page = page
         erasedThisDrag = false
         points = []
+        if store.tool == .select {
+            beginLasso(at: touch.preciseLocation(in: page), on: page)
+            return
+        }
         if store.tool.isInk {
             let layer = CAShapeLayer()
             layer.contentsScale = wetScale
@@ -73,6 +93,10 @@ final class PenInput {
 
     private func moved(_ touch: UITouch, _ event: UIEvent?) {
         guard let page else { return }
+        if lasso != nil {
+            lassoMoved(to: touch.preciseLocation(in: page))
+            return
+        }
         let samples = event?.coalescedTouches(for: touch) ?? [touch]
         for t in samples {
             let p = t.preciseLocation(in: page)
@@ -102,6 +126,11 @@ final class PenInput {
 
     private func finish(commit: Bool) {
         touch = nil
+        if lasso != nil {
+            endLasso(commit: commit)
+            page = nil
+            return
+        }
         if commit, store.tool.isInk, points.count >= 3 {
             // A tap leaves a dot.
             if points.count == 3 { points += [points[0] + 0.1, points[1], points[2]] }
@@ -120,6 +149,102 @@ final class PenInput {
         }
         wet = nil
     }
+
+    // ---------------------------------------------------------------- lasso
+
+    private func beginLasso(at p: CGPoint, on page: PageView) {
+        let hitSlop = 12 / max(Double(zoom()), 0.5)
+        if let bounds = store.selectionBounds, bounds.insetBy(dx: -hitSlop, dy: -hitSlop).contains(p) {
+            lasso = .moving
+            lastPoint = p
+            firstMove = true
+            return
+        }
+        store.clearSelection()
+        lasso = .drawing
+        points = [p.x, p.y]
+        let layer = CAShapeLayer()
+        layer.contentsScale = wetScale
+        layer.fillColor = Velvet.accent.withAlphaComponent(0.06).cgColor
+        layer.strokeColor = Velvet.accent.cgColor
+        layer.lineWidth = 1.5 / zoom()
+        layer.lineDashPattern = [NSNumber(value: 5 / Double(zoom())), NSNumber(value: 4 / Double(zoom()))]
+        page.layer.addSublayer(layer)
+        lassoLayer = layer
+    }
+
+    private func lassoMoved(to p: CGPoint) {
+        switch lasso {
+        case .drawing:
+            points += [p.x, p.y]
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: points[0], y: points[1]))
+            for i in stride(from: 2, to: points.count - 1, by: 2) { path.addLine(to: CGPoint(x: points[i], y: points[i + 1])) }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            lassoLayer?.path = path
+            CATransaction.commit()
+        case .moving:
+            guard let last = lastPoint else { return }
+            store.moveSelection(dx: p.x - last.x, dy: p.y - last.y, first: firstMove)
+            firstMove = false
+            lastPoint = p
+            refreshSelection()
+        case nil:
+            break
+        }
+    }
+
+    private func endLasso(commit: Bool) {
+        if lasso == .drawing, commit, points.count >= 6 {
+            store.select(lasso: points)
+        }
+        lassoLayer?.removeFromSuperlayer()
+        lassoLayer = nil
+        lasso = nil
+        lastPoint = nil
+        points = []
+        refreshSelection()
+    }
+
+    /// Draws the dashed outline around the selection, or removes it.
+    func refreshSelection() {
+        guard let bounds = store.selectionBounds, let page = activePage() else {
+            selectionLayer.removeFromSuperlayer()
+            return
+        }
+        if selectionLayer.superlayer !== page.layer { page.layer.addSublayer(selectionLayer) }
+        let z = max(Double(zoom()), 0.1)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        selectionLayer.contentsScale = wetScale
+        selectionLayer.lineWidth = 1.5 / z
+        selectionLayer.lineDashPattern = [NSNumber(value: 6 / z), NSNumber(value: 5 / z)]
+        selectionLayer.path = CGPath(roundedRect: bounds.insetBy(dx: -8, dy: -8), cornerWidth: 10, cornerHeight: 10, transform: nil)
+        CATransaction.commit()
+    }
+}
+
+/// Two-finger tap to undo, three-finger tap to redo, with fingers only (the
+/// Pencil keeps writing). A tap cancels the touch it began with, so no dot
+/// is left behind.
+@MainActor
+final class UndoTaps: NSObject {
+    private let store: Store
+
+    init(store: Store, on view: UIView) {
+        self.store = store
+        super.init()
+        for (fingers, action) in [(2, #selector(undo)), (3, #selector(redo))] {
+            let tap = UITapGestureRecognizer(target: self, action: action)
+            tap.numberOfTouchesRequired = fingers
+            tap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+            view.addGestureRecognizer(tap)
+        }
+    }
+
+    @objc private func undo() { store.undo() }
+    @objc private func redo() { store.redo() }
 }
 
 extension UIView {

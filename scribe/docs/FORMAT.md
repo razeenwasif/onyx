@@ -56,6 +56,9 @@ dropping a folder in by hand works.
 }
 ```
 
+`paper` (optional, `{"kind": "grid", "spacing": 24}`) is the paper new pages in the
+section start on.
+
 `cover` (optional, `"latest"`) makes the library show the most recently edited page
 as the section's cover instead of its first page.
 

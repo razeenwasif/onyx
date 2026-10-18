@@ -145,6 +145,11 @@ fn dispatch(req: &Value) -> R {
             Ok(Value::Null)
         }
 
+        "set_section_paper" => {
+            ws_any().set_section_paper(&path_arg(req, "path")?, &arg::<String>(req, "kind")?, arg::<f64>(req, "spacing")?)?;
+            Ok(Value::Null)
+        }
+
         "set_section_cover" => {
             ws_any().set_section_cover(&path_arg(req, "path")?, &arg::<String>(req, "cover")?)?;
             Ok(Value::Null)

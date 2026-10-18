@@ -255,7 +255,16 @@ lifts the light pressure of everyday Pencil writing.
 Folders and notebooks are made from the library (the **⋯** menu, the **+** in a folder, or
 the dashed tiles). To rename a page, tap the open page's title, or long-press it in the
 page grid. You get the pen, the highlighter, the stroke
-eraser, the Mac's ink colours, three nib sizes and undo. Typed text, pictures, tables and
+eraser, the lasso, the Mac's ink colours, three nib sizes and undo. Tap with two fingers
+to undo and three to redo. The lasso selects writing to move, recolour (tap a colour) or
+delete. The **⋯** menu sets the page's paper and line spacing, and new pages in that
+notebook follow.
+
+The library's search finds titles, typed text and handwriting; the iPad reads handwriting
+itself, as the Mac does, so pages written on either are found on both. The **⋯** menu (or
+**+** in a folder) imports PDFs and Goodnotes exports from the Files app, the same way as on
+the Mac. Deleted pages, notebooks and folders go to **Recently Deleted** in the library's
+menu for 30 days, kept in the library folder's `.scribe/Recently Deleted/`. Typed text, pictures, tables and
 imported PDFs show as on the Mac; for now they're edited on the Mac, and formulas show
 their LaTeX source.
 

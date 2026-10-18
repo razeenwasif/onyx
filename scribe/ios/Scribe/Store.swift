@@ -1,4 +1,5 @@
 import Observation
+import PDFKit
 import UIKit
 
 /// One stroke ready to draw: its outline and colour are built once, on the
@@ -85,6 +86,10 @@ final class Store {
         //   xcrun simctl launch booted app.scribe.ipad -ScribeTestRoot /path
         if let path = UserDefaults.standard.string(forKey: "ScribeTestRoot") {
             open(URL(fileURLWithPath: path))
+            // And to try importing:  -ScribeTestImport /path/to/file.pdf
+            if let pdf = UserDefaults.standard.string(forKey: "ScribeTestImport") {
+                importPDFs([URL(fileURLWithPath: pdf)], into: notebooks.first)
+            }
             return
         }
         #endif
@@ -119,6 +124,13 @@ final class Store {
         root = url
         refresh()
         restoreTabs()
+        purgeRecentlyDeleted()
+        // Read handwriting written since the index last caught up (on this
+        // iPad or the Mac), a moment after starting.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            guard let self, let root = self.root else { return }
+            inkReader.backfill(root: root.path)
+        }
         // Back to the page you were on; the back button leads to its folder
         // and then the library.
         if let rel = UserDefaults.standard.string(forKey: Self.lastPageKey) {
@@ -360,6 +372,8 @@ final class Store {
             doc = loaded
             remember(path)
             pageStamp = Self.stamp(path)
+            selection = []
+            hasSelection = false
             ink = loaded.strokes.filter { $0.points.count >= 3 }.map(Ink.init)
             measurePage()
             inkChanged?(nil)
@@ -454,19 +468,153 @@ final class Store {
         }
     }
 
-    /// Moves a file or folder to Recently Deleted (iCloud Drive's, in the
-    /// Files app), or, where the system has no bin for it, to the
-    /// workspace's own `.scribe/Recently Deleted` folder.
+    // ------------------------------------------------------ recently deleted
+
+    @ObservationIgnored let inkReader = InkReader()
+
+    /// Something deleted on the iPad, kept for 30 days in the workspace's
+    /// `.scribe/Recently Deleted/<when>/<where it was>`, so it can go back.
+    struct DeletedItem: Identifiable {
+        var url: URL
+        var original: String
+        var deleted: Date
+        var id: String { url.path }
+        var name: String { ((original as NSString).lastPathComponent as NSString).deletingPathExtension }
+        var kind: String {
+            let fm = FileManager.default
+            if fm.fileExists(atPath: url.appendingPathComponent("notebook.json").path) { return "Folder" }
+            if fm.fileExists(atPath: url.appendingPathComponent("section.json").path) { return "Notebook" }
+            return "Page"
+        }
+        /// The folder and notebook it was in.
+        var place: String { (original as NSString).deletingLastPathComponent }
+    }
+
+    private var binURL: URL? { root?.appendingPathComponent(".scribe/Recently Deleted", isDirectory: true) }
+    private static let binStamp: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd'T'HH-mm-ss-SSS"
+        return f
+    }()
+
+    /// Moves a page, notebook or folder to Recently Deleted.
     private func discard(_ path: String) throws {
-        let url = URL(fileURLWithPath: path)
+        guard let bin = binURL, let rel = relative(path) else { throw Core.Failure(message: "It isn't in the library folder.") }
+        let target = bin.appendingPathComponent(Self.binStamp.string(from: Date())).appendingPathComponent(rel)
+        try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.moveItem(at: URL(fileURLWithPath: path), to: target)
+    }
+
+    func recentlyDeleted() -> [DeletedItem] {
+        guard let bin = binURL, let batches = try? FileManager.default.contentsOfDirectory(at: bin, includingPropertiesForKeys: nil) else { return [] }
+        var items: [DeletedItem] = []
+        for batch in batches {
+            guard let when = Self.binStamp.date(from: batch.lastPathComponent) else { continue }
+            // The deleted thing is the deepest single path under the batch.
+            var url = batch
+            var parts: [String] = []
+            while let inside = try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil).filter({ !$0.lastPathComponent.hasPrefix(".") }),
+                  inside.count == 1, parts.count < 3 {
+                url = inside[0]
+                parts.append(url.lastPathComponent)
+                if url.pathExtension == "json" || FileManager.default.fileExists(atPath: url.appendingPathComponent("section.json").path)
+                    || FileManager.default.fileExists(atPath: url.appendingPathComponent("notebook.json").path) { break }
+            }
+            guard !parts.isEmpty else { continue }
+            items.append(DeletedItem(url: url, original: parts.joined(separator: "/"), deleted: when))
+        }
+        return items.sorted { $0.deleted > $1.deleted }
+    }
+
+    /// Puts it back where it was (beside anything that has taken its name).
+    func restore(_ item: DeletedItem) {
+        guard let root else { return }
+        var target = root.appendingPathComponent(item.original)
+        let fm = FileManager.default
+        if fm.fileExists(atPath: target.path) {
+            let ext = target.pathExtension
+            let stem = target.deletingPathExtension().lastPathComponent
+            target = target.deletingLastPathComponent().appendingPathComponent(stem + " (restored)" + (ext.isEmpty ? "" : "." + ext))
+        }
         do {
-            try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+            try fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try fm.moveItem(at: item.url, to: target)
+            removeEmptyBatch(of: item)
         } catch {
-            guard let root else { throw error }
-            let bin = root.appendingPathComponent(".scribe/Recently Deleted", isDirectory: true)
-            try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
-            let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-            try FileManager.default.moveItem(at: url, to: bin.appendingPathComponent("\(stamp) \(url.lastPathComponent)"))
+            problem = "Could not restore it: \(error.localizedDescription)"
+        }
+        refresh()
+    }
+
+    func deleteForever(_ item: DeletedItem) {
+        try? FileManager.default.removeItem(at: item.url)
+        removeEmptyBatch(of: item)
+    }
+
+    private func removeEmptyBatch(of item: DeletedItem) {
+        guard let bin = binURL else { return }
+        var dir = item.url.deletingLastPathComponent()
+        while dir.path.hasPrefix(bin.path + "/"),
+              (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.isEmpty == true {
+            try? FileManager.default.removeItem(at: dir)
+            dir = dir.deletingLastPathComponent()
+        }
+    }
+
+    /// Anything deleted more than 30 days ago goes for good.
+    private func purgeRecentlyDeleted() {
+        let cutoff = Date().addingTimeInterval(-30 * 24 * 3600)
+        for item in recentlyDeleted() where item.deleted < cutoff { deleteForever(item) }
+    }
+
+    // ---------------------------------------------------------- search, PDFs
+
+    /// Pages whose title, typed text or handwriting matches.
+    func search(_ query: String) -> [PageInfo] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard let root, !q.isEmpty else { return [] }
+        return (try? Core.call("search", ["root": root.path, "query": q], as: [PageInfo].self)) ?? []
+    }
+
+    /// Imports PDFs (and Goodnotes exports) into `folder`: each becomes a
+    /// notebook with one page per PDF page, written on top of the PDF, the
+    /// same layout the Mac makes.
+    func importPDFs(_ urls: [URL], into folder: NotebookInfo?) {
+        guard let root else { return }
+        var target = folder?.path ?? notebooks.first?.path
+        do {
+            if target == nil {
+                target = try Core.call("create_notebook", ["root": root.path, "name": "Imported"], as: String.self)
+            }
+            guard let target else { return }
+            for url in urls {
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                guard let pdf = PDFDocument(url: url), pdf.pageCount > 0 else {
+                    problem = "\(url.lastPathComponent) isn't a PDF Scribe can open."
+                    continue
+                }
+                let name = url.deletingPathExtension().lastPathComponent
+                let section: String = try Core.call("create_section", ["notebook": target, "name": name])
+                let slot: AssetSlot = try Core.call("new_asset", ["section": section, "ext": "pdf"])
+                try FileManager.default.copyItem(at: url, to: URL(fileURLWithPath: slot.path))
+                let stamp = ISO8601DateFormatter().string(from: Date())
+                for index in 0..<pdf.pageCount {
+                    let title = pdf.pageCount == 1 ? name : "Page \(index + 1)"
+                    let pagePath: String = try Core.call("create_page", ["section": section, "title": title])
+                    var page: PageDoc = try Core.call("read_page", ["path": pagePath])
+                    page.background = BackgroundDTO(kind: "pdf", spacing: 32, color: "#E8EEF5", asset: slot.rel, pdfPage: index)
+                    page.source = SourceDTO(app: "pdf", id: url.lastPathComponent, importedAt: stamp)
+                    let _: WriteResult = try Core.call("write_page", ["path": pagePath, "page": try Core.json(page)])
+                }
+            }
+            refresh()
+            route = [.folder(target)]
+            inkReader.backfill(root: root.path)
+        } catch {
+            problem = "Could not import: \(error.localizedDescription)"
+            refresh()
         }
     }
 
@@ -666,11 +814,98 @@ final class Store {
         }
         guard !hits.isEmpty else { return false }
         if recordUndo { record() }
+        selection = []
+        hasSelection = false
         let area = hits.map { ink[$0].bounds }.reduce(CGRect.null) { $0.union($1) }
         for i in hits.reversed() { ink.remove(at: i) }
         inkChanged?(area)
         changed()
         return true
+    }
+
+    // ---------------------------------------------------------------- paper
+
+    var paperKind: String { doc?.background.kind.lowercased() ?? "ruled" }
+    var paperSpacing: Double { doc?.background.spacing ?? 32 }
+    var pageIsPDF: Bool { paperKind == "pdf" }
+
+    /// Changes the open page's paper; new pages in the notebook follow it.
+    func setPaper(kind: String? = nil, spacing: Double? = nil) {
+        guard var page = doc, !pageIsPDF else { return }
+        if let kind { page.background.kind = kind }
+        if let spacing { page.background.spacing = spacing }
+        doc = page
+        inkChanged?(nil)
+        changed()
+        try? Core.run("set_section_paper", ["path": pageSectionPath, "kind": page.background.kind, "spacing": page.background.spacing])
+    }
+
+    // ------------------------------------------------------------ selection
+
+    /// Strokes picked with the lasso, by index into `ink`.
+    @ObservationIgnored private(set) var selection: Set<Int> = []
+    /// Whether anything is selected, for the dock.
+    private(set) var hasSelection = false
+
+    var selectionBounds: CGRect? {
+        guard !selection.isEmpty else { return nil }
+        return selection.map { ink[$0].bounds }.reduce(CGRect.null) { $0.union($1) }
+    }
+
+    /// Selects the strokes mostly inside `lasso` (flat x, y pairs in page
+    /// units), the same rule as the Mac.
+    func select(lasso: [Double]) {
+        selection = Set(ink.indices.filter { Core.lassoFraction(lasso: lasso, points: ink[$0].dto.points) >= 0.6 })
+        hasSelection = !selection.isEmpty
+    }
+
+    func clearSelection() {
+        guard !selection.isEmpty else { return }
+        selection = []
+        hasSelection = false
+        inkChanged?(nil)
+    }
+
+    /// Moves the selected strokes; `first` marks the start of one drag.
+    func moveSelection(dx: Double, dy: Double, first: Bool) {
+        guard !selection.isEmpty, dx != 0 || dy != 0 else { return }
+        if first { record() }
+        var area = CGRect.null
+        for i in selection {
+            area = area.union(ink[i].bounds)
+            var dto = ink[i].dto
+            for j in stride(from: 0, to: dto.points.count - 2, by: 3) {
+                dto.points[j] += dx
+                dto.points[j + 1] += dy
+            }
+            ink[i] = Ink(dto)
+            area = area.union(ink[i].bounds)
+        }
+        inkChanged?(area.insetBy(dx: -4, dy: -4))
+        changed()
+    }
+
+    func deleteSelection() {
+        guard !selection.isEmpty else { return }
+        record()
+        let area = selectionBounds ?? .null
+        for i in selection.sorted(by: >) { ink.remove(at: i) }
+        selection = []
+        hasSelection = false
+        inkChanged?(area)
+        changed()
+    }
+
+    func recolorSelection(_ hex: String) {
+        guard !selection.isEmpty else { return }
+        record()
+        for i in selection where !ink[i].dto.highlighter {
+            var dto = ink[i].dto
+            dto.color = hex
+            ink[i] = Ink(dto)
+        }
+        inkChanged?(selectionBounds)
+        changed()
     }
 
     /// Marks the start of one undoable change (a stroke, or one eraser drag).
@@ -694,6 +929,8 @@ final class Store {
     }
 
     private func restore(_ strokes: [StrokeDTO]) {
+        selection = []
+        hasSelection = false
         ink = strokes.map(Ink.init)
         inkChanged?(nil)
         updateUndo()
@@ -724,8 +961,11 @@ final class Store {
         guard dirty, let pagePath, var doc else { return }
         doc.strokes = ink.map(\.dto)
         do {
-            let _: WriteResult = try Core.call("write_page", ["path": pagePath, "page": try Core.json(doc)])
+            let result: WriteResult = try Core.call("write_page", ["path": pagePath, "page": try Core.json(doc)])
             self.doc = doc
+            if let root {
+                inkReader.pageSaved(doc, modified: result.modifiedUnix, root: root.path, sectionPath: pageSectionPath)
+            }
             pageStamp = Self.stamp(pagePath)
             dirty = false
             reloadPages()
