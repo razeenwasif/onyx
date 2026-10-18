@@ -288,6 +288,27 @@ menu for 30 days, kept in the library folder's `.scribe/Recently Deleted/`. Type
 imported PDFs show as on the Mac; for now they're edited on the Mac, and formulas show
 their LaTeX source.
 
+### Electron on the iPad
+
+The iPad app holds Electron too, as the desktop does: the switch at the top left of
+Scribe's library and of Electron's sidebar (or Ctrl-Cmd-1 / Ctrl-Cmd-2 on a keyboard) moves
+between them. Electron opens the Markdown vault from iCloud Drive (**OnyxVault**, picked
+once like the notebook folder) and reads and writes the same files as the desktop, checking
+for changes every few seconds. Its code is in `ios/Electron/`, written natively rather than
+reusing the desktop's web UI.
+
+Notes open for reading, drawn natively in the Velvet theme: headings, lists and tasks (tap a
+box to tick it), tables, code, quotes, callouts, images, `![[embeds]]` and LaTeX, drawn with
+SwiftMath (commands only KaTeX knows, such as `\implies` or `\R`, are rewritten first). The
+pencil button (⌘E) switches to the editor, which colours the Markdown as you type, carries
+lists on with Return, has formatting keys above the keyboard (⌘B, ⌘I, ⌘K) and suggests
+notes after `[[`. Either way you stay at the same place in the note. Links open their note
+(a missing one is created, as in Obsidian), and the end of each note lists its backlinks.
+The sidebar has recent notes, the file tree and search; its **⋯** menu has the desktop's
+Todo list (`.onyx/todos.md`) and tags. Renaming a note rewrites links to it, and deleting
+moves it to the vault's `.trash` folder. The graph, calendar, canvases and AI are still
+desktop-only.
+
 To install it for free, open `ios/Scribe.xcodeproj` in Xcode, add your Apple ID under
 Settings → Accounts, choose your team under Signing & Capabilities, plug in the iPad and
 press Run. With a free Apple ID the install lasts seven days; run it again from Xcode to
