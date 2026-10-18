@@ -256,6 +256,16 @@ fn dispatch(req: &Value) -> R {
 
         "search" => to_value(ws(req)?.search(&arg::<String>(req, "query")?)),
 
+        // Links between pages and the Electron vault's notes (see links.rs).
+        "link_index" => to_value(ws(req)?.link_index()),
+
+        "page_with_id" => Ok(json!(ws(req)?.page_with_id(&arg::<String>(req, "id")?).map(|p| path_str(&p)))),
+
+        "notes_linking_to" => to_value(crate::links::notes_linking_to(
+            &path_arg(req, "vault")?,
+            &arg::<String>(req, "pageId")?,
+        )),
+
         "ink_pending" => to_value(ws(req)?.ink_pending()),
 
         "set_ink_text" => {

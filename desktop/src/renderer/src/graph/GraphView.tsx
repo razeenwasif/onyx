@@ -18,6 +18,7 @@ import { DEFAULT_GRAPH, DEFAULT_LOCAL_GRAPH } from '@shared/graph-defaults'
 import { primaryTag, tagColor, tagFamily } from './tag-colors'
 import { GraphRenderer, makeFrameData, type Camera, type FrameData } from './renderer'
 import PhysicsWorker from './physics.worker?worker'
+import { openScribeTarget } from '../lib/scribe-links'
 
 const GROUP_COLORS = ['#e06c75', '#e5c07b', '#98c379', '#56b6c2', '#61afef', '#c678dd', '#d19a66']
 
@@ -141,6 +142,10 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
   const workerRef = useRef<Worker | null>(null)
   const frameRef = useRef<FrameData>(makeFrameData(0, 0))
   const posRef = useRef<Float32Array>(new Float32Array(0))
+  // False from a re-seed until the worker reports the new layout. Until then
+  // posRef holds zeros, and carrying those over would stack every node on
+  // one point (two graph updates in quick succession did exactly that).
+  const livePosRef = useRef(false)
   const cameraRef = useRef<Camera>({ x: 0, y: 0, scale: 1 })
   const hoverRef = useRef<number>(-1)
   const dragRef = useRef<{ node: number; moved: boolean } | null>(null)
@@ -429,6 +434,7 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
       if (e.data.type !== 'positions') return
       const incoming = e.data.positions
       alphaRef.current = e.data.alpha ?? 0
+      livePosRef.current = true
       const prev = posRef.current
       posRef.current = incoming
       // Hand the old buffer back so the worker can refill it next tick.
@@ -458,7 +464,7 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
     let carried = 0
     ids.forEach((id, i) => {
       const prev = oldIndex.get(id)
-      if (prev !== undefined && oldPos.length >= (prev + 1) * 2) {
+      if (prev !== undefined && livePosRef.current && oldPos.length >= (prev + 1) * 2) {
         seedPositions[i * 2] = oldPos[prev * 2]
         seedPositions[i * 2 + 1] = oldPos[prev * 2 + 1]
         carried++
@@ -468,6 +474,7 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
     })
     prevIdsRef.current = ids
     posRef.current = new Float32Array(ids.length * 2)
+    livePosRef.current = false
 
     const focusSub = focusPath
       ? sub.nodes.findIndex((i) => graph.nodes[i].id === focusPath)
@@ -566,6 +573,8 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
     const nodeUnresolved = hexToRgb(palette.fgSubtle)
     const nodeTag = hexToRgb(palette.tag)
     const nodeAttachment = hexToRgb(palette.accentAlt)
+    // Scribe pages in Scribe's own coral, so ink reads apart from notes.
+    const nodeScribe = hexToRgb('#E39072')
     const nodeFocus = hexToRgb(palette.accent)
     const linkBase = hexToRgb(palette.border)
     const labelColor = palette.fgDim
@@ -704,6 +713,7 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
         else if (byTag) rgb = byTag
         else if (node.kind === 'tag') rgb = nodeTag
         else if (node.kind === 'attachment') rgb = nodeAttachment
+        else if (node.kind === 'scribe') rgb = nodeScribe
         else if (node.kind === 'unresolved') rgb = nodeUnresolved
         else rgb = node.degree > 0 ? nodeLinked : nodeBase
 
@@ -869,6 +879,8 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
         const node = graph.nodes[sub.nodes[drag.node]]
         if (node.kind === 'note' || node.kind === 'attachment') {
           void openFile(node.id, { newTab: e.ctrlKey || e.metaKey })
+        } else if (node.kind === 'scribe') {
+          openScribeTarget(node.id)
         } else if (node.kind === 'tag') {
           useStore.setState({
             modal: { kind: 'search', initial: `tag:${node.tags[0] ?? node.title.slice(1)}` },

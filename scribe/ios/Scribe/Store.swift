@@ -203,6 +203,11 @@ final class Store {
         show(pageAt: page.path)
     }
 
+    /// Opens the page at `path` with the library behind it (a link to it).
+    func showPage(at path: String) {
+        show(pageAt: path)
+    }
+
     /// Opens the page at `path` with the library behind it.
     private func show(pageAt path: String) {
         let section = (path as NSString).deletingLastPathComponent
@@ -237,6 +242,21 @@ final class Store {
     @ObservationIgnored private var refreshing = false
     @ObservationIgnored private var lastDownloadSweep = Date.distantPast
 
+    // ---------------------------------------------- links (see PageLinks)
+
+    /// Every page with its id and the `[[…]]` typed on it, as last read.
+    @ObservationIgnored var linkIndex: [LinkedPage] = []
+    /// Hears the link index whenever it changes (AppHost hands it to Electron).
+    @ObservationIgnored var onLinkIndex: (([LinkedPage]) -> Void)?
+    /// The Electron notes that link to a page, by page id (AppHost).
+    @ObservationIgnored var notesLinking: ((String) -> [LinkingNote])?
+    /// Opens an Electron note, by vault path, and shows Electron (AppHost).
+    @ObservationIgnored var openNote: ((String) -> Void)?
+    /// An area of a page to show once the canvas has the page: a link to it.
+    @ObservationIgnored var revealArea: (path: String, area: CGRect)?
+    /// Bumped with each such area, so the one-page canvas hears of it.
+    var revealVersion = 0
+
     /// Picks up changes made on the Mac, off the main thread: asks iCloud
     /// for new files (once a minute; walking the folder is slow), rereads
     /// the notebooks, and reloads the open page if it changed and has no
@@ -255,6 +275,8 @@ final class Store {
             let tree = Result { try Core.call("tree", ["root": rootPath], as: [NotebookInfo].self) }
             let recent = try? Core.call("recent_pages", ["root": rootPath, "limit": 10], as: [PageInfo].self)
             let pages = section.map { (try? Core.call("pages", ["section": $0], as: [PageInfo].self)) ?? [] }
+            // Cheap once read: the core reopens only pages that changed.
+            let links = try? Core.call("link_index", ["root": rootPath], as: [LinkedPage].self)
             let stamp = open.flatMap { Store.stamp($0) }
             await MainActor.run {
                 guard let self else { return }
@@ -266,6 +288,10 @@ final class Store {
                 case .failure(let error): self.problem = error.localizedDescription
                 }
                 if let recent, recent != self.recents { self.recents = recent }
+                if let links, links != self.linkIndex {
+                    self.linkIndex = links
+                    self.onLinkIndex?(links)
+                }
                 if let pages, section == self.sectionPath { self.apply(pages: pages) }
                 if let open, open == self.pagePath, !self.dirty, let stamp, stamp != self.pageStamp {
                     self.openPage(open)

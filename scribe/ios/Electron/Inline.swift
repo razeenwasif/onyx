@@ -176,7 +176,13 @@ enum Inline {
                         let (target, alias) = NoteParse.splitAlias(String(chars[(i + 2)..<end]))
                         var s = style
                         s.link = noteURL(target)
-                        out.append(text(alias ?? Self.shown(target), s))
+                        if ScribeLink(target: target) != nil {
+                            // A Scribe page: in Scribe's colour, never its id.
+                            s.color = .velvetAccent
+                            out.append(text(alias ?? "Scribe page", s))
+                        } else {
+                            out.append(text(alias ?? Self.shown(target), s))
+                        }
                         i = end + 2
                     } else if let (label, dest, next) = linkParts(from: i) {
                         flush()

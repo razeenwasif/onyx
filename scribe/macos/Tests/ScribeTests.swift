@@ -3,6 +3,20 @@ import XCTest
 @testable import ScribeUI
 
 final class CoreBridgeTests: XCTestCase {
+    func testScribeLinksReadAndWriteTheDesktopsFormat() {
+        let id = "91b2f6dd1a6e44458e615059f719f832"
+        let page = ScribeLink(target: "scribe:\(id)")
+        XCTAssertEqual(page, ScribeLink(pageId: id))
+        let area = ScribeLink(target: " scribe:\(id)#560,1150,620,560 ")
+        XCTAssertEqual(area?.area, CGRect(x: 560, y: 1150, width: 620, height: 560))
+        XCTAssertNil(ScribeLink(target: "scribe:\(id)#1,2,0,4")?.area)
+        XCTAssertNil(ScribeLink(target: "Eigenvalues"))
+        XCTAssertNil(ScribeLink(target: "scribe:"))
+        // Areas are written in whole page units, and titles can't end the link.
+        let link = ScribeLink(pageId: id, area: CGRect(x: 10.4, y: 20.6, width: 300.2, height: 140)).markdown(title: "Week [3] | proofs")
+        XCTAssertEqual(link, "[[scribe:\(id)#10,20,301,141|Week (3) - proofs]]")
+    }
+
     func testColoursCrossTheBoundary() {
         let black = Core.parseColor("#1A1A1A")
         XCTAssertEqual(black, 0x1A1A_1AFF)

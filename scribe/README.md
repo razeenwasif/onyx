@@ -230,6 +230,36 @@ Nothing leaves your Mac. The text it reads is kept in one file,
 pages; delete it and it is rebuilt. Recognition is best on clear print and
 reasonable on joined-up writing.
 
+## Linking pages and notes
+
+A note in Electron can link to a Scribe page, or to one area of it, and a page can
+link back to notes.
+
+- **Copy a link in Scribe.** Copy Link to Page (in the page's ⋯ menu, or Edit ▸ Copy
+  Link to Page or Selection, ⌥⌘L) copies `[[scribe:<page id>|Title]]`. With a lasso
+  selection, the Link button (or ⌥⌘L) copies a link to just that area:
+  `[[scribe:<page id>#x,y,w,h|Title]]`, in page units. Paste it into any note.
+- **Or type `[[` in a note.** Scribe's pages are suggested beside the vault's notes,
+  with their folder and notebook.
+- **Follow it.** The link shows the page's title with Scribe's mark. Clicking it
+  switches to Scribe, opens the page and, for an area, zooms out as far as needed to
+  show all of it and flashes it.
+- **Link back.** Type `[[Note name]]` in a text box or table cell on a page. The
+  page then appears among the note's backlinks.
+- **See who links here.** A page that notes link to shows a link button with a count
+  in its header; it lists the notes and opens them in Electron.
+- **In the graph.** Pages that link or are linked appear in Electron's graph and local
+  graph in Scribe's coral, joined both ways. Pages nothing links to are left out.
+
+Pages are named by their `id`, not their file, so links survive renaming a page or
+moving its notebook. A page copied in the Finder keeps its id; the one edited last
+wins. The links typed on each page are remembered with the rest of its header in
+`.scribe/cache.nosync/pageinfo.json`, so building the index reopens only changed
+pages (the first time after updating reads every page once, in the background). The
+format lives in `crates/scribe-core/src/links.rs` and
+`desktop/src/shared/scribe-link.ts`. Electron's terminal app doesn't follow these
+links yet.
+
 ## Inside Electron
 
 Scribe also runs inside the Electron desktop app (`../desktop`) on macOS. The interface
@@ -331,7 +361,9 @@ Todo list (`.onyx/todos.md`), tags, today's note (⇧⌘D), a calendar of daily 
 desktop's layout (tag nodes, pastel tag colours, tag families gathered into continents, a
 round edge): drag to move, pinch to zoom, tap a dot to see it and open it. A note's **⋯**
 menu has its local graph, one to three links deep. Renaming a note rewrites links to it,
-and deleting moves it to the vault's `.trash` folder. Canvases, the database view and AI
+and deleting moves it to the vault's `.trash` folder. Links between notes and Scribe pages
+work as on the Mac (see Linking pages and notes): a link opens Scribe at the page or area,
+and a page's link button opens the notes that link to it. Canvases, the database view and AI
 are still desktop-only.
 
 To install it for free, open `ios/Scribe.xcodeproj` in Xcode, add your Apple ID under

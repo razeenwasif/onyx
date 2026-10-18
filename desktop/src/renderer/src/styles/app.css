@@ -1131,6 +1131,27 @@ textarea {
 .cm-completionIcon {
   display: none;
 }
+/* A Scribe page among a note's backlinks. */
+.scribe-row-icon {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex: none;
+}
+/* Scribe pages among the [[ suggestions. */
+.cm-completionIcon.cm-completionIcon-scribe {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 6px;
+  padding: 0;
+  vertical-align: -0.15em;
+  border-radius: 0.25em;
+  background: url('../assets/scribe-icon.png') center / contain no-repeat;
+}
+.cm-completionIcon.cm-completionIcon-scribe::after {
+  content: '';
+}
 
 /* Live-preview decorations */
 
@@ -1198,6 +1219,23 @@ textarea {
 }
 .cm-md-wikilink.is-unresolved {
   color: var(--fg-subtle);
+}
+/* A link to a Scribe page (or an area of one): Scribe's icon before it. */
+.internal-link.is-scribe::before,
+.cm-md-wikilink.is-scribe::before {
+  content: '';
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.3em;
+  vertical-align: -0.15em;
+  border-radius: 0.25em;
+  background: url('../assets/scribe-icon.png') center / contain no-repeat;
+}
+.internal-link.is-scribe.is-unresolved::before,
+.cm-md-wikilink.is-scribe.is-unresolved::before {
+  filter: grayscale(1);
+  opacity: 0.6;
 }
 .cm-md-tag {
   color: var(--tag);

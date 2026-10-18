@@ -527,11 +527,20 @@ private struct EmbedView: View {
             .padding(14)
             .overlay(alignment: .leading) { Rectangle().fill(Color.evAccent.opacity(0.6)).frame(width: 2) }
         default:
-            Button { store.follow(target) } label: {
-                Label(target, systemImage: kind == .pdf ? "doc.richtext" : "link")
-                    .foregroundStyle(rel == nil ? Color.evSubtle : Color.evAccent)
+            if ScribeLink(target: target) != nil {
+                // `![[scribe:…]]`: Scribe's page isn't drawn here; open it there.
+                Button { store.follow(target) } label: {
+                    Label(store.scribePage(target)?.title ?? "Scribe page", systemImage: "pencil.and.scribble")
+                        .foregroundStyle(Color.velvetAccent)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button { store.follow(target) } label: {
+                    Label(target, systemImage: kind == .pdf ? "doc.richtext" : "link")
+                        .foregroundStyle(rel == nil ? Color.evSubtle : Color.evAccent)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
     }
 }
@@ -543,9 +552,11 @@ private struct Backlinks: View {
 
     var body: some View {
         let refs = store.backlinks(of: rel)
+        let pages = store.scribeBacklinks(of: rel)
+        let count = refs.count + pages.count
         VStack(alignment: .leading, spacing: 8) {
             Rectangle().fill(Color.evBorder).frame(height: 1).padding(.bottom, 8)
-            Text(refs.isEmpty ? "No linked mentions" : "Linked mentions · \(refs.count)")
+            Text(count == 0 ? "No linked mentions" : "Linked mentions · \(count)")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Color.evSubtle)
             ForEach(refs, id: \.self) { ref in
@@ -558,6 +569,21 @@ private struct Backlinks: View {
                         if !folder.isEmpty {
                             Text(folder).font(.system(size: 12)).foregroundStyle(Color.evSubtle)
                         }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(Color.evBgAlt, in: RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+            }
+            // Scribe pages with [[this note]] typed on them.
+            ForEach(pages) { page in
+                Button { store.openScribe?(ScribeLink(pageId: page.id)) } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label(page.title, systemImage: "pencil.and.scribble")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(Color.velvetAccent)
+                        Text("Scribe · \(page.notebook) › \(page.section)").font(.system(size: 12)).foregroundStyle(Color.evSubtle)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)

@@ -59,9 +59,20 @@ export function App(): JSX.Element {
       void st.refreshVault()
       void st.refreshGraph()
     })
+    // Scribe read new links on its pages; or asked to open a note that
+    // links to the page on screen there.
+    const offScribe = window.onyx.apps.onScribePagesChanged(() => {
+      const st = useStore.getState()
+      void st.refreshScribePages().then(() => st.refreshGraph())
+    })
+    const offOpenNote = window.onyx.apps.onOpenNote((rel) => {
+      void useStore.getState().openFile(rel)
+    })
     return () => {
       offChanged()
       offSettled()
+      offScribe()
+      offOpenNote()
     }
   }, [])
 

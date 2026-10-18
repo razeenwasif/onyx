@@ -40,6 +40,7 @@ public enum ScribeMenu {
                 role("undo"), role("redo"), separator,
                 role("cut"), role("copy"), role("paste"),
                 item("Paste onto Page", .pasteOntoPage, "Alt+Cmd+V"),
+                item("Copy Link to Page or Selection", .copyLink, "Alt+Cmd+L"),
                 role("selectAll"), separator,
                 item("Search All Notes", .search, "Cmd+F"),
             ]],

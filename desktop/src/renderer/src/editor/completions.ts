@@ -7,6 +7,7 @@ import type { Completion, CompletionContext, CompletionResult } from '@codemirro
 import type { EditorView } from '@codemirror/view'
 import { useStore } from '../store'
 import { stem } from '../lib/notes'
+import { scribeLink } from '@shared/scribe-link'
 
 /** `[[` … — every note by name, alias and folder path. */
 export function wikilinkCompletion(context: CompletionContext): CompletionResult | null {
@@ -42,6 +43,19 @@ export function wikilinkCompletion(context: CompletionContext): CompletionResult
         apply: `${alias}]]`,
       })
     }
+  }
+
+  // Scribe's pages, linked by id so the link survives a rename or move.
+  for (const page of useStore.getState().scribePages.values()) {
+    const link = scribeLink(page.id, page.title)
+    options.push({
+      label: page.title,
+      detail: `Scribe · ${[page.notebook, page.section].filter(Boolean).join(' › ')}`,
+      type: 'scribe',
+      // The whole link minus the `[[` already typed.
+      apply: link.slice(2),
+      boost: (page.modified * 1000) / 1e12,
+    })
   }
 
   return {

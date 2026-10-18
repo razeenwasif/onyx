@@ -33,6 +33,8 @@ import { renderMarkdown, type RenderContext } from './render'
 import { assetUrl, onAssetLoaded } from '../lib/assets'
 import { toggleTaskOnLine } from '../lib/notes'
 import { frontmatterLength } from '@shared/parse'
+import { isScribeTarget } from '@shared/scribe-link'
+import { openScribeTarget, scribePageFor } from '../lib/scribe-links'
 
 /** Decoration layers for a mode: Live Preview also renders the block widgets. */
 function livePreviewExtensions(live: boolean): Extension {
@@ -96,8 +98,10 @@ function CodeMirrorView({ tab, mode }: { tab: Tab; mode: 'livePreview' | 'source
 
   const host: EditorHost = useMemo(
     () => ({
-      resolve: (target) => resolveSync(target, path),
+      resolve: (target) =>
+        isScribeTarget(target) ? (scribePageFor(target)?.path ?? null) : resolveSync(target, path),
       openLink: (target, newTab) => {
+        if (openScribeTarget(target)) return
         void (async () => {
           const resolved = await window.onyx.vault.resolve(target, path)
           if (resolved) {
@@ -319,6 +323,7 @@ function ReadingView({ tab }: { tab: Tab }): JSX.Element {
   const path = tab.path!
   const doc = useStore((s) => s.docs.get(path))
   const notes = useStore((s) => s.notes)
+  const scribePages = useStore((s) => s.scribePages)
   const settings = useStore((s) => s.settings)
   const openFile = useStore((s) => s.openFile)
   const setDoc = useStore((s) => s.setDoc)
@@ -330,6 +335,7 @@ function ReadingView({ tab }: { tab: Tab }): JSX.Element {
 
   const resolve = useCallback(
     (target: string): string | null => {
+      if (isScribeTarget(target)) return scribePageFor(target)?.path ?? null
       const name = target.replace(/[#^].*$/, '').trim().toLowerCase()
       for (const key of notes.keys()) {
         if (key.replace(/\.md$/i, '').toLowerCase() === name) return key
@@ -338,7 +344,9 @@ function ReadingView({ tab }: { tab: Tab }): JSX.Element {
       }
       return null
     },
-    [notes],
+    // scribePages: a page arriving (or going) changes how its links look.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [notes, scribePages],
   )
 
   // Preload embedded notes so the render pass stays synchronous.
@@ -398,6 +406,7 @@ function ReadingView({ tab }: { tab: Tab }): JSX.Element {
       const href = link.getAttribute('data-href')
       const tag = link.getAttribute('data-tag')
       if (href) {
+        if (openScribeTarget(href)) return
         const resolved = resolve(href)
         if (resolved) void openFile(resolved, { newTab: e.ctrlKey || e.metaKey })
         return

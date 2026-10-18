@@ -18,7 +18,8 @@ import * as path from 'node:path'
 
 import { isPackaged } from './packaged.js'
 import { scribeQuery } from '../shared/scribe-query.js'
-import type { ScribeHit } from '../shared/types.js'
+import { parseScribeTarget } from '../shared/scribe-link.js'
+import type { ScribeHit, ScribePage } from '../shared/types.js'
 
 export type AppId = 'electron' | 'scribe'
 
@@ -32,6 +33,11 @@ interface Bridge {
   snapshot(png: string): boolean
   search(query: string): string
   open(pagePath: string): void
+  links(): string
+  onLinksChanged(fn: () => void): void
+  openLink(pageId: string, x: number, y: number, width: number, height: number): void
+  setVault(path: string): void
+  onOpenNote(fn: (rel: string) => void): void
 }
 
 /** One entry of Scribe's menu JSON (see scribe/macos/Scribe/App/ScribeMenu.swift). */
@@ -56,6 +62,8 @@ let current: AppId = 'electron'
 let host: BrowserWindow | null = null
 let menus: Record<AppId, () => Electron.Menu> | null = null
 let changed: (id: AppId) => void = () => {}
+let pages: ScribePage[] = []
+let pagesChanged: () => void = () => {}
 
 /**
  * Load Scribe if it's here. `electronMenu` builds Electron's own menu bar;
@@ -65,8 +73,13 @@ let changed: (id: AppId) => void = () => {}
 export function initScribe(options: {
   electronMenu: () => Electron.Menu
   onChange: (id: AppId) => void
+  /** Scribe's pages or the links on them changed (see scribePages). */
+  onPagesChanged: () => void
+  /** A note in a Scribe page's "Linked from" list was picked. */
+  onOpenNote: (rel: string) => void
 }): string | null {
   changed = options.onChange
+  pagesChanged = options.onPagesChanged
   menus = { electron: options.electronMenu, scribe: scribeMenu }
   if (process.platform !== 'darwin') return 'Scribe is macOS-only'
   const dir = stageDir()
@@ -77,7 +90,15 @@ export function initScribe(options: {
     const loaded = createRequire(import.meta.url)(addon) as Bridge
     loaded.load(dylib)
     loaded.onSwitch(() => switchApp('electron'))
+    loaded.onLinksChanged(() => {
+      if (readPages()) pagesChanged()
+    })
+    loaded.onOpenNote((rel) => {
+      switchApp('electron')
+      options.onOpenNote(rel)
+    })
     bridge = loaded
+    readPages()
     return null
   } catch (err) {
     return `Scribe failed to load: ${(err as Error).message}`
@@ -188,6 +209,53 @@ export function openScribePage(pagePath: string): void {
   if (!bridge || !host) return
   bridge.open(pagePath)
   switchApp('scribe')
+}
+
+/**
+ * Every Scribe page with its id and the links typed on it, as last read.
+ * Reading happens in Scribe's background; when it finds a change,
+ * onPagesChanged fires and this has the new list.
+ */
+export function scribePages(): ScribePage[] {
+  return pages
+}
+
+let pagesJson = '[]'
+
+/** Reads the index as Scribe last read it; true if it differs from before. */
+function readPages(): boolean {
+  const json = bridge?.links() ?? '[]'
+  if (json === pagesJson) return false
+  pagesJson = json
+  try {
+    pages = JSON.parse(json) as ScribePage[]
+  } catch {
+    pages = []
+  }
+  return true
+}
+
+/** Ask Scribe to read its pages again (e.g. after it was on screen). */
+export function refreshScribePages(): void {
+  readPages()
+}
+
+/**
+ * Open the page a `scribe:` link target names and show Scribe; a link to an
+ * area zooms to it. False when it isn't a Scribe link or Scribe isn't here.
+ */
+export function openScribeLink(target: string): boolean {
+  const link = parseScribeTarget(target)
+  if (!bridge || !host || !link) return false
+  const a = link.area
+  bridge.openLink(link.pageId, a?.x ?? 0, a?.y ?? 0, a?.width ?? 0, a?.height ?? 0)
+  switchApp('scribe')
+  return true
+}
+
+/** Tell Scribe where the vault is, so a page can list the notes linking to it. */
+export function setScribeVault(root: string): void {
+  bridge?.setVault(root)
 }
 
 /** Render Scribe's view to a PNG (capturePage only sees the web layer under it). */

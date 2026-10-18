@@ -37,6 +37,7 @@ struct AppHost: View {
         }
         .animation(.easeInOut(duration: 0.2), value: app)
         .environment(\.appChoice, $app)
+        .onAppear { connectLinks() }
         // Whatever was typed or drawn is saved before the other app shows.
         .onChange(of: app) { _, _ in
             scribe.flush()
@@ -51,6 +52,32 @@ struct AppHost: View {
 
     private func switchTo(_ choice: AppChoice) {
         app = choice
+    }
+
+    /// Links between the two: a note's `[[scribe:…]]` opens Scribe at that
+    /// page, a page's "Linked from" opens Electron at the note, and Scribe's
+    /// link index feeds Electron's graph, backlinks and suggestions.
+    private func connectLinks() {
+        let choice = $app
+        let scribe = scribe, electron = electron
+        electron.openScribe = { link in
+            withAnimation(.easeInOut(duration: 0.2)) { choice.wrappedValue = .scribe }
+            scribe.showLinked(link)
+        }
+        scribe.openNote = { rel in
+            scribe.flush()
+            withAnimation(.easeInOut(duration: 0.2)) { choice.wrappedValue = .electron }
+            electron.show(rel)
+        }
+        scribe.notesLinking = { id in electron.notesLinking(toPage: id) }
+        scribe.onLinkIndex = { pages in
+            // Two files can share an id (a page copied in Files); the one
+            // edited last wins, as in the core.
+            electron.scribePages = Dictionary(pages.filter { !$0.id.isEmpty }.map { ($0.id, $0) }) { a, b in
+                a.modified >= b.modified ? a : b
+            }
+        }
+        if !scribe.linkIndex.isEmpty { scribe.onLinkIndex?(scribe.linkIndex) }
     }
 }
 

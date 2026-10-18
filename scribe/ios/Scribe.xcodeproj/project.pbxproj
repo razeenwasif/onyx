@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0E65E97DE98AEC0D5CCAB2DF /* Velvet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45F59826CA139258AB536628 /* Velvet.swift */; };
+		12177E5F756A5882C8E22413 /* PageLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0A16D8D66F6576150640937 /* PageLinks.swift */; };
 		157536B5C3A22C3989DA026D /* PDFImportJob.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CD198BB03AB8EEA48020A46 /* PDFImportJob.swift */; };
 		208107C86710E02C5C10FAFC /* AppSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F5F58A8AF8ACBF957810FB /* AppSwitcher.swift */; };
 		2A172507F771DB2BB10578CC /* ReadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9560152484C6FB9DD533F97D /* ReadingView.swift */; };
@@ -69,6 +70,7 @@
 		A01DAF81BFF5F19B0C8A8E66 /* PageGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageGrid.swift; sourceTree = "<group>"; };
 		AC1B97368B968B9EA7A98E4E /* ImportPopup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportPopup.swift; sourceTree = "<group>"; };
 		AEB911B4EFF147E75B54578F /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
+		B0A16D8D66F6576150640937 /* PageLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageLinks.swift; sourceTree = "<group>"; };
 		C13920EAFF24E0A57E26E1BB /* ElectronViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElectronViews.swift; sourceTree = "<group>"; };
 		C2E90B89CCA9C197405CACDA /* PageCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageCanvas.swift; sourceTree = "<group>"; };
 		C50D08615E70ECA0AD221386 /* Tools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tools.swift; sourceTree = "<group>"; };
@@ -179,6 +181,7 @@
 				94B50B840A6F28ACEF2FC4C8 /* FolderAccess.swift */,
 				70E3CA41C98CC4FBC7E26526 /* NotebookCanvas.swift */,
 				C2E90B89CCA9C197405CACDA /* PageCanvas.swift */,
+				B0A16D8D66F6576150640937 /* PageLinks.swift */,
 				3ECB559B954847D3FD91E918 /* PenInput.swift */,
 				572ACD849DC28AE0C35FCA9B /* ScribeApp.swift */,
 				5F50B0C1B73148655154DC4C /* Store.swift */,
@@ -339,6 +342,7 @@
 				157536B5C3A22C3989DA026D /* PDFImportJob.swift in Sources */,
 				E05B9C001E4E76D6CF053D77 /* PageCanvas.swift in Sources */,
 				DE1FECFCBE5F19EBAA62AC7E /* PageGrid.swift in Sources */,
+				12177E5F756A5882C8E22413 /* PageLinks.swift in Sources */,
 				C2DFAA61D3C90D098EDCA7F5 /* PenInput.swift in Sources */,
 				2A172507F771DB2BB10578CC /* ReadingView.swift in Sources */,
 				C4457AFB46EBCC8F7A30D469 /* ScribeApp.swift in Sources */,

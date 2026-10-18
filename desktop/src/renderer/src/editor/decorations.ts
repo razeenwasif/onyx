@@ -21,6 +21,7 @@ import { EditorState, Range, StateEffect, StateField } from '@codemirror/state'
 import { syntaxTree } from '@codemirror/language'
 
 import { extractFrontmatterProperties, frontmatterLength } from '@shared/parse'
+import { isScribeTarget } from '@shared/scribe-link'
 import { renderMarkdown } from './render'
 
 /** Callout types → the CSS color token and glyph used in Live Preview. */
@@ -160,9 +161,10 @@ class LinkWidget extends WidgetType {
 
   toDOM(view: EditorView): HTMLElement {
     const a = document.createElement('span')
-    a.className = `cm-md-wikilink${this.unresolved ? ' is-unresolved' : ''}`
-    a.textContent = this.text
-    a.title = this.target
+    const scribe = !this.external && isScribeTarget(this.target)
+    a.className = `cm-md-wikilink${this.unresolved ? ' is-unresolved' : ''}${scribe ? ' is-scribe' : ''}`
+    a.textContent = scribe && this.text === this.target ? 'Scribe page' : this.text
+    a.title = scribe ? 'Open in Scribe' : this.target
     a.addEventListener('mousedown', (e) => {
       e.preventDefault()
       e.stopPropagation()

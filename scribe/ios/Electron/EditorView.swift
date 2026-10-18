@@ -460,8 +460,30 @@ struct LinkSuggestions: View {
                     return a.name.localizedStandardCompare(b.name) == .orderedAscending
                 }
                 .prefix(8)
-            if !matches.isEmpty {
+            // Scribe's pages too, linked by id (see ScribeLink).
+            let pages = q.isEmpty ? [] : store.scribePages.values
+                .filter { $0.title.lowercased().contains(q) }
+                .sorted { $0.modified > $1.modified }
+                .prefix(4)
+            if !matches.isEmpty || !pages.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(pages)) { page in
+                        Button {
+                            bridge.complete(String(ScribeLink(pageId: page.id).markdown(title: page.title).dropFirst(2).dropLast(2)))
+                        } label: {
+                            HStack {
+                                Image(systemName: "pencil.and.scribble").foregroundStyle(Color.velvetAccent)
+                                Text(page.title).foregroundStyle(Color.evFg)
+                                Spacer()
+                                Text("Scribe · \(page.notebook) › \(page.section)")
+                                    .font(.caption).foregroundStyle(Color.evSubtle).lineLimit(1)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 9)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
                     ForEach(Array(matches), id: \.rel) { meta in
                         Button { bridge.complete(meta.name) } label: {
                             HStack {

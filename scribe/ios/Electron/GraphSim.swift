@@ -4,7 +4,9 @@ import UIKit
 /// The vault as a graph: notes, tags and links that go nowhere yet, joined
 /// the way the desktop joins them (desktop/src/main/vault.ts `graph()`).
 struct VaultGraph {
-    enum Kind { case note, tag, unresolved }
+    /// `scribe`: a Scribe page linked from a note or linking to one (its id
+    /// is `scribe:<page id>`).
+    enum Kind { case note, tag, unresolved, scribe }
 
     struct Node {
         let id: String
@@ -31,6 +33,9 @@ struct VaultGraph {
             g.nodes.append(node())
             index[id] = g.nodes.count - 1
             return g.nodes.count - 1
+        }
+        func scribeNode(_ page: LinkedPage) -> Int {
+            add("scribe:" + page.id, Node(id: "scribe:" + page.id, title: page.title, kind: .scribe, rel: nil, tags: []))
         }
         var seen = Set<String>()
         func link(_ a: Int, _ b: Int) {
@@ -67,6 +72,11 @@ struct VaultGraph {
             let meta = store.notes[rel]!
             let from = index[rel]!
             for target in meta.targets {
+                if let scribe = ScribeLink(target: target) {
+                    // A link to a Scribe page; one that's gone is left out.
+                    if let page = store.scribePages[scribe.pageId] { link(from, scribeNode(page)) }
+                    continue
+                }
                 if let hit = store.resolve(target, from: rel) {
                     if let to = index[hit] { link(from, to) }
                 } else if keep == nil {
@@ -81,6 +91,12 @@ struct VaultGraph {
                     let to = add("tag:" + tag, Node(id: "tag:" + tag, title: "#" + tag, kind: .tag, rel: nil, tags: [tag]))
                     link(from, to)
                 }
+            }
+        }
+        // Pages with [[a note]] typed on them, joined to the notes shown.
+        for page in store.scribePages.values.sorted(by: { $0.id < $1.id }) {
+            for target in page.links where ScribeLink(target: target) == nil {
+                if let hit = store.resolve(target, from: nil), let to = index[hit] { link(scribeNode(page), to) }
             }
         }
         g.adjacency = Array(repeating: [], count: g.nodes.count)

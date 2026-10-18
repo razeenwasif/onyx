@@ -7,6 +7,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppSettings,
   Backlink,
+  BacklinkRef,
   CalEvent,
   DriveFile,
   GTask,
@@ -14,6 +15,7 @@ import type {
   GraphData,
   NoteMeta,
   ScribeHit,
+  ScribePage,
   SearchHit,
   VaultSnapshot,
 } from '../shared/types.js'
@@ -43,6 +45,14 @@ export const api = {
     scribeSearch: (query: string): Promise<ScribeHit[]> => ipcRenderer.invoke('apps:scribe-search', query),
     /** Open a Scribe page and switch to Scribe. */
     scribeOpen: (pagePath: string): Promise<void> => ipcRenderer.invoke('apps:scribe-open', pagePath),
+    /** Every Scribe page with its id and the links on it (empty without Scribe). */
+    scribePages: (): Promise<ScribePage[]> => ipcRenderer.invoke('apps:scribe-pages'),
+    /** Open the page (or area) a `scribe:` link target names; false without Scribe. */
+    scribeOpenLink: (target: string): Promise<boolean> => ipcRenderer.invoke('apps:scribe-open-link', target),
+    /** Scribe's pages or their links changed; ask scribePages again. */
+    onScribePagesChanged: (fn: () => void): Unsubscribe => on('apps:scribe-pages-changed', fn),
+    /** Scribe asked to open a note (vault-relative path). */
+    onOpenNote: (fn: (rel: string) => void): Unsubscribe => on('apps:open-note', fn),
   },
 
   settings: {
@@ -62,7 +72,7 @@ export const api = {
     snapshot: (): Promise<VaultSnapshot> => ipcRenderer.invoke('vault:snapshot'),
     graph: (): Promise<GraphData> => ipcRenderer.invoke('vault:graph'),
     tags: (): Promise<Array<{ tag: string; count: number }>> => ipcRenderer.invoke('vault:tags'),
-    backlinks: (rel: string): Promise<Array<{ path: string; title: string }>> =>
+    backlinks: (rel: string): Promise<BacklinkRef[]> =>
       ipcRenderer.invoke('vault:backlinks', rel),
     resolve: (target: string, from?: string): Promise<string | null> =>
       ipcRenderer.invoke('vault:resolve', target, from),

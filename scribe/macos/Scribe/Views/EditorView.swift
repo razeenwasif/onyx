@@ -95,6 +95,35 @@ struct EditorView: View {
     }
 }
 
+/// The notes in the Electron vault that link to the open page; picking one
+/// opens it in Electron.
+struct LinkedNotesMenu: View {
+    @Bindable var app: AppModel
+    var size: CGFloat
+
+    var body: some View {
+        Menu {
+            Section("Linked from") {
+                ForEach(app.linkedNotes) { note in
+                    Button(note.title) { app.openNote(note.path) }
+                        .disabled(app.openNoteHandler == nil)
+                }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "link")
+                Text("\(app.linkedNotes.count)").font(.system(size: 13, weight: .bold)).monospacedDigit()
+            }
+            .padding(.horizontal, 12)
+            .frame(height: size)
+            .contentShape(Capsule())
+        }
+        .pillMenu()
+        .help(app.linkedNotes.count == 1 ? "1 note links here" : "\(app.linkedNotes.count) notes link here")
+        .accessibilityLabel("Linked from \(app.linkedNotes.count) notes")
+    }
+}
+
 /// Title, breadcrumb and page actions.
 struct PageHeader: View {
     @Bindable var app: AppModel
@@ -231,6 +260,9 @@ struct PageActions: View {
                     .help("Focus on the page (⌘\\)")
                     .accessibilityLabel("Focus mode")
             }
+            if !app.linkedNotes.isEmpty {
+                LinkedNotesMenu(app: app, size: size)
+            }
             Menu {
                 Picker("Paper", selection: paperBinding) {
                     Text("Ruled").tag("ruled")
@@ -239,6 +271,7 @@ struct PageActions: View {
                     Text("Blank").tag("blank")
                 }
                 Divider()
+                Button("Copy Link to Page") { app.copyLink(wholePage: true) }
                 Button("Fit Page Width") { app.canvas?.zoomToFit() }
                 Button("Show in Finder") { app.revealInFinder(page.path) }
                 Divider()

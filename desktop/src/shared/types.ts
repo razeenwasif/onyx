@@ -56,8 +56,11 @@ export interface GraphNode {
   id: string
   /** Display label. */
   title: string
-  /** `note` = a real markdown file, `unresolved` = a link with no file, `tag` = a #tag, `attachment` = image/pdf/etc. */
-  kind: 'note' | 'unresolved' | 'tag' | 'attachment'
+  /**
+   * `note` = a real markdown file, `unresolved` = a link with no file, `tag` = a #tag,
+   * `attachment` = image/pdf/etc., `scribe` = a Scribe page (id `scribe:<pageId>`).
+   */
+  kind: 'note' | 'unresolved' | 'tag' | 'attachment' | 'scribe'
   degree: number
   /** Vault-relative folder, for group queries. */
   folder: string
@@ -87,6 +90,29 @@ export interface SearchHit {
   title: string
   matches: Array<{ line: number; text: string; from: number; to: number }>
   score: number
+}
+
+/** A Scribe page as links see it (macOS, when Scribe is embedded). */
+export interface ScribePage {
+  /** The page's own id, which `[[scribe:<id>|…]]` links name. */
+  id: string
+  title: string
+  /** The page file's path. */
+  path: string
+  notebook: string
+  section: string
+  /** Unix seconds; 0 when unknown. */
+  modified: number
+  /** `[[…]]` targets typed on the page: note names, or `scribe:` pages. */
+  links: string[]
+}
+
+/** A note's backlink: another note, or a Scribe page with `[[Note]]` typed on it. */
+export interface BacklinkRef {
+  path: string
+  title: string
+  /** Set for a Scribe page; `path` is then the page file. */
+  scribe?: { id: string; notebook: string; section: string }
 }
 
 /** A Scribe page matching a search (macOS, when Scribe is embedded). */

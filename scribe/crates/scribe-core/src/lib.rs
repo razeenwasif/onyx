@@ -8,6 +8,7 @@ pub mod color;
 pub mod ffi;
 pub mod geometry;
 pub mod ink;
+pub mod links;
 pub mod model;
 pub mod onenote;
 pub mod onenote_file;

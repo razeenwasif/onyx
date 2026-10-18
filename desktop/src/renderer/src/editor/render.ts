@@ -10,6 +10,7 @@ import hljs from 'highlight.js/lib/common'
 import katex from 'katex'
 
 import { extractFrontmatterProperties, frontmatterLength } from '@shared/parse'
+import { isScribeTarget } from '@shared/scribe-link'
 
 export interface RenderContext {
   /** Resolve a wikilink target to a vault path, or null when unresolved. */
@@ -250,8 +251,11 @@ function postprocessInline(html: string, ctx: RenderContext): string {
     const target = parts[0].trim()
     const label = (parts[1] ?? target).trim()
     const resolved = ctx.resolve(target)
-    const cls = resolved ? 'internal-link' : 'internal-link is-unresolved'
-    return `<a class="${cls}" data-href="${escapeHtml(target)}" href="#">${escapeHtml(label)}</a>`
+    const scribe = isScribeTarget(target)
+    const cls = `internal-link${resolved ? '' : ' is-unresolved'}${scribe ? ' is-scribe' : ''}`
+    // A Scribe link without a title shouldn't show its page id.
+    const shown = scribe && label === target ? 'Scribe page' : label
+    return `<a class="${cls}" data-href="${escapeHtml(target)}" href="#">${escapeHtml(shown)}</a>`
   })
 
   // Tags, skipping anything inside a tag attribute or code block.

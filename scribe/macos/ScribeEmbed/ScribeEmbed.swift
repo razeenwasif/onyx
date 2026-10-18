@@ -17,6 +17,12 @@ private final class Embedded {
     var active = false
     var started = false
     var switchHandler: (@convention(c) () -> Void)?
+    var linksChangedHandler: (@convention(c) () -> Void)?
+    /// The link index as last read (see scribe_embed_link_index), and
+    /// whether a fresh read is under way.
+    var linkIndex = "[]"
+    var readingLinks = false
+    var linksAgain = false
     var keyMonitor: Any?
     var observers: [NSObjectProtocol] = []
     lazy var menuJSON: UnsafeMutablePointer<CChar> = strdup(ScribeMenu.hostMenuJSON())
@@ -87,8 +93,16 @@ public func scribeEmbedCreateView(
 public func scribeEmbedSetActive(_ active: Bool) {
     let embedded = Embedded.shared
     embedded.active = active
-    if active { startIfNeeded() }
-    if !active, embedded.started { embedded.app.save() }
+    if active {
+        startIfNeeded()
+        // Notes may have gained or lost links to this page meanwhile.
+        embedded.app.loadLinkedNotes()
+    }
+    if !active, embedded.started {
+        embedded.app.save()
+        // Links typed on pages show in the host's graph and backlinks.
+        refreshLinkIndex()
+    }
 }
 
 private func startIfNeeded() {
@@ -103,6 +117,76 @@ private func startIfNeeded() {
 @_cdecl("scribe_embed_search")
 public func scribeEmbedSearch(_ query: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar> {
     strdup(Embedded.shared.app.searchJSON(String(cString: query)))
+}
+
+/// Every page with its id and the `[[…]]` links typed on it, as a JSON
+/// array (see LinkedPage), for the host's graph and backlinks. Returns the
+/// index as last read and reads it again in the background: the first read
+/// after an update opens every page once. When the fresh read differs, the
+/// links-changed handler is called and the host asks again. The caller
+/// frees the string with scribe_embed_free.
+@_cdecl("scribe_embed_link_index")
+public func scribeEmbedLinkIndex() -> UnsafeMutablePointer<CChar> {
+    refreshLinkIndex()
+    return strdup(Embedded.shared.linkIndex)
+}
+
+private func refreshLinkIndex() {
+    let embedded = Embedded.shared
+    guard !embedded.readingLinks else {
+        embedded.linksAgain = true
+        return
+    }
+    embedded.readingLinks = true
+    let app = embedded.app
+    let root = app.libraryRoot
+    DispatchQueue.global(qos: .utility).async {
+        // A page just left may still be on its way to disk.
+        app.finishSaving()
+        let json = AppModel.linkIndexJSON(root: root)
+        DispatchQueue.main.async {
+            embedded.readingLinks = false
+            if json != embedded.linkIndex {
+                embedded.linkIndex = json
+                embedded.linksChangedHandler?()
+            }
+            if embedded.linksAgain {
+                embedded.linksAgain = false
+                refreshLinkIndex()
+            }
+        }
+    }
+}
+
+/// Called (on the main thread) when the link index has changed.
+@_cdecl("scribe_embed_set_links_changed_handler")
+public func scribeEmbedSetLinksChangedHandler(_ handler: @escaping @convention(c) () -> Void) {
+    Embedded.shared.linksChangedHandler = handler
+}
+
+/// Opens the page with id `pageId` and, when `width` and `height` are
+/// positive, zooms to that area of it (page units) and flashes it.
+@_cdecl("scribe_embed_open_link")
+public func scribeEmbedOpenLink(_ pageId: UnsafePointer<CChar>, _ x: Double, _ y: Double, _ width: Double, _ height: Double) {
+    startIfNeeded()
+    let area = width > 0 && height > 0 ? CGRect(x: x, y: y, width: width, height: height) : nil
+    Embedded.shared.app.showLinkedPage(id: String(cString: pageId), area: area)
+}
+
+/// The host's Markdown vault, so a page can list the notes linking to it.
+@_cdecl("scribe_embed_set_vault")
+public func scribeEmbedSetVault(_ path: UnsafePointer<CChar>?) {
+    let vault = path.map { String(cString: $0) } ?? ""
+    Embedded.shared.app.vaultRoot = vault.isEmpty ? nil : vault
+}
+
+/// Called with a vault-relative note path when a note in a page's "Linked
+/// from" list is picked. The string is only valid during the call.
+@_cdecl("scribe_embed_set_open_note_handler")
+public func scribeEmbedSetOpenNoteHandler(_ handler: @escaping @convention(c) (UnsafePointer<CChar>) -> Void) {
+    Embedded.shared.app.openNoteHandler = { path in
+        path.withCString { handler($0) }
+    }
 }
 
 /// Frees a string Scribe handed to the host.

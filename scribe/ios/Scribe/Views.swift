@@ -212,6 +212,8 @@ struct LibraryView: View {
 struct WritingView: View {
     @Bindable var store: Store
     @Binding var prompt: NamePrompt?
+    /// A link was just copied: say so for a moment.
+    @State private var linkCopied = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -238,9 +240,9 @@ struct WritingView: View {
                 Group {
                     if store.continuous {
                         NotebookCanvasView(store: store, layoutVersion: store.layoutVersion, scrollTarget: store.scrollTarget,
-                                           pagePath: store.pagePath, fingerDraws: store.fingerDraws)
+                                           pagePath: store.pagePath, fingerDraws: store.fingerDraws, reveal: store.revealVersion)
                     } else {
-                        PageCanvas(store: store, pageID: store.doc?.id, fingerDraws: store.fingerDraws)
+                        PageCanvas(store: store, pageID: store.doc?.id, fingerDraws: store.fingerDraws, reveal: store.revealVersion)
                     }
                 }
                     .ignoresSafeArea(edges: .bottom)
@@ -250,6 +252,10 @@ struct WritingView: View {
                 VStack(spacing: 10) {
                     if store.hasSelection {
                         HStack(spacing: 18) {
+                            Button("Link", systemImage: "link") {
+                                store.copyLink()
+                                linkCopied = true
+                            }
                             Button("Delete", systemImage: "trash", role: .destructive) { store.deleteSelection() }
                             Button("Done") { store.clearSelection() }
                         }
@@ -298,6 +304,12 @@ struct WritingView: View {
                     .pickerStyle(.menu)
                     .disabled(store.pageIsPDF || store.paperKind == "blank")
                     Divider()
+                    Button("Copy Link to Page", systemImage: "link") {
+                        store.copyLink(wholePage: true)
+                        linkCopied = true
+                    }
+                    .disabled(store.doc == nil)
+                    Divider()
                     Toggle(isOn: $store.continuous) {
                         Label("Scroll Through Pages", systemImage: "arrow.up.and.down.text.horizontal")
                     }
@@ -310,6 +322,9 @@ struct WritingView: View {
                 .accessibilityLabel("Page options")
             }
             ToolbarItem(placement: .topBarTrailing) {
+                if !store.showingGrid { LinkedNotesButton(store: store) }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     withAnimation(.spring(duration: 0.3)) { store.toggleGrid() }
                 } label: {
@@ -320,6 +335,22 @@ struct WritingView: View {
             }
         }
         .modifier(RenameTitleMenu(store: store, prompt: $prompt))
+        .overlay(alignment: .top) {
+            if linkCopied {
+                Label("Link copied. Paste it into a note in Electron.", systemImage: "link")
+                    .font(.callout.weight(.medium))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .task {
+                        try? await Task.sleep(for: .seconds(1.8))
+                        linkCopied = false
+                    }
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: linkCopied)
     }
 }
 

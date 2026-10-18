@@ -92,6 +92,50 @@ final class PageScrollView: NSScrollView {
         inkView.toolChanged()
         surface.needsDisplay = true
         inkView.needsDisplay = true
+
+        // A link to an area of this page: show it once the page is laid out.
+        if let pending = app.pendingReveal, pending.path == page.path {
+            app.pendingReveal = nil
+            DispatchQueue.main.async { [weak self] in self?.reveal(pending.area) }
+        }
+    }
+
+    /// Brings an area of the page (page units) into view and flashes it, for
+    /// a link to it. Zooms out only as far as needed to show all of it, and
+    /// never zooms in past 100%.
+    func reveal(_ area: CGRect) {
+        layoutSubtreeIfNeeded()
+        let view = contentView.frame.size
+        guard view.width > 80, view.height > 80 else { return }
+        let padded = area.insetBy(dx: -48, dy: -48)
+        let fit = min(view.width / padded.width, view.height / padded.height)
+        let target = min(fit, max(magnification, 1)).clamped(minMagnification, maxMagnification)
+        autoFit = false
+        magnification = target
+        let center = surface.convert(CGPoint(x: area.midX, y: area.midY), to: documentView)
+        let size = contentView.bounds.size
+        contentView.scroll(to: contentView.constrainBoundsRect(
+            CGRect(x: center.x - size.width / 2, y: center.y - size.height / 2, width: size.width, height: size.height)).origin)
+        reflectScrolledClipView(contentView)
+        magnificationChanged()
+        flash(area)
+    }
+
+    private func flash(_ area: CGRect) {
+        let glow = PassThroughView(frame: area.insetBy(dx: -10, dy: -10))
+        glow.wantsLayer = true
+        glow.layer?.backgroundColor = NSColor(Velvet.accent).withAlphaComponent(0.16).cgColor
+        glow.layer?.borderColor = NSColor(Velvet.accent).withAlphaComponent(0.85).cgColor
+        glow.layer?.borderWidth = 2
+        glow.layer?.cornerRadius = 12
+        glow.layer?.cornerCurve = .continuous
+        surface.addSubview(glow)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.8
+                glow.animator().alphaValue = 0
+            }, completionHandler: { glow.removeFromSuperview() })
+        }
     }
 
     func scrollToTop() {
@@ -268,6 +312,12 @@ final class CenteringClipView: NSClipView {
     }
 
     override var isFlipped: Bool { true }
+}
+
+/// A view clicks go straight through.
+final class PassThroughView: NSView {
+    override var isFlipped: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
 final class FlippedView: NSView {

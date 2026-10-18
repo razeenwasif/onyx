@@ -9,6 +9,7 @@ struct NotebookCanvasView: UIViewRepresentable {
     let scrollTarget: String?
     let pagePath: String?
     let fingerDraws: Bool
+    let reveal: Int
 
     func makeUIView(context: Context) -> NotebookCanvas {
         NotebookCanvas(store: store)
@@ -123,6 +124,7 @@ final class NotebookCanvas: UIView, UIScrollViewDelegate, UIPencilInteractionDel
             takenTarget = nil
         }
         applyPendingTarget()
+        applyPendingReveal()
     }
 
     /// A page to scroll to once the canvas has its size and zoom.
@@ -133,6 +135,25 @@ final class NotebookCanvas: UIView, UIScrollViewDelegate, UIPencilInteractionDel
         guard let target = pendingTarget, bounds.width > 0, !slots.isEmpty else { return }
         pendingTarget = nil
         show(target, animated: false)
+        // Opened from a link to an area of the page: show that area.
+        applyPendingReveal()
+    }
+
+    /// An area a link asked for, on a page that's laid out. Checked on every
+    /// update, not only with a new scroll target: a link to the page already
+    /// open asks for the same target as before.
+    private func applyPendingReveal() {
+        guard pendingTarget == nil, let pending = store.revealArea, bounds.width > 0,
+              slots.contains(where: { $0.layout.path == pending.path }) else { return }
+        store.revealArea = nil
+        reveal(pending.area, on: pending.path)
+    }
+
+    /// Shows an area of a page (page units) for a link to it.
+    private func reveal(_ area: CGRect, on path: String) {
+        guard let slot = slots.first(where: { $0.layout.path == path }) else { return }
+        if showArea(area.offsetBy(dx: slot.frame.minX, dy: slot.frame.minY), in: scroll, content: stack) { followsFit = false }
+        updateVisible()
     }
 
     // ------------------------------------------------------------- layout

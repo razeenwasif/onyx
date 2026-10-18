@@ -83,6 +83,21 @@ pub struct PageInfo {
     pub bookmarked: bool,
 }
 
+/// A page as links see it (see Workspace::link_index).
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct LinkedPage {
+    pub id: String,
+    pub title: String,
+    pub path: String,
+    /// The folder and notebook it's in, by their library names.
+    pub notebook: String,
+    pub section: String,
+    /// Seconds since the Unix epoch, or 0 when the stamp is unreadable.
+    pub modified: f64,
+    /// The `[[…]]` targets typed on it: note names, or `scribe:` pages.
+    pub links: Vec<String>,
+}
+
 /// Just enough of a page to list it, without building its ink in memory.
 #[derive(Deserialize)]
 struct PageHeader {
@@ -100,6 +115,14 @@ struct PageHeader {
     source: Option<HeaderSource>,
     #[serde(default, rename = "inkThinned")]
     ink_thinned: Option<bool>,
+    #[serde(default)]
+    tables: Vec<HeaderTable>,
+}
+
+#[derive(Deserialize)]
+struct HeaderTable {
+    #[serde(default)]
+    rows: Vec<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -322,6 +345,46 @@ impl Workspace {
         pages
     }
 
+    /// Every page with its id, where it is, and the links typed on it, for
+    /// linking pages and notes (see links.rs). Read from the header cache,
+    /// so only pages changed since the last call are opened.
+    pub fn link_index(&self) -> Vec<LinkedPage> {
+        let mut out = Vec::new();
+        for nb in self.list_notebook_dirs() {
+            let notebook = self.read_notebook(&nb).name;
+            for sec in self.list_section_dirs(&nb) {
+                let section = self.read_section(&sec).name;
+                for f in self.list_page_files(&sec) {
+                    let h = cached_header(&f);
+                    out.push(LinkedPage {
+                        id: h.page_id,
+                        title: h.title,
+                        path: path_str(&f),
+                        notebook: notebook.clone(),
+                        section: section.clone(),
+                        modified: h.modified,
+                        links: h.links.unwrap_or_default(),
+                    });
+                }
+            }
+        }
+        save_header_cache();
+        out
+    }
+
+    /// The page whose id is `id`. Should two files share one (a page copied
+    /// in the Finder), the one edited last.
+    pub fn page_with_id(&self, id: &str) -> Option<PathBuf> {
+        if id.is_empty() {
+            return None;
+        }
+        self.link_index()
+            .into_iter()
+            .filter(|p| p.id == id)
+            .max_by(|a, b| a.modified.total_cmp(&b.modified))
+            .map(|p| PathBuf::from(p.path))
+    }
+
     pub fn set_notebook_color(&self, dir: &Path, color: &str) -> Result<()> {
         let mut doc = self.read_notebook(dir);
         doc.color = color.to_string();
@@ -466,6 +529,11 @@ struct CachedHeader {
     /// Imported from OneNote and not yet thinned (see thin_imported_pages).
     #[serde(default)]
     unthinned: bool,
+    /// The `[[…]]` targets typed in its text boxes and tables (see
+    /// links::wikilinks). None in a cache saved before links were read,
+    /// which counts as a miss.
+    #[serde(default)]
+    links: Option<Vec<String>>,
 }
 
 #[derive(Default)]
@@ -512,7 +580,7 @@ fn cached_header(f: &Path) -> CachedHeader {
             }
         }
         if let Some(h) = cache.entries.get(f) {
-            if h.len == len && h.mtime == mtime {
+            if h.len == len && h.mtime == mtime && h.links.is_some() {
                 return h.clone();
             }
         }
@@ -520,16 +588,28 @@ fn cached_header(f: &Path) -> CachedHeader {
 
     // Read outside the lock: a big page takes a while.
     let header: Option<PageHeader> = read_json(f);
-    let (title, modified, snippet, id, bookmarked, unthinned) = match header {
-        Some(h) => (
-            h.title,
-            h.modified,
-            snippet_of(h.text_boxes.iter().map(|t| t.text.as_str())),
-            h.id.unwrap_or_default(),
-            h.bookmarked.unwrap_or(false),
-            h.source.is_some_and(|s| s.app == "onenote") && h.ink_thinned != Some(true),
-        ),
-        None => (None, None, String::new(), String::new(), false, false),
+    let (title, modified, snippet, id, bookmarked, unthinned, links) = match header {
+        Some(h) => {
+            let mut links = Vec::new();
+            let cells = h.tables.iter().flat_map(|t| t.rows.iter().flatten());
+            for text in h.text_boxes.iter().map(|t| &t.text).chain(cells) {
+                for target in crate::links::wikilinks(text) {
+                    if !links.contains(&target) {
+                        links.push(target);
+                    }
+                }
+            }
+            (
+                h.title,
+                h.modified,
+                snippet_of(h.text_boxes.iter().map(|t| t.text.as_str())),
+                h.id.unwrap_or_default(),
+                h.bookmarked.unwrap_or(false),
+                h.source.is_some_and(|s| s.app == "onenote") && h.ink_thinned != Some(true),
+                links,
+            )
+        }
+        None => (None, None, String::new(), String::new(), false, false, Vec::new()),
     };
     let entry = CachedHeader {
         len,
@@ -540,6 +620,7 @@ fn cached_header(f: &Path) -> CachedHeader {
         page_id: id,
         bookmarked,
         unthinned,
+        links: Some(links),
     };
     if let Ok(mut cache) = header_cache().lock() {
         cache.entries.insert(f.to_path_buf(), entry.clone());

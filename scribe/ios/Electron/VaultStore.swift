@@ -196,6 +196,12 @@ final class VaultStore {
     private(set) var backlinkMap: [String: Set<String>] = [:]
     private(set) var tagCounts: [(tag: String, count: Int)] = []
 
+    /// Scribe's pages by id, for `[[scribe:…]]` links: Scribe's link index,
+    /// handed over by AppHost whenever Scribe reads it.
+    var scribePages: [String: LinkedPage] = [:]
+    /// Opens a Scribe page, or an area of one, and shows Scribe (AppHost).
+    @ObservationIgnored var openScribe: ((ScribeLink) -> Void)?
+
     private var lastScan: VaultScan?
     private var scanning = false
     private var poll: Task<Void, Never>?
@@ -295,7 +301,7 @@ final class VaultStore {
         var links: [String: Set<String>] = [:]
         var counts: [String: Int] = [:]
         for (rel, meta) in notes {
-            for target in meta.targets {
+            for target in meta.targets where ScribeLink(target: target) == nil {
                 if let hit = resolve(target, from: rel), hit != rel { links[hit, default: []].insert(rel) }
             }
             for tag in meta.tags { counts[tag, default: 0] += 1 }
@@ -345,6 +351,27 @@ final class VaultStore {
         (backlinkMap[rel] ?? []).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
+    /// The Scribe page a `scribe:` link target names, if Scribe has it.
+    func scribePage(_ target: String) -> LinkedPage? {
+        ScribeLink(target: target).flatMap { scribePages[$0.pageId] }
+    }
+
+    /// The notes linking to the Scribe page with `pageId`, for its "Linked
+    /// from" list in Scribe.
+    func notesLinking(toPage pageId: String) -> [LinkingNote] {
+        notes.values
+            .filter { meta in meta.targets.contains { ScribeLink(target: $0)?.pageId == pageId } }
+            .map { LinkingNote(path: $0.rel, title: $0.name) }
+            .sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
+    }
+
+    /// Scribe pages with `[[…]]` typed on them that leads to `rel`.
+    func scribeBacklinks(of rel: String) -> [LinkedPage] {
+        scribePages.values
+            .filter { page in page.links.contains { ScribeLink(target: $0) == nil && resolve($0, from: nil) == rel } }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
     func url(for rel: String) -> URL? {
         root?.appendingPathComponent(rel)
     }
@@ -390,6 +417,11 @@ final class VaultStore {
 
     /// Follows a link from the open note.
     func follow(_ target: String) {
+        if let link = ScribeLink(target: target) {
+            flush()
+            openScribe?(link)
+            return
+        }
         if let hit = resolve(target, from: current) {
             show(hit, heading: NoteParse.heading(target))
         } else {

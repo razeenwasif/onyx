@@ -9,6 +9,7 @@ struct PageCanvas: UIViewRepresentable {
     /// Not read here; passing them makes SwiftUI update the canvas when they change.
     let pageID: String?
     let fingerDraws: Bool
+    let reveal: Int
 
     func makeUIView(context: Context) -> CanvasView {
         CanvasView(store: store)
@@ -17,6 +18,8 @@ struct PageCanvas: UIViewRepresentable {
     func updateUIView(_ view: CanvasView, context: Context) {
         view.configureGestures()
         view.reloadIfNeeded()
+        // Not during SwiftUI's update.
+        DispatchQueue.main.async { view.revealIfNeeded() }
     }
 }
 
@@ -189,6 +192,16 @@ final class CanvasView: UIView, UIScrollViewDelegate, UIPencilInteractionDelegat
     }
 
     // ------------------------------------------------------------ content
+
+    /// Shows the area of the page a link asked for, once the page is on
+    /// screen (see Store.showLinked).
+    func revealIfNeeded() {
+        guard let pending = store.revealArea, pending.path == store.pagePath,
+              store.doc?.id == shownPageID, bounds.width > 0, page.bounds.width > 0 else { return }
+        store.revealArea = nil
+        layoutIfNeeded()
+        if showArea(pending.area, in: scroll, content: page) { followsFit = false }
+    }
 
     /// Shows the store's page if it isn't the one on screen.
     func reloadIfNeeded() {

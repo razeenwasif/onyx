@@ -37,15 +37,20 @@ import {
   attachScribe,
   currentApp,
   initScribe,
+  openScribeLink,
   openScribePage,
+  refreshScribePages,
   scribeAvailable,
+  scribePages,
   searchScribe,
+  setScribeVault,
   snapshotScribe,
   switchApp,
   windowMenu,
   type AppId,
 } from './scribe.js'
-import type { AppSettings } from '../shared/types.js'
+import type { AppSettings, BacklinkRef } from '../shared/types.js'
+import { graphWithScribe, scribeBacklinks } from './scribe-links.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isDev = !isPackaged
@@ -291,6 +296,7 @@ async function openVault(root: string): Promise<AppSettings['lastVault']> {
   vault.on('settled', () => send('vault:settled'))
   rag = new RagIndex(vault)
   await rag.load(settings.get().ai.embedModel)
+  setScribeVault(root)
   settings.rememberVault(root)
   return root
 }
@@ -321,6 +327,11 @@ function registerIpc(): void {
   ipcMain.handle('apps:switch', (_e, id: AppId) => switchApp(id))
   ipcMain.handle('apps:scribe-search', (_e, query: string) => searchScribe(query))
   ipcMain.handle('apps:scribe-open', (_e, pagePath: string) => openScribePage(pagePath))
+  ipcMain.handle('apps:scribe-pages', () => {
+    refreshScribePages()
+    return scribePages()
+  })
+  ipcMain.handle('apps:scribe-open-link', (_e, target: string) => openScribeLink(target))
 
   ipcMain.handle('settings:get', () => settings.get())
   ipcMain.handle('settings:set', (_e, patch: Partial<AppSettings>) => settings.update(patch))
@@ -362,11 +373,16 @@ function registerIpc(): void {
     }
   })
 
-  ipcMain.handle('vault:graph', () => requireVault().graph())
+  ipcMain.handle('vault:graph', () => {
+    const v = requireVault()
+    return graphWithScribe(v.graph(), v.notes, (t, f) => v.resolve(t, f), scribePages())
+  })
   ipcMain.handle('vault:tags', () => requireVault().tags())
   ipcMain.handle('vault:backlinks', (_e, rel: string) => {
     const v = requireVault()
-    return v.backlinks(safeRel(rel)).map((p) => ({ path: p, title: v.notes.get(p)?.title ?? p }))
+    const note = safeRel(rel)
+    const notes: BacklinkRef[] = v.backlinks(note).map((p) => ({ path: p, title: v.notes.get(p)?.title ?? p }))
+    return [...notes, ...scribeBacklinks(note, (t, f) => v.resolve(t, f), scribePages())]
   })
   ipcMain.handle('vault:resolve', (_e, target: string, from?: string) =>
     requireVault().resolve(target, from),
@@ -630,6 +646,8 @@ void app.whenReady().then(async () => {
       send('apps:changed', id)
       settings.update({ activeApp: id })
     },
+    onPagesChanged: () => send('apps:scribe-pages-changed'),
+    onOpenNote: (rel) => send('apps:open-note', rel),
   })
   if (scribeProblem && process.platform === 'darwin') console.warn(scribeProblem)
   applyMenu()

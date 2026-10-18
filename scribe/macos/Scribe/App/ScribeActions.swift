@@ -7,7 +7,7 @@ import SwiftUI
 /// two can't drift apart.
 enum ScribeAction: Hashable {
     case newPage, newNotebook, newSection, openFolder, revealFolder, save, importPDF, importOneNote, importOneNoteFiles
-    case pasteOntoPage, search
+    case pasteOntoPage, copyLink, search
     case insertTable, insertEquation, insertImage
     case bold, italic, underline, strikethrough, bigger, smaller
     case heading(HeadingPreset)
@@ -36,7 +36,7 @@ enum ScribeAction: Hashable {
             return
         }
         let simple: [ScribeAction] = [
-            .newPage, .newNotebook, .newSection, .openFolder, .revealFolder, .save, .importPDF, .importOneNote, .importOneNoteFiles, .pasteOntoPage, .search,
+            .newPage, .newNotebook, .newSection, .openFolder, .revealFolder, .save, .importPDF, .importOneNote, .importOneNoteFiles, .pasteOntoPage, .copyLink, .search,
             .insertTable, .insertEquation, .insertImage,
             .bold, .italic, .underline, .strikethrough, .bigger, .smaller,
             .zoomIn, .zoomOut, .actualSize, .fitWidth,
@@ -49,7 +49,7 @@ enum ScribeAction: Hashable {
     /// Needs an open page; the menus disable these when there isn't one.
     var needsPage: Bool {
         switch self {
-        case .pasteOntoPage, .insertTable, .insertEquation, .insertImage: true
+        case .pasteOntoPage, .copyLink, .insertTable, .insertEquation, .insertImage: true
         default: false
         }
     }
@@ -78,6 +78,8 @@ enum ScribeAction: Hashable {
             MainActor.assumeIsolated { app.chooseAndImportOneNoteFiles() }
         case .pasteOntoPage:
             app.paste()
+        case .copyLink:
+            app.copyLink()
         case .search:
             app.focusMode = false
             if let w = NSApp.keyWindow, w.frame.width < ContentView.railBelow { app.showLibrary = true }

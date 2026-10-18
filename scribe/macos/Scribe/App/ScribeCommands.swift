@@ -42,6 +42,9 @@ public struct ScribeCommands: Commands {
             button("Paste onto Page", .pasteOntoPage)
                 .keyboardShortcut("v", modifiers: [.command, .option])
                 .disabled(app.page == nil)
+            button("Copy Link to Page or Selection", .copyLink)
+                .keyboardShortcut("l", modifiers: [.command, .option])
+                .disabled(app.page == nil)
         }
 
         CommandGroup(after: .textEditing) {

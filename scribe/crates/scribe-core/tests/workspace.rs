@@ -486,3 +486,41 @@ fn imported_ink_is_thinned_once_and_keeps_its_place() {
     // Done once.
     assert_eq!(ws.thin_imported_pages(10, None), 0);
 }
+
+#[test]
+fn pages_and_notes_find_each_other_by_link() {
+    let (tmp, ws) = temp_ws();
+    let nb = ws.create_notebook("Uni").unwrap();
+    let sec = ws.create_section(&nb, "Logic").unwrap();
+    let file = ws.create_page(&sec, "Tutorials").unwrap();
+    let mut doc = ws.read_page(&file).unwrap();
+    doc.text_boxes.push(TextBox { text: "Proofs: see [[Natural deduction|ND]]".into(), ..TextBox::default() });
+    doc.tables.push(Table { rows: vec![vec!["rule".into(), "[[Modus ponens]]".into()]], ..Table::default() });
+    ws.write_page(&file, &mut doc).unwrap();
+
+    let index = ws.link_index();
+    assert_eq!(index.len(), 1);
+    assert_eq!(index[0].id, doc.id);
+    assert_eq!((index[0].notebook.as_str(), index[0].section.as_str()), ("Uni", "Logic"));
+    assert_eq!(index[0].links, vec!["Natural deduction", "Modus ponens"]);
+    assert_eq!(ws.page_with_id(&doc.id), Some(file.clone()));
+    assert_eq!(ws.page_with_id("nope"), None);
+
+    // A link typed later is seen, though the page was cached without it.
+    doc.text_boxes[0].text.push_str(" and [[Truth tables]]");
+    ws.write_page(&file, &mut doc).unwrap();
+    assert_eq!(ws.link_index()[0].links, vec!["Natural deduction", "Truth tables", "Modus ponens"]);
+
+    let vault = tmp.path().join("vault");
+    fs::create_dir_all(vault.join("Logic")).unwrap();
+    fs::create_dir_all(vault.join(".trash")).unwrap();
+    let link = format!("[[scribe:{}#10,20,300,140|Tutorials]]", doc.id);
+    fs::write(vault.join("Logic/Week 3.md"), format!("Worked example: {link}\n")).unwrap();
+    fs::write(vault.join("Index.md"), format!("- [[scribe:{}|Tutorials]]\n", doc.id)).unwrap();
+    fs::write(vault.join("Code.md"), format!("`not a link scribe:{}`\n", doc.id)).unwrap();
+    fs::write(vault.join(".trash/Old.md"), link).unwrap();
+    let notes = scribe_core::links::notes_linking_to(&vault, &doc.id);
+    let paths: Vec<&str> = notes.iter().map(|n| n.path.as_str()).collect();
+    assert_eq!(paths, vec!["Index.md", "Logic/Week 3.md"]);
+    assert_eq!(notes[1].title, "Week 3");
+}

@@ -82,6 +82,18 @@ public final class AppModel {
     /// The canvas, for zoom and viewport queries.
     @ObservationIgnored weak var canvas: PageScrollView?
 
+    /// Notes in the Electron vault that link to the open page.
+    var linkedNotes: [LinkingNote] = []
+    /// The Electron vault, when a host that has one says where (links.rs).
+    @ObservationIgnored public var vaultRoot: String? {
+        didSet { if vaultRoot != oldValue { loadLinkedNotes() } }
+    }
+    /// Opens a vault note (vault-relative path) in the host; nil when Scribe
+    /// runs on its own.
+    @ObservationIgnored public var openNoteHandler: ((String) -> Void)?
+    /// An area of a page to show once the page is on screen (a link to it).
+    @ObservationIgnored var pendingReveal: (path: String, area: CGRect)?
+
     @ObservationIgnored private var autosave: DispatchWorkItem?
     /// Reads handwriting into searchable text.
     @ObservationIgnored let inkReader = InkReader()
@@ -229,6 +241,8 @@ public final class AppModel {
             let model = PageModel(path: path, sectionPath: sectionPath, doc: doc)
             model.onChange = { [weak self] in self?.markDirty() }
             page = model
+            linkedNotes = []
+            loadLinkedNotes()
             titleAtLoad = doc.title
             dirty = false
             selectedPagePath = path
@@ -304,7 +318,7 @@ public final class AppModel {
 
     /// Waits for saves still being written: before the page file is
     /// renamed, moved or deleted, and before quitting.
-    func finishSaving() {
+    public func finishSaving() {
         saver.sync {}
     }
 

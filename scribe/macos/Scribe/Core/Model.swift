@@ -252,3 +252,72 @@ struct AssetSlot: Codable {
 func newID() -> String {
     UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
 }
+
+// ------------------------------------------------------------------- links
+
+/// A link from a Markdown note to a Scribe page, or to an area of one:
+/// `[[scribe:<id>|Title]]` or `[[scribe:<id>#x,y,w,h|Title]]`, the area in
+/// page units. Pages are named by id so the link survives a rename or move
+/// (see scribe-core links.rs).
+struct ScribeLink: Hashable {
+    static let scheme = "scribe:"
+
+    var pageId: String
+    var area: CGRect?
+
+    init(pageId: String, area: CGRect? = nil) {
+        self.pageId = pageId
+        self.area = area
+    }
+
+    /// Parses a wikilink target (the part before any `|`), or nil if it
+    /// doesn't name a Scribe page.
+    init?(target: String) {
+        let t = target.trimmingCharacters(in: .whitespaces)
+        guard t.lowercased().hasPrefix(Self.scheme) else { return nil }
+        let rest = t.dropFirst(Self.scheme.count)
+        let parts = rest.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
+        let id = parts[0].trimmingCharacters(in: .whitespaces)
+        guard !id.isEmpty else { return nil }
+        pageId = id
+        if parts.count > 1 {
+            let n = parts[1].split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+            if n.count == 4, n[2] > 0, n[3] > 0 { area = CGRect(x: n[0], y: n[1], width: n[2], height: n[3]) }
+        }
+    }
+
+    /// The target, without the `[[ ]]` or alias.
+    var target: String {
+        guard let a = area?.integral else { return Self.scheme + pageId }
+        return Self.scheme + pageId + "#\(Int(a.minX)),\(Int(a.minY)),\(Int(a.width)),\(Int(a.height))"
+    }
+
+    /// The whole wikilink, shown as `title` where the note is read.
+    func markdown(title: String) -> String {
+        // `|` and brackets would end the link early.
+        let shown = title.replacingOccurrences(of: "|", with: "-")
+            .replacingOccurrences(of: "[", with: "(").replacingOccurrences(of: "]", with: ")")
+            .trimmingCharacters(in: .whitespaces)
+        return "[[\(target)|\(shown.isEmpty ? "Untitled" : shown)]]"
+    }
+}
+
+/// A page as links see it (scribe-core link_index).
+struct LinkedPage: Codable, Hashable, Identifiable {
+    var id: String
+    var title: String
+    var path: String
+    var notebook: String
+    var section: String
+    var modified: Double
+    /// `[[…]]` targets typed on the page: note names, or `scribe:` pages.
+    var links: [String]
+}
+
+/// A vault note linking to a page (scribe-core notes_linking_to).
+struct LinkingNote: Codable, Hashable, Identifiable {
+    /// Vault-relative.
+    var path: String
+    var title: String
+    var id: String { path }
+}

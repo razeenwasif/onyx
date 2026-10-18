@@ -14,6 +14,7 @@ import { EventEmitter } from 'node:events'
 import chokidar, { FSWatcher } from 'chokidar'
 
 import type { FileNode, GraphData, GraphLink, GraphNode, NoteMeta } from '../shared/types.js'
+import { isScribeTarget } from '../shared/scribe-link.js'
 import {
   extractAllTags,
   extractFrontmatterAliases,
@@ -290,6 +291,8 @@ export class Vault extends EventEmitter {
       const outgoing: string[] = []
       const unresolved: string[] = []
       for (const raw of meta.targets) {
+        // Links to Scribe pages are resolved against Scribe (graphWithScribe).
+        if (isScribeTarget(raw)) continue
         const hit = this.resolve(raw, rel)
         if (hit) {
           if (!outgoing.includes(hit)) outgoing.push(hit)

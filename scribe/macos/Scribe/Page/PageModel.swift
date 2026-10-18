@@ -69,6 +69,8 @@ final class PageModel {
     func moved(to newPath: String) { path = newPath }
 
     var createdStamp: String? { base.created }
+    /// The page's own id, which links to it name (see ScribeLink).
+    var pageId: String { base.id }
     /// A page without fixed paper (imported from OneNote), opened at a
     /// readable zoom rather than shrunk to its whole width.
     var isCanvas: Bool { base.isCanvas }

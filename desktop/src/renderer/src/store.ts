@@ -13,6 +13,7 @@ import type {
   FileNode,
   GraphData,
   NoteMeta,
+  ScribePage,
   SectionId,
   SectionState,
   SessionState,
@@ -72,6 +73,8 @@ interface State {
   notes: Map<string, NoteMeta>
   attachments: string[]
   graph: GraphData | null
+  /** Scribe's pages by id, for `[[scribe:…]]` links (empty without Scribe). */
+  scribePages: Map<string, ScribePage>
   settings: AppSettings | null
 
   panes: Pane[]
@@ -122,6 +125,7 @@ interface Actions {
   refreshVault(): Promise<void>
   restoreSession(session: SessionState | null): Promise<void>
   refreshGraph(): Promise<void>
+  refreshScribePages(): Promise<void>
   setSettings(patch: Partial<AppSettings>): Promise<void>
 
   activePane(): Pane
@@ -213,6 +217,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   notes: new Map(),
   attachments: [],
   graph: null,
+  scribePages: new Map(),
   settings: null,
 
   panes: [{ id: 'p0', tabs: [newTab()], activeTabId: null }],
@@ -250,6 +255,7 @@ export const useStore = create<State & Actions>((set, get) => ({
     })
     if (vault) {
       await get().refreshVault()
+      await get().refreshScribePages()
       await get().refreshGraph()
       try {
         const raw = await window.onyx.file.read('.onyx/bookmarks.json')
@@ -333,6 +339,11 @@ export const useStore = create<State & Actions>((set, get) => ({
 
   async refreshGraph() {
     set({ graph: await window.onyx.vault.graph() })
+  },
+
+  async refreshScribePages() {
+    const pages = await window.onyx.apps.scribePages().catch(() => [])
+    set({ scribePages: new Map(pages.map((p) => [p.id, p])) })
   },
 
   async setSettings(patch) {

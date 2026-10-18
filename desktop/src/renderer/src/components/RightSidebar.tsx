@@ -1,7 +1,8 @@
 /** Right-sidebar panes: backlinks (+ unlinked mentions), outline, properties. */
 
 import { useEffect, useMemo, useState } from 'react'
-import type { Backlink } from '@shared/types'
+import type { Backlink, BacklinkRef } from '@shared/types'
+import scribeIcon from '../assets/scribe-icon.png'
 import { useStore } from '../store'
 import { Icon } from './Icon'
 import { extractHeadings, extractFrontmatterProperties } from '@shared/parse'
@@ -11,8 +12,9 @@ import { extractHeadings, extractFrontmatterProperties } from '@shared/parse'
 export function BacklinksPane(): JSX.Element {
   const path = useStore((s) => s.activeTab()?.path ?? null)
   const notes = useStore((s) => s.notes)
+  const scribePages = useStore((s) => s.scribePages)
   const openFile = useStore((s) => s.openFile)
-  const [linked, setLinked] = useState<Array<{ path: string; title: string }>>([])
+  const [linked, setLinked] = useState<BacklinkRef[]>([])
   const [unlinked, setUnlinked] = useState<Backlink[]>([])
   const [showUnlinked, setShowUnlinked] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -24,7 +26,7 @@ export function BacklinksPane(): JSX.Element {
       return
     }
     void window.onyx.vault.backlinks(path).then(setLinked)
-  }, [path, notes])
+  }, [path, notes, scribePages])
 
   useEffect(() => {
     if (!path || !showUnlinked) return
@@ -47,12 +49,25 @@ export function BacklinksPane(): JSX.Element {
       </div>
       <div className="list-pane">
         {!linked.length && <div className="empty-note">No backlinks yet.</div>}
-        {linked.map((b) => (
-          <div className="list-row" key={b.path} onClick={() => void openFile(b.path)}>
-            <Icon name="link" size={12} />
-            <span className="label">{b.title}</span>
-          </div>
-        ))}
+        {linked.map((b) =>
+          b.scribe ? (
+            // A Scribe page with [[this note]] typed on it.
+            <div
+              className="list-row"
+              key={b.path}
+              title={`Scribe · ${b.scribe.notebook} › ${b.scribe.section}`}
+              onClick={() => void window.onyx.apps.scribeOpen(b.path)}
+            >
+              <img className="scribe-row-icon" src={scribeIcon} alt="" />
+              <span className="label">{b.title}</span>
+            </div>
+          ) : (
+            <div className="list-row" key={b.path} onClick={() => void openFile(b.path)}>
+              <Icon name="link" size={12} />
+              <span className="label">{b.title}</span>
+            </div>
+          ),
+        )}
       </div>
 
       <div

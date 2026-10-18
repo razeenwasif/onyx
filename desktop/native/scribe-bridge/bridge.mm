@@ -22,6 +22,11 @@ typedef void (*SetSwitchHandlerFn)(void (*)(void));
 typedef char *(*SearchFn)(const char *);
 typedef void (*FreeFn)(char *);
 typedef void (*OpenFn)(const char *);
+typedef char *(*LinkIndexFn)(void);
+typedef void (*SetHandlerFn)(void (*)(void));
+typedef void (*OpenLinkFn)(const char *, double, double, double, double);
+typedef void (*SetVaultFn)(const char *);
+typedef void (*SetOpenNoteHandlerFn)(void (*)(const char *));
 
 static void *library = nullptr;
 static CreateViewFn createView = nullptr;
@@ -32,9 +37,16 @@ static SetSwitchHandlerFn setSwitchHandler = nullptr;
 static SearchFn searchPages = nullptr;
 static FreeFn freeString = nullptr;
 static OpenFn openPage = nullptr;
+static LinkIndexFn linkIndex = nullptr;
+static SetHandlerFn setLinksChangedHandler = nullptr;
+static OpenLinkFn openLink = nullptr;
+static SetVaultFn setVault = nullptr;
+static SetOpenNoteHandlerFn setOpenNoteHandler = nullptr;
 
 static NSView *scribeView = nil;
 static napi_threadsafe_function switchCallback = nullptr;
+static napi_threadsafe_function linksCallback = nullptr;
+static napi_threadsafe_function openNoteCallback = nullptr;
 
 // ---------------------------------------------------------------- helpers
 
@@ -93,8 +105,14 @@ static napi_value Load(napi_env env, napi_callback_info info) {
   searchPages = (SearchFn)dlsym(handle, "scribe_embed_search");
   freeString = (FreeFn)dlsym(handle, "scribe_embed_free");
   openPage = (OpenFn)dlsym(handle, "scribe_embed_open");
+  linkIndex = (LinkIndexFn)dlsym(handle, "scribe_embed_link_index");
+  setLinksChangedHandler = (SetHandlerFn)dlsym(handle, "scribe_embed_set_links_changed_handler");
+  openLink = (OpenLinkFn)dlsym(handle, "scribe_embed_open_link");
+  setVault = (SetVaultFn)dlsym(handle, "scribe_embed_set_vault");
+  setOpenNoteHandler = (SetOpenNoteHandlerFn)dlsym(handle, "scribe_embed_set_open_note_handler");
   if (!createView || !setActive || !performAction || !menuJson || !setSwitchHandler || !searchPages ||
-      !freeString || !openPage) {
+      !freeString || !openPage || !linkIndex || !setLinksChangedHandler || !openLink || !setVault ||
+      !setOpenNoteHandler) {
     dlclose(handle);
     return Fail(env, "libScribeEmbed is missing an entry point; rebuild it with scripts/build-scribe.sh");
   }
@@ -232,6 +250,88 @@ static napi_value OnSwitch(napi_env env, napi_callback_info info) {
   return nullptr;
 }
 
+/** links(): every Scribe page with its id and the links typed on it, as a JSON string. */
+static napi_value Links(napi_env env, napi_callback_info info) {
+  if (!library) return Fail(env, "call load() first");
+  char *json = linkIndex();
+  napi_value out;
+  napi_create_string_utf8(env, json ? json : "[]", NAPI_AUTO_LENGTH, &out);
+  freeString(json);
+  return out;
+}
+
+static void LinksChanged(void) {
+  if (linksCallback) napi_call_threadsafe_function(linksCallback, nullptr, napi_tsfn_nonblocking);
+}
+
+/** onLinksChanged(callback): Scribe's link index changed; call links() again. */
+static napi_value OnLinksChanged(napi_env env, napi_callback_info info) {
+  napi_value argv[1];
+  if (!Args(env, info, 1, argv)) return nullptr;
+  if (!library) return Fail(env, "call load() first");
+  if (linksCallback) napi_release_threadsafe_function(linksCallback, napi_tsfn_release);
+  napi_value name;
+  napi_create_string_utf8(env, "scribe-links", NAPI_AUTO_LENGTH, &name);
+  napi_create_threadsafe_function(env, argv[0], nullptr, name, 0, 1, nullptr, nullptr, nullptr, CallSwitch,
+                                  &linksCallback);
+  napi_unref_threadsafe_function(env, linksCallback);
+  setLinksChangedHandler(LinksChanged);
+  return nullptr;
+}
+
+/** openLink(pageId, x, y, width, height): open a page; a positive size also shows that area. */
+static napi_value OpenLink(napi_env env, napi_callback_info info) {
+  napi_value argv[5];
+  if (!Args(env, info, 5, argv) || !Ready(env)) return nullptr;
+  std::string id = ToStdString(env, argv[0]);
+  double area[4] = {0, 0, 0, 0};
+  for (int i = 0; i < 4; i++) napi_get_value_double(env, argv[i + 1], &area[i]);
+  openLink(id.c_str(), area[0], area[1], area[2], area[3]);
+  return nullptr;
+}
+
+/** setVault(path): the Markdown vault, so Scribe can list notes linking to a page. */
+static napi_value SetVault(napi_env env, napi_callback_info info) {
+  napi_value argv[1];
+  if (!Args(env, info, 1, argv)) return nullptr;
+  if (!library) return Fail(env, "call load() first");
+  std::string path = ToStdString(env, argv[0]);
+  setVault(path.c_str());
+  return nullptr;
+}
+
+static void CallOpenNote(napi_env env, napi_value callback, void *, void *data) {
+  std::string *path = static_cast<std::string *>(data);
+  if (env && callback) {
+    napi_value undefined, arg;
+    napi_get_undefined(env, &undefined);
+    napi_create_string_utf8(env, path->c_str(), NAPI_AUTO_LENGTH, &arg);
+    napi_call_function(env, undefined, callback, 1, &arg, nullptr);
+  }
+  delete path;
+}
+
+static void OpenNoteRequested(const char *path) {
+  if (!openNoteCallback) return;
+  auto *copy = new std::string(path);
+  if (napi_call_threadsafe_function(openNoteCallback, copy, napi_tsfn_nonblocking) != napi_ok) delete copy;
+}
+
+/** onOpenNote(callback): called with a vault-relative path when a page's "Linked from" note is picked. */
+static napi_value OnOpenNote(napi_env env, napi_callback_info info) {
+  napi_value argv[1];
+  if (!Args(env, info, 1, argv)) return nullptr;
+  if (!library) return Fail(env, "call load() first");
+  if (openNoteCallback) napi_release_threadsafe_function(openNoteCallback, napi_tsfn_release);
+  napi_value name;
+  napi_create_string_utf8(env, "scribe-open-note", NAPI_AUTO_LENGTH, &name);
+  napi_create_threadsafe_function(env, argv[0], nullptr, name, 0, 1, nullptr, nullptr, nullptr, CallOpenNote,
+                                  &openNoteCallback);
+  napi_unref_threadsafe_function(env, openNoteCallback);
+  setOpenNoteHandler(OpenNoteRequested);
+  return nullptr;
+}
+
 /**
  * snapshot(pngPath): render Scribe's view to a PNG. For screenshots while
  * it's showing (webContents.capturePage only sees the web layer under it).
@@ -259,6 +359,11 @@ static napi_value Init(napi_env env, napi_value exports) {
       {"open", nullptr, Open, nullptr, nullptr, nullptr, napi_default, nullptr},
       {"onSwitch", nullptr, OnSwitch, nullptr, nullptr, nullptr, napi_default, nullptr},
       {"snapshot", nullptr, Snapshot, nullptr, nullptr, nullptr, napi_default, nullptr},
+      {"links", nullptr, Links, nullptr, nullptr, nullptr, napi_default, nullptr},
+      {"onLinksChanged", nullptr, OnLinksChanged, nullptr, nullptr, nullptr, napi_default, nullptr},
+      {"openLink", nullptr, OpenLink, nullptr, nullptr, nullptr, napi_default, nullptr},
+      {"setVault", nullptr, SetVault, nullptr, nullptr, nullptr, napi_default, nullptr},
+      {"onOpenNote", nullptr, OnOpenNote, nullptr, nullptr, nullptr, napi_default, nullptr},
   };
   napi_define_properties(env, exports, sizeof(props) / sizeof(props[0]), props);
   return exports;

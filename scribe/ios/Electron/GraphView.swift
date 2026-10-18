@@ -22,7 +22,8 @@ final class GraphModel {
         self.focus = focusIndex
 
         // Colours: the focused note in accent, then its tag's pastel, then by kind.
-        var colors: [UIColor] = [EV.accent, EV.fg, EV.fgDim, EV.fgSubtle, EV.tag]
+        // Scribe pages (index 5) in Scribe's coral.
+        var colors: [UIColor] = [EV.accent, EV.fg, EV.fgDim, EV.fgSubtle, EV.tag, UIColor(Color.velvetAccent)]
         var byTag: [String: Int] = [:]
         var families: [String: Int] = [:]
         var groups: [Int] = []
@@ -47,6 +48,7 @@ final class GraphModel {
             switch node.kind {
             case .tag: index.append(4)
             case .unresolved: index.append(3)
+            case .scribe: index.append(5)
             case .note: index.append(node.degree > 0 ? 1 : 2)
             }
         }
@@ -335,6 +337,13 @@ struct GraphScreen: View {
                     dismiss()
                 }
                 .buttonStyle(.bordered)
+            case .scribe:
+                Button("Open in Scribe") {
+                    dismiss()
+                    store.follow(node.id)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.velvetAccent)
             }
         }
         .padding(16)
@@ -354,6 +363,9 @@ struct GraphScreen: View {
             return folder.isEmpty ? links : "\(folder) · \(links)"
         case .tag: return "Tag · \(links)"
         case .unresolved: return "Not written yet · \(links)"
+        case .scribe:
+            let page = store.scribePage(node.id)
+            return [page.map { "Scribe · \($0.notebook) › \($0.section)" } ?? "Scribe page", links].joined(separator: " · ")
         }
     }
 }
