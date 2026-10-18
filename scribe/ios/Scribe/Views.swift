@@ -135,7 +135,7 @@ struct LibraryView: View {
                             Button("Import PDF or Goodnotes…", systemImage: "doc.badge.plus") { pick(.pdfs(nil)) }
                             Divider()
                             Button("Recently Deleted", systemImage: "trash") { showingDeleted = true }
-                            Button("Sync Now", systemImage: "arrow.clockwise") { store.refresh() }
+                            Button("Sync Now", systemImage: "arrow.clockwise") { store.refreshInBackground() }
                             Button("Change Library Location…", systemImage: "externaldrive") { pick(.library) }
                         } label: {
                             Image(systemName: "ellipsis.circle")

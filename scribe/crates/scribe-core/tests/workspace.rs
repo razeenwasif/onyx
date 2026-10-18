@@ -427,3 +427,62 @@ fn a_notebook_moves_to_another_folder_with_its_pages() {
     // Moving into its own folder changes nothing.
     assert_eq!(ws.move_section(&moved, &physics).unwrap(), moved);
 }
+
+#[test]
+fn packed_ink_comes_back_exactly() {
+    let (_tmp, ws) = temp_ws();
+    let nb = ws.create_notebook("N").unwrap();
+    let sec = ws.create_section(&nb, "S").unwrap();
+    let file = ws.create_page(&sec, "P").unwrap();
+    let mut doc = ws.read_page(&file).unwrap();
+    doc.strokes.push(Stroke { points: vec![12345.67, 0.01, 0.512, 9.99, 20000.25, 1.0], ..Stroke::default() });
+    doc.strokes[0].extra.insert("windowsOnly".into(), "kept".into());
+    ws.write_page(&file, &mut doc).unwrap();
+
+    // What the apps get, and send back.
+    let mut packed = ws.read_page(&file).unwrap();
+    scribe_core::model::pack_points(&mut packed);
+    assert!(packed.strokes[0].points.is_empty());
+    let wire = serde_json::to_string(&packed).unwrap();
+    let mut back: PageDoc = serde_json::from_str(&wire).unwrap();
+    scribe_core::model::unpack_points(&mut back);
+    assert_eq!(back.strokes[0].points, vec![12345.67, 0.01, 0.512, 9.99, 20000.25, 1.0]);
+
+    // The app drops fields it doesn't know; a save keeps them anyway.
+    back.strokes[0].extra.clear();
+    ws.write_page(&file, &mut back).unwrap();
+    let on_disk = fs::read_to_string(&file).unwrap();
+    assert!(on_disk.contains("windowsOnly"), "{on_disk}");
+    assert!(!on_disk.contains("pointsPacked"));
+    // Pages are saved on one line.
+    assert_eq!(on_disk.trim_end().lines().count(), 1);
+}
+
+#[test]
+fn imported_ink_is_thinned_once_and_keeps_its_place() {
+    let (_tmp, ws) = temp_ws();
+    let nb = ws.create_notebook("N").unwrap();
+    let sec = ws.create_section(&nb, "S").unwrap();
+    let file = ws.create_page(&sec, "From OneNote").unwrap();
+    let mut doc = ws.read_page(&file).unwrap();
+    doc.source = Some(Source { app: "onenote".into(), id: Some("x".into()), imported_at: now_stamp(), extra: Default::default() });
+    // A straight line recorded every unit, with one corner: thinning keeps
+    // the ends and the corner.
+    let mut points = Vec::new();
+    for i in 0..=100 { points.extend([i as f64, 0.0, 0.6]); }
+    for i in 1..=100 { points.extend([100.0, i as f64, 0.6]); }
+    doc.strokes.push(Stroke { width: 2.8, points, ..Stroke::default() });
+    ws.write_page(&file, &mut doc).unwrap();
+    let stamp = fs::read_to_string(&file).unwrap();
+    let modified = ws.read_page(&file).unwrap().modified;
+    let mtime = fs::metadata(&file).unwrap().modified().unwrap();
+
+    assert_eq!(ws.thin_imported_pages(10, None), 1);
+    let thinned = ws.read_page(&file).unwrap();
+    assert_eq!(thinned.strokes[0].points, vec![0.0, 0.0, 0.6, 100.0, 0.0, 0.6, 100.0, 100.0, 0.6]);
+    assert_eq!(thinned.modified, modified);
+    assert_eq!(fs::metadata(&file).unwrap().modified().unwrap(), mtime);
+    assert_ne!(fs::read_to_string(&file).unwrap(), stamp);
+    // Done once.
+    assert_eq!(ws.thin_imported_pages(10, None), 0);
+}

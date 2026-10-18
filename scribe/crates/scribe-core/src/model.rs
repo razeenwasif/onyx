@@ -520,6 +520,128 @@ pub fn carry_extras(edited: &mut PageDoc, on_disk: &PageDoc) {
     }
 }
 
+/// Thins a stroke's points (flat, stride 3: x, y, pressure) with
+/// Ramer–Douglas–Peucker: drops points that lie within `tolerance` page
+/// units of the line through their neighbours. Pressure counts as a third
+/// dimension, scaled by `width`, so a change in thickness is kept. Imported
+/// OneNote ink records a point every pixel or so; at a quarter of a unit
+/// the stroke looks the same at any zoom and keeps a fraction of them.
+pub fn simplify_points(points: &[f64], tolerance: f64, width: f64) -> Vec<f64> {
+    let n = points.len() / 3;
+    if n <= 2 {
+        return points.to_vec();
+    }
+    let p = |i: usize| (points[i * 3], points[i * 3 + 1], points[i * 3 + 2] * width);
+    let mut keep = vec![false; n];
+    keep[0] = true;
+    keep[n - 1] = true;
+    let mut stack = vec![(0usize, n - 1)];
+    let tol2 = tolerance * tolerance;
+    while let Some((a, b)) = stack.pop() {
+        if b <= a + 1 {
+            continue;
+        }
+        let (ax, ay, ap) = p(a);
+        let (bx, by, bp) = p(b);
+        let (dx, dy, dp) = (bx - ax, by - ay, bp - ap);
+        let len2 = dx * dx + dy * dy + dp * dp;
+        let (mut far, mut far2) = (0usize, -1.0f64);
+        for i in a + 1..b {
+            let (x, y, q) = p(i);
+            let d2 = if len2 == 0.0 {
+                (x - ax).powi(2) + (y - ay).powi(2) + (q - ap).powi(2)
+            } else {
+                let t = (((x - ax) * dx + (y - ay) * dy + (q - ap) * dp) / len2).clamp(0.0, 1.0);
+                (x - ax - t * dx).powi(2) + (y - ay - t * dy).powi(2) + (q - ap - t * dp).powi(2)
+            };
+            if d2 > far2 {
+                far2 = d2;
+                far = i;
+            }
+        }
+        if far2 > tol2 {
+            keep[far] = true;
+            stack.push((a, far));
+            stack.push((far, b));
+        }
+    }
+    let mut out = Vec::with_capacity(points.len() / 2);
+    for (i, k) in keep.iter().enumerate() {
+        if *k {
+            out.extend_from_slice(&points[i * 3..i * 3 + 3]);
+        }
+    }
+    out
+}
+
+/// How far thinned ink may stray from what was recorded, in page units.
+pub const THIN_TOLERANCE: f64 = 0.2;
+
+/// Thins every stroke on an imported page (see `simplify_points`) and
+/// marks the page so it's done once.
+pub fn thin_ink(doc: &mut PageDoc) {
+    for s in &mut doc.strokes {
+        s.points = simplify_points(&s.points, THIN_TOLERANCE, s.width);
+    }
+    doc.extra.insert("inkThinned".into(), true.into());
+}
+
+impl PageDoc {
+    /// The page without its ink, cheaply (the ink is most of a big page).
+    pub fn clone_without_ink(&self) -> PageDoc {
+        PageDoc {
+            schema: self.schema.clone(),
+            id: self.id.clone(),
+            title: self.title.clone(),
+            created: self.created.clone(),
+            modified: self.modified.clone(),
+            background: self.background.clone(),
+            strokes: Vec::new(),
+            text_boxes: self.text_boxes.clone(),
+            images: self.images.clone(),
+            latex_blocks: self.latex_blocks.clone(),
+            tables: self.tables.clone(),
+            source: self.source.clone(),
+            extra: self.extra.clone(),
+        }
+    }
+}
+
+/// Ink for the apps: each stroke's points as base64 little-endian f32s in
+/// `pointsPacked`, its `points` emptied. Decoding millions of JSON numbers
+/// was most of the time (and memory) it took the apps to open a big page.
+/// Files on disk keep plain `points`.
+pub fn pack_points(doc: &mut PageDoc) {
+    use base64::Engine as _;
+    for s in &mut doc.strokes {
+        let mut bytes = Vec::with_capacity(s.points.len() * 4);
+        for v in &s.points {
+            bytes.extend_from_slice(&(*v as f32).to_le_bytes());
+        }
+        s.extra.insert("pointsPacked".into(), base64::engine::general_purpose::STANDARD.encode(bytes).into());
+        s.points.clear();
+    }
+}
+
+/// Undoes `pack_points` for ink an app sends back, rounding as the format
+/// does so unchanged strokes compare equal to what's on disk.
+pub fn unpack_points(doc: &mut PageDoc) {
+    use base64::Engine as _;
+    for s in &mut doc.strokes {
+        let Some(packed) = s.extra.remove("pointsPacked") else { continue };
+        let Some(text) = packed.as_str() else { continue };
+        let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(text) else { continue };
+        s.points = bytes
+            .chunks_exact(4)
+            .enumerate()
+            .map(|(i, b)| {
+                let v = f32::from_le_bytes([b[0], b[1], b[2], b[3]]) as f64;
+                if i % 3 == 2 { (v * 1000.0).round() / 1000.0 } else { (v * 100.0).round() / 100.0 }
+            })
+            .collect();
+    }
+}
+
 /// Rounds stroke data the way the format specifies: positions to 2dp,
 /// pressure to 3dp, clamping pressure into range.
 pub fn normalise_strokes(doc: &mut PageDoc) {

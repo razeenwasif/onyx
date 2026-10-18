@@ -310,14 +310,14 @@ extension AppModel {
         guard !imported.existing, !imported.pictures.isEmpty else { return imported }
 
         // Pictures come down separately and go into the notebook's assets.
-        var doc: PageDoc = try Core.call("read_page", ["path": imported.path])
+        var doc: PageDoc = try Core.readPage(imported.path)
         for picture in imported.pictures {
             guard let (data, _) = try? await client.get(picture.src) else { continue }
             let slot: AssetSlot = try Core.call("new_asset", ["section": section, "ext": picture.ext])
             try data.write(to: URL(fileURLWithPath: slot.path))
             doc.images.append(ImageDTO(x: picture.x, y: picture.y, width: picture.width, height: picture.height, file: slot.rel))
         }
-        let _: WriteResult = try Core.call("write_page", ["path": imported.path, "page": try Core.json(doc)])
+        let _: WriteResult = try Core.writePage(imported.path, doc)
         return imported
     }
 

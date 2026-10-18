@@ -28,7 +28,13 @@ final class Thumbnails: @unchecked Sendable {
 
     private init() {
         work.name = "Scribe thumbnails"
+        // One at a time on the iPad: two big pages at once is a lot of
+        // memory for it.
+        #if os(iOS)
+        work.maxConcurrentOperationCount = 1
+        #else
         work.maxConcurrentOperationCount = 2
+        #endif
         work.qualityOfService = .utility
         memory.countLimit = 400
     }
@@ -77,7 +83,7 @@ final class Thumbnails: @unchecked Sendable {
             return image
         }
 
-        guard let doc = try? Core.call("read_page", ["path": page.path], as: PageDoc.self),
+        guard let doc = try? Core.readPage(page.path),
               let image = render(doc, sectionPath: page.sectionPath)
         else { return nil }
 

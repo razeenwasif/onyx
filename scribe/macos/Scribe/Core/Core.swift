@@ -48,6 +48,32 @@ enum Core {
         return try JSONDecoder().decode(Envelope<T>.self, from: reply).result.get()
     }
 
+    /// Reads a page, its ink packed for speed (see StrokeDTO).
+    static func readPage(_ path: String) throws -> PageDoc {
+        try call("read_page", ["path": path, "packed": true])
+    }
+
+    /// Saves a page. Its JSON goes into the request as is: turning a big
+    /// page into Foundation objects first (`json(_:)`) cost seconds and
+    /// hundreds of megabytes.
+    @discardableResult
+    static func writePage(_ path: String, _ doc: PageDoc) throws -> WriteResult {
+        let head = try JSONSerialization.data(withJSONObject: ["op": "write_page", "path": path])
+        let page = try JSONEncoder().encode(doc)
+        var request = Data(head.dropLast())
+        request.append(contentsOf: Array(",\"page\":".utf8))
+        request.append(page)
+        request.append(UInt8(ascii: "}"))
+        request.append(0)
+        let raw: UnsafeMutablePointer<CChar>? = request.withUnsafeBytes { bytes in
+            scribe_call(bytes.bindMemory(to: CChar.self).baseAddress)
+        }
+        guard let raw else { throw Failure(message: "core returned nothing") }
+        defer { scribe_string_free(raw) }
+        let reply = Data(bytes: raw, count: strlen(raw))
+        return try JSONDecoder().decode(Envelope<WriteResult>.self, from: reply).result.get()
+    }
+
     /// For operations whose result does not matter.
     static func run(_ op: String, _ args: [String: Any] = [:]) throws {
         _ = try call(op, args, as: JSONAny?.self)

@@ -47,11 +47,11 @@ final class CoreBridgeTests: XCTestCase {
         let section = try XCTUnwrap(tree.first?.sections.first)
 
         let file: String = try Core.call("create_page", ["section": section.path, "title": "Hello"])
-        var doc: PageDoc = try Core.call("read_page", ["path": file])
+        var doc: PageDoc = try Core.readPage(file)
         doc.textBoxes = [TextBoxDTO(text: "Hello there", spans: [TextSpanDTO(start: 0, length: 5, bold: true)])]
-        let _: WriteResult = try Core.call("write_page", ["path": file, "page": try Core.json(doc)])
+        let _: WriteResult = try Core.writePage(file, doc)
 
-        let back: PageDoc = try Core.call("read_page", ["path": file])
+        let back: PageDoc = try Core.readPage(file)
         XCTAssertEqual(back.textBoxes.first?.text, "Hello there")
         XCTAssertEqual(back.textBoxes.first?.spans?.first?.bold, true)
 
@@ -68,9 +68,9 @@ final class CoreBridgeTests: XCTestCase {
         let file: String = try Core.call("create_page", ["section": section.path, "title": "Ink"])
 
         // A thick cream diagonal across the page.
-        var doc: PageDoc = try Core.call("read_page", ["path": file])
+        var doc: PageDoc = try Core.readPage(file)
         doc.strokes = [StrokeDTO(width: 30, height: 30, points: [100, 100, 1, 740, 1000, 1])]
-        let _: WriteResult = try Core.call("write_page", ["path": file, "page": try Core.json(doc)])
+        let _: WriteResult = try Core.writePage(file, doc)
 
         try Core.run("set_bookmarked", ["path": file, "bookmarked": true])
         let page = try XCTUnwrap((try Core.call("pages", ["section": section.path], as: [PageInfo].self)).first)

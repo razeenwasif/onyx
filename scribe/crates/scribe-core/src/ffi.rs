@@ -105,11 +105,18 @@ fn dispatch(req: &Value) -> R {
 
         "pages" => to_value(ws_any().list_pages(&path_arg(req, "section")?)),
 
-        "read_page" => to_value(ws_any().read_page(&path_arg(req, "path")?)?),
+        "read_page" => {
+            let mut page = ws_any().read_page(&path_arg(req, "path")?)?;
+            if arg::<Option<bool>>(req, "packed")?.unwrap_or(false) {
+                crate::model::pack_points(&mut page);
+            }
+            to_value(page)
+        }
 
         "write_page" => {
             let path = path_arg(req, "path")?;
             let mut page: PageDoc = arg(req, "page")?;
+            crate::model::unpack_points(&mut page);
             ws_any().write_page(&path, &mut page)?;
             Ok(json!({ "modified": page.modified, "modifiedUnix": crate::workspace::parse_stamp(Some(&page.modified)) }))
         }
@@ -186,6 +193,13 @@ fn dispatch(req: &Value) -> R {
         "rename_section" => {
             ws_any().rename_section(&path_arg(req, "path")?, &arg::<String>(req, "name")?)?;
             Ok(Value::Null)
+        }
+
+        "thin_imported_pages" => {
+            let limit: Option<usize> = arg(req, "limit")?;
+            let skip: Option<String> = arg(req, "skip")?;
+            let done = ws(req)?.thin_imported_pages(limit.unwrap_or(10), skip.as_deref().map(std::path::Path::new));
+            Ok(json!(done))
         }
 
         "move_section" => {

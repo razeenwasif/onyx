@@ -96,6 +96,16 @@ struct PageHeader {
     modified: Option<String>,
     #[serde(default, rename = "textBoxes")]
     text_boxes: Vec<SearchText>,
+    #[serde(default)]
+    source: Option<HeaderSource>,
+    #[serde(default, rename = "inkThinned")]
+    ink_thinned: Option<bool>,
+}
+
+#[derive(Deserialize)]
+struct HeaderSource {
+    #[serde(default)]
+    app: String,
 }
 
 /// Length of the preview shown under a page's title.
@@ -289,7 +299,9 @@ impl Workspace {
     }
 
     pub fn list_pages(&self, section_dir: &Path) -> Vec<PageInfo> {
-        self.list_page_files(section_dir).into_iter().map(|f| page_info(&f, section_dir)).collect()
+        let pages = self.list_page_files(section_dir).into_iter().map(|f| page_info(&f, section_dir)).collect();
+        save_header_cache();
+        pages
     }
 
     /// The pages most recently changed anywhere in the workspace, newest
@@ -305,7 +317,9 @@ impl Workspace {
             }
         }
         all.sort_by(|a, b| b.0.total_cmp(&a.0));
-        all.into_iter().take(limit).map(|(_, f, sec)| page_info(&f, &sec)).collect()
+        let pages = all.into_iter().take(limit).map(|(_, f, sec)| page_info(&f, &sec)).collect();
+        save_header_cache();
+        pages
     }
 
     pub fn set_notebook_color(&self, dir: &Path, color: &str) -> Result<()> {
@@ -422,26 +436,181 @@ fn content_extent(doc: &PageDoc) -> (f64, f64) {
 
 /// One page's listing entry, read from just its header.
 fn page_info(f: &Path, section_dir: &Path) -> PageInfo {
+    let (title, modified, snippet, page_id, bookmarked) = header_of(f);
+    PageInfo { title, modified, path: path_str(f), section_path: path_str(section_dir), snippet, page_id, bookmarked }
+}
+
+// ------------------------------------------------------------ header cache
+//
+// Listing a page needs its title, snippet and id, which means reading the
+// whole file, and imported pages can be tens of megabytes. The library is
+// listed often (the iPad checks for changes every few seconds), so what a
+// page says is remembered until its size or modification time changes, in
+// memory and in the library's `.scribe/cache.nosync/pageinfo.json` (iCloud
+// skips `.nosync` folders:
+// each device keeps its own) so a fresh launch doesn't read every page.
+
+#[derive(Clone, Serialize, Deserialize)]
+struct CachedHeader {
+    len: u64,
+    /// Nanoseconds since the epoch: a float doesn't always survive JSON
+    /// exactly, and a stamp that's off by a bit is a miss every launch.
+    #[serde(rename = "mtimeNs")]
+    mtime: u64,
+    title: String,
+    modified: f64,
+    snippet: String,
+    #[serde(rename = "pageId")]
+    page_id: String,
+    bookmarked: bool,
+    /// Imported from OneNote and not yet thinned (see thin_imported_pages).
+    #[serde(default)]
+    unthinned: bool,
+}
+
+#[derive(Default)]
+struct HeaderCache {
+    entries: HashMap<PathBuf, CachedHeader>,
+    /// Libraries whose saved cache has been read in, and those with news.
+    loaded: std::collections::HashSet<PathBuf>,
+    dirty: std::collections::HashSet<PathBuf>,
+}
+
+const HEADER_CACHE_FILE: &str = ".scribe/cache.nosync/pageinfo.json";
+
+fn header_cache() -> &'static std::sync::Mutex<HeaderCache> {
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<HeaderCache>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(Default::default)
+}
+
+/// The library a page belongs to: `<root>/<notebook>/<section>/<page>.json`.
+fn library_of(page: &Path) -> Option<PathBuf> {
+    page.parent()?.parent()?.parent().map(Path::to_path_buf)
+}
+
+fn header_of(f: &Path) -> (String, f64, String, String, bool) {
+    let h = cached_header(f);
+    (h.title, h.modified, h.snippet, h.page_id, h.bookmarked)
+}
+
+fn cached_header(f: &Path) -> CachedHeader {
+    let meta = fs::metadata(f).ok();
+    let len = meta.as_ref().map_or(0, |m| m.len());
+    let mtime = meta
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_nanos() as u64);
+    let root = library_of(f);
+
+    if let Ok(mut cache) = header_cache().lock() {
+        if let Some(root) = &root {
+            if cache.loaded.insert(root.clone()) {
+                let saved: HashMap<String, CachedHeader> = read_json(&root.join(HEADER_CACHE_FILE)).unwrap_or_default();
+                for (rel, h) in saved {
+                    cache.entries.entry(root.join(rel)).or_insert(h);
+                }
+            }
+        }
+        if let Some(h) = cache.entries.get(f) {
+            if h.len == len && h.mtime == mtime {
+                return h.clone();
+            }
+        }
+    }
+
+    // Read outside the lock: a big page takes a while.
     let header: Option<PageHeader> = read_json(f);
-    let (title, modified, snippet, id, bookmarked) = match header {
+    let (title, modified, snippet, id, bookmarked, unthinned) = match header {
         Some(h) => (
             h.title,
             h.modified,
             snippet_of(h.text_boxes.iter().map(|t| t.text.as_str())),
             h.id.unwrap_or_default(),
             h.bookmarked.unwrap_or(false),
+            h.source.is_some_and(|s| s.app == "onenote") && h.ink_thinned != Some(true),
         ),
-        None => (None, None, String::new(), String::new(), false),
+        None => (None, None, String::new(), String::new(), false, false),
     };
-    PageInfo {
+    let entry = CachedHeader {
+        len,
+        mtime,
         title: title.unwrap_or_else(|| file_stem(f)),
         modified: parse_stamp(modified.as_deref()),
-        path: path_str(f),
-        section_path: path_str(section_dir),
         snippet,
         page_id: id,
         bookmarked,
+        unthinned,
+    };
+    if let Ok(mut cache) = header_cache().lock() {
+        cache.entries.insert(f.to_path_buf(), entry.clone());
+        if let Some(root) = root {
+            cache.dirty.insert(root);
+        }
     }
+    entry
+}
+
+/// Saves what was learned about pages since the last save, per library,
+/// dropping entries for files that are gone.
+fn save_header_cache() {
+    let Ok(mut cache) = header_cache().lock() else { return };
+    let dirty: Vec<PathBuf> = cache.dirty.drain().collect();
+    for root in dirty {
+        let saved: HashMap<String, CachedHeader> = cache
+            .entries
+            .iter()
+            .filter_map(|(path, h)| {
+                let rel = path.strip_prefix(&root).ok()?;
+                path.is_file().then(|| (rel.to_string_lossy().replace('\\', "/"), h.clone()))
+            })
+            .collect();
+        let _ = write_json_compact(&root.join(HEADER_CACHE_FILE), &saved);
+    }
+}
+
+// ------------------------------------------------------------ extras cache
+//
+// What `carry_extras` needs from a page as it is on disk, kept for the few
+// pages open lately: everything but the ink, plus the ink's own extra
+// fields where it has any (a stroke without them is kept empty, which
+// carry_extras then skips).
+
+struct Remembered {
+    len: u64,
+    mtime: std::time::SystemTime,
+    skeleton: PageDoc,
+}
+
+fn extras_cache() -> &'static std::sync::Mutex<Vec<(PathBuf, Remembered)>> {
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<Vec<(PathBuf, Remembered)>>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(Default::default)
+}
+
+fn file_stamp(f: &Path) -> Option<(u64, std::time::SystemTime)> {
+    let m = fs::metadata(f).ok()?;
+    Some((m.len(), m.modified().ok()?))
+}
+
+fn remember_extras(file: &Path, doc: &PageDoc) {
+    let Some((len, mtime)) = file_stamp(file) else { return };
+    let mut skeleton = PageDoc { strokes: Vec::new(), ..doc.clone_without_ink() };
+    skeleton.strokes = doc
+        .strokes
+        .iter()
+        .map(|s| if s.extra.is_empty() { model::Stroke::default() } else { s.clone() })
+        .collect();
+    if let Ok(mut cache) = extras_cache().lock() {
+        cache.retain(|(p, _)| p != file);
+        cache.insert(0, (file.to_path_buf(), Remembered { len, mtime, skeleton }));
+        cache.truncate(6);
+    }
+}
+
+fn remembered_extras(file: &Path) -> Option<PageDoc> {
+    let (len, mtime) = file_stamp(file)?;
+    let cache = extras_cache().lock().ok()?;
+    let (_, r) = cache.iter().find(|(p, _)| p == file)?;
+    (r.len == len && r.mtime == mtime).then(|| r.skeleton.clone())
 }
 
 /// A file's modification time in Unix seconds, or 0.
@@ -460,6 +629,7 @@ impl Workspace {
         let doc: PageDoc = serde_json::from_str(&text)
             .map_err(|e| format!("{} is not a readable page: {e}", file.display()))?;
         check_schema(&doc.schema, "scribe.page")?;
+        remember_extras(file, &doc);
         Ok(doc)
     }
 
@@ -473,13 +643,20 @@ impl Workspace {
     /// Writes a page. Stamps `modified`, rounds ink, and carries over any
     /// fields the copy on disk has that this version does not understand.
     pub fn write_page(&self, file: &Path, doc: &mut PageDoc) -> Result<()> {
-        if let Some(on_disk) = read_json::<PageDoc>(file) {
+        // Fields Scribe doesn't know about (from the Windows app) survive a
+        // save. They come from what was last read or written here while the
+        // file is unchanged; only otherwise is the old file read again,
+        // which for a big page took longer than the save.
+        let on_disk = remembered_extras(file).or_else(|| read_json::<PageDoc>(file));
+        if let Some(on_disk) = on_disk {
             model::carry_extras(doc, &on_disk);
         }
         model::normalise_strokes(doc);
         doc.text_boxes.retain(|t| !t.text.trim().is_empty());
         doc.modified = model::now_stamp();
-        write_json(file, doc)
+        write_json_compact(file, doc)?;
+        remember_extras(file, doc);
+        Ok(())
     }
 
     pub fn create_page(&self, section_dir: &Path, title: &str) -> Result<PathBuf> {
@@ -618,6 +795,12 @@ impl Workspace {
     // ----------------------------------------------------------------- tree
 
     pub fn tree(&self) -> Vec<NotebookInfo> {
+        let tree = self.tree_from_files();
+        save_header_cache();
+        tree
+    }
+
+    fn tree_from_files(&self) -> Vec<NotebookInfo> {
         self.list_notebook_dirs()
             .into_iter()
             .map(|nb_dir| {
@@ -653,6 +836,46 @@ impl Workspace {
                 NotebookInfo { id: nb.id, name: nb.name, color: nb.color, path: path_str(&nb_dir), sections, modified }
             })
             .collect()
+    }
+
+    /// Thins the ink of up to `limit` OneNote pages imported before ink was
+    /// thinned at import, leaving out `skip` (the page open in the app).
+    /// Each page keeps its "modified" stamp and file time, so the library's
+    /// order doesn't change, and a page that changes while being thinned is
+    /// left for next time. Returns how many it thinned (0 when done).
+    pub fn thin_imported_pages(&self, limit: usize, skip: Option<&Path>) -> usize {
+        let mut done = 0;
+        for nb in self.list_notebook_dirs() {
+            for sec in self.list_section_dirs(&nb) {
+                for file in self.list_page_files(&sec) {
+                    if done >= limit {
+                        save_header_cache();
+                        return done;
+                    }
+                    if Some(file.as_path()) == skip || !cached_header(&file).unthinned {
+                        continue;
+                    }
+                    let Some(before) = file_stamp(&file) else { continue };
+                    let Ok(mut doc) = self.read_page(&file) else { continue };
+                    model::thin_ink(&mut doc);
+                    model::normalise_strokes(&mut doc);
+                    // Changed meanwhile (written on this Mac or arriving
+                    // from the iPad): leave it.
+                    if file_stamp(&file) != Some(before) {
+                        continue;
+                    }
+                    if write_json_compact(&file, &doc).is_ok() {
+                        if let Ok(f) = fs::File::options().write(true).open(&file) {
+                            let _ = f.set_modified(before.1);
+                        }
+                        remember_extras(&file, &doc);
+                        done += 1;
+                    }
+                }
+            }
+        }
+        save_header_cache();
+        done
     }
 
     /// Case-insensitive search over page titles, typed text, table cells
@@ -764,11 +987,21 @@ pub fn read_json<T: DeserializeOwned>(path: &Path) -> Option<T> {
 /// Writes via a temporary file and an atomic rename, so a crash or a sync
 /// client reading mid-write never sees half a file.
 pub fn write_json<T: Serialize>(path: &Path, value: &T) -> Result<()> {
+    let text = serde_json::to_string_pretty(value).map_err(|e| e.to_string())?;
+    write_text(path, text)
+}
+
+/// JSON on one line: pages, whose ink would more than double in size
+/// indented (and take as long again to read and sync).
+pub fn write_json_compact<T: Serialize>(path: &Path, value: &T) -> Result<()> {
+    let text = serde_json::to_string(value).map_err(|e| e.to_string())?;
+    write_text(path, text)
+}
+
+fn write_text(path: &Path, mut text: String) -> Result<()> {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).map_err(|e| io_err("Could not create", dir, e))?;
     }
-
-    let mut text = serde_json::to_string_pretty(value).map_err(|e| e.to_string())?;
     text.push('\n');
 
     let tmp = path.with_file_name(format!("{}.tmp", file_name(path)));

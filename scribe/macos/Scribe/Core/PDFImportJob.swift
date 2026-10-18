@@ -102,10 +102,10 @@ enum PDFImportJob {
                 try Task.checkCancellation()
                 let title = count == 1 ? name : "Page \(index + 1)"
                 let pagePath: String = try Core.call("create_page", ["section": section, "title": title])
-                var doc: PageDoc = try Core.call("read_page", ["path": pagePath])
+                var doc: PageDoc = try Core.readPage(pagePath)
                 doc.background = BackgroundDTO(kind: "pdf", spacing: 32, color: "#E8EEF5", asset: slot.rel, pdfPage: index)
                 doc.source = SourceDTO(app: "pdf", id: url.lastPathComponent, importedAt: stamp)
-                let _: WriteResult = try Core.call("write_page", ["path": pagePath, "page": try Core.json(doc)])
+                let _: WriteResult = try Core.writePage(pagePath, doc)
                 await onPage(index + 1, count)
             }
             return (section, count)

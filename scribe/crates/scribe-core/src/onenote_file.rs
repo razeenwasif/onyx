@@ -179,6 +179,7 @@ pub fn import_section(ws: &Workspace, section: &Path, file: &Path) -> Result<Sec
             built.page(page, &title, &id);
             let PageBuilder { mut doc, skipped, .. } = built;
             keep_on_page(&mut doc);
+            crate::model::thin_ink(&mut doc);
             let path = ws.create_page(section, &title)?;
             ws.write_page(&path, &mut doc)?;
             if let Ok(rel) = path.strip_prefix(&ws.root) {

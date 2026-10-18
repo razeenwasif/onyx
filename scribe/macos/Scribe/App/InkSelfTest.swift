@@ -98,8 +98,8 @@ public enum InkSelfTest {
         let file = dir.appendingPathComponent("page.json").path
         var doc = PageDoc()
         doc.strokes = [StrokeDTO(points: points)]
-        let _: WriteResult = try Core.call("write_page", ["path": file, "page": try Core.json(doc)])
-        let back: PageDoc = try Core.call("read_page", ["path": file])
+        let _: WriteResult = try Core.writePage(file, doc)
+        let back: PageDoc = try Core.readPage(file)
         guard let s = back.strokes.first else { throw Core.Failure(message: "stroke lost in round trip") }
         return s.points
     }

@@ -13,65 +13,65 @@ import Vision
 /// since. Rendering goes through the core (main thread); recognition runs on a
 /// background queue.
 final class InkReader {
+    /// Everything happens here, off the main thread: reading a big page,
+    /// building its outlines and rendering it took seconds, and on the main
+    /// thread that froze the app after saves and through a backfill.
     private let queue = DispatchQueue(label: "app.scribe.ink-reader", qos: .utility)
-    /// Debounced reads after saves, by page id.
+    /// Debounced reads after saves, by page id (touched on the main thread).
     private var scheduled: [String: DispatchWorkItem] = [:]
     /// Bumped when a backfill is replaced (another start, a new workspace).
-    private var generation = 0
+    private let generation = Generation()
+
+    private final class Generation: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+        func next() -> Int { lock.withLock { value += 1; return value } }
+        func isCurrent(_ v: Int) -> Bool { lock.withLock { value == v } }
+    }
 
     /// After a save: read the page's ink once editing pauses.
     func pageSaved(_ doc: PageDoc, modified: Double, root: String, sectionPath: String) {
         scheduled[doc.id]?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            self?.scheduled[doc.id] = nil
-            self?.read(doc, sectionPath: sectionPath, modified: modified, root: root, then: {})
+            Self.read(doc, sectionPath: sectionPath, modified: modified, root: root)
+            DispatchQueue.main.async { self?.scheduled[doc.id] = nil }
         }
         scheduled[doc.id] = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5, execute: work)
+        queue.asyncAfter(deadline: .now() + 2.5, execute: work)
     }
 
     /// Works through every page whose ink hasn't been read since it changed,
-    /// most recently edited first, one page at a time.
+    /// most recently edited first, one page at a time in the background.
     func backfill(root: String) {
-        generation += 1
-        let mine = generation
-        guard let pending: [PendingInk] = try? Core.call("ink_pending", ["root": root]) else { return }
-        var remaining = pending[...]
-        func next() {
-            guard mine == generation, let item = remaining.popFirst() else { return }
-            guard let doc: PageDoc = try? Core.call("read_page", ["path": item.path]) else { return next() }
-            let section = (item.path as NSString).deletingLastPathComponent
-            read(doc, sectionPath: section, modified: item.modified, root: root) {
-                // Leave the main thread room between pages.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { next() }
+        let mine = generation.next()
+        queue.async { [generation] in
+            guard let pending: [PendingInk] = try? Core.call("ink_pending", ["root": root]) else { return }
+            for item in pending {
+                guard generation.isCurrent(mine) else { return }
+                autoreleasepool {
+                    guard let doc = try? Core.readPage(item.path) else { return }
+                    Self.read(doc, sectionPath: (item.path as NSString).deletingLastPathComponent, modified: item.modified, root: root)
+                }
+                // Leave the machine room between pages.
+                Thread.sleep(forTimeInterval: 0.15)
             }
         }
-        next()
     }
 
-    private func read(_ doc: PageDoc, sectionPath: String, modified: Double, root: String, then: @escaping () -> Void) {
+    private static func read(_ doc: PageDoc, sectionPath: String, modified: Double, root: String) {
         // No ink left (all erased) still records an empty result, which
         // clears any text kept from before.
-        let image = Self.render(doc)
+        let image = render(doc)
         // An imported PDF page: its own text layer, plus the writing drawn
         // on it (Goodnotes exports handwriting as shapes, not text).
         let pdf = PDFBackground.page(for: doc.background, sectionPath: sectionPath)
         let pdfText = pdf?.string ?? ""
         let pdfImage = pdf.flatMap { PDFBackground.image(of: $0) }
-        queue.async {
-            let parts = [image.map(Self.recognize), pdfImage.map(Self.recognize), pdfText]
-            let text = parts.compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-                .joined(separator: "\n")
-            DispatchQueue.main.async {
-                _ = try? Core.call(
-                    "set_ink_text",
-                    ["root": root, "id": doc.id, "text": text, "modified": modified],
-                    as: String?.self
-                )
-                then()
-            }
-        }
+        let parts = [image.map(recognize), pdfImage.map(recognize), pdfText]
+        let text = parts.compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        _ = try? Core.call("set_ink_text", ["root": root, "id": doc.id, "text": text, "modified": modified], as: String?.self)
     }
 
     /// The page's ink, black on white, cropped to the writing. Highlighter

@@ -47,6 +47,61 @@ struct StrokeDTO: Codable, Equatable {
     var pressureSensitive: Bool = true
     /// Flat, stride 3: x, y, pressure.
     var points: [Double] = []
+
+    init(color: String = "#1A1A1A", width: Double = 2.4, height: Double = 2.4, tip: String = "ellipse",
+         highlighter: Bool = false, fit: Bool = true, pressureSensitive: Bool = true, points: [Double] = []) {
+        self.color = color
+        self.width = width
+        self.height = height
+        self.tip = tip
+        self.highlighter = highlighter
+        self.fit = fit
+        self.pressureSensitive = pressureSensitive
+        self.points = points
+    }
+
+    // Points cross to and from the core packed: base64 little-endian
+    // Float32s in `pointsPacked` (crates/scribe-core/src/model.rs
+    // pack_points). Decoding millions of JSON numbers was most of what
+    // opening a big page cost. Plain `points` are read too.
+    private enum Keys: String, CodingKey {
+        case color, width, height, tip, highlighter, fit, pressureSensitive, points, pointsPacked
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        color = try c.decodeIfPresent(String.self, forKey: .color) ?? "#1A1A1A"
+        width = try c.decodeIfPresent(Double.self, forKey: .width) ?? 2.4
+        height = try c.decodeIfPresent(Double.self, forKey: .height) ?? width
+        tip = try c.decodeIfPresent(String.self, forKey: .tip) ?? "ellipse"
+        highlighter = try c.decodeIfPresent(Bool.self, forKey: .highlighter) ?? false
+        fit = try c.decodeIfPresent(Bool.self, forKey: .fit) ?? true
+        pressureSensitive = try c.decodeIfPresent(Bool.self, forKey: .pressureSensitive) ?? true
+        if let packed = try c.decodeIfPresent(String.self, forKey: .pointsPacked), let data = Data(base64Encoded: packed) {
+            points = data.withUnsafeBytes { raw in
+                raw.bindMemory(to: Float32.self).map { Double(Float32(bitPattern: $0.bitPattern.littleEndian)) }
+            }
+        } else {
+            points = try c.decodeIfPresent([Double].self, forKey: .points) ?? []
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Keys.self)
+        try c.encode(color, forKey: .color)
+        try c.encode(width, forKey: .width)
+        try c.encode(height, forKey: .height)
+        try c.encode(tip, forKey: .tip)
+        try c.encode(highlighter, forKey: .highlighter)
+        try c.encode(fit, forKey: .fit)
+        try c.encode(pressureSensitive, forKey: .pressureSensitive)
+        var bytes = [UInt8]()
+        bytes.reserveCapacity(points.count * 4)
+        for v in points {
+            withUnsafeBytes(of: Float32(v).bitPattern.littleEndian) { bytes.append(contentsOf: $0) }
+        }
+        try c.encode(Data(bytes).base64EncodedString(), forKey: .pointsPacked)
+    }
 }
 
 struct TextSpanDTO: Codable, Equatable {

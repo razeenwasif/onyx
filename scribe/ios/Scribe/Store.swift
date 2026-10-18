@@ -122,7 +122,7 @@ final class Store {
 
     private func open(_ url: URL) {
         root = url
-        refresh()
+        refreshInBackground()
         restoreTabs()
         purgeRecentlyDeleted()
         // Read handwriting written since the index last caught up (on this
@@ -133,9 +133,13 @@ final class Store {
         }
         // Back to the page you were on; the back button leads to its folder
         // and then the library.
+        // After the first frame: a big page takes a moment to read, and the
+        // app has to be on screen quickly or iPadOS stops it.
         if let rel = UserDefaults.standard.string(forKey: Self.lastPageKey) {
             let path = url.appendingPathComponent(rel).path
-            if FileManager.default.fileExists(atPath: path) { show(pageAt: path) }
+            DispatchQueue.main.async { [weak self] in
+                if FileManager.default.fileExists(atPath: path) { self?.show(pageAt: path) }
+            }
         }
         startPolling()
     }
@@ -215,12 +219,10 @@ final class Store {
         showingGrid = false
     }
 
-    /// Picks up changes made on the Mac: downloads new files, rereads the
-    /// notebooks, and reloads the open page if it changed and has no unsaved
-    /// writing.
+    /// Rereads the notebooks now, after a change made here. Cheap: the core
+    /// caches what it knows about each page until the file changes.
     func refresh() {
         guard let root else { return }
-        downloading = Library.requestDownloads(in: root)
         do {
             let tree: [NotebookInfo] = try Core.call("tree", ["root": root.path])
             if tree != notebooks { notebooks = tree }
@@ -230,8 +232,45 @@ final class Store {
             problem = error.localizedDescription
         }
         reloadPages()
-        if let pagePath, !dirty, let stamp = Self.stamp(pagePath), stamp != pageStamp {
-            openPage(pagePath)
+    }
+
+    @ObservationIgnored private var refreshing = false
+    @ObservationIgnored private var lastDownloadSweep = Date.distantPast
+
+    /// Picks up changes made on the Mac, off the main thread: asks iCloud
+    /// for new files (once a minute; walking the folder is slow), rereads
+    /// the notebooks, and reloads the open page if it changed and has no
+    /// unsaved writing. iCloud can make any of this block for a while, and
+    /// on the main thread that froze the app until iPadOS killed it.
+    func refreshInBackground() {
+        guard let root, !refreshing else { return }
+        refreshing = true
+        let rootPath = root.path
+        let section = sectionPath
+        let open = pagePath
+        let sweep = Date().timeIntervalSince(lastDownloadSweep) > 60
+        if sweep { lastDownloadSweep = Date() }
+        Task.detached(priority: .utility) { [weak self] in
+            let downloading = sweep ? Library.requestDownloads(in: root) : nil
+            let tree = Result { try Core.call("tree", ["root": rootPath], as: [NotebookInfo].self) }
+            let recent = try? Core.call("recent_pages", ["root": rootPath, "limit": 10], as: [PageInfo].self)
+            let pages = section.map { (try? Core.call("pages", ["section": $0], as: [PageInfo].self)) ?? [] }
+            let stamp = open.flatMap { Store.stamp($0) }
+            await MainActor.run {
+                guard let self else { return }
+                self.refreshing = false
+                guard self.root?.path == rootPath else { return }
+                if let downloading { self.downloading = downloading }
+                switch tree {
+                case .success(let tree): if tree != self.notebooks { self.notebooks = tree }
+                case .failure(let error): self.problem = error.localizedDescription
+                }
+                if let recent, recent != self.recents { self.recents = recent }
+                if let pages, section == self.sectionPath { self.apply(pages: pages) }
+                if let open, open == self.pagePath, !self.dirty, let stamp, stamp != self.pageStamp {
+                    self.openPage(open)
+                }
+            }
         }
     }
 
@@ -240,14 +279,17 @@ final class Store {
         poll = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(4))
-                self?.refresh()
+                self?.refreshInBackground()
             }
         }
     }
 
     private func reloadPages() {
         guard let sectionPath else { pages = []; return }
-        let list = (try? Core.call("pages", ["section": sectionPath], as: [PageInfo].self)) ?? []
+        apply(pages: (try? Core.call("pages", ["section": sectionPath], as: [PageInfo].self)) ?? [])
+    }
+
+    private func apply(pages list: [PageInfo]) {
         guard list != pages else { return }
         // Pages added, moved or removed, or changed on another device: the
         // continuous canvas lays them out again. Saving the page you're
@@ -307,7 +349,7 @@ final class Store {
     /// What a page that isn't the one being edited looks like.
     func content(of path: String) -> PageView.Content? {
         if path == pagePath { return PageView.Content(store: self) }
-        guard let doc = try? Core.call("read_page", ["path": path], as: PageDoc.self) else { return nil }
+        guard let doc = try? Core.readPage(path) else { return nil }
         let ink = doc.strokes.filter { $0.points.count >= 3 }.map(Ink.init)
         return PageView.Content(doc: doc, sectionPath: (path as NSString).deletingLastPathComponent, ink: ink)
     }
@@ -368,8 +410,10 @@ final class Store {
 
     func openPage(_ path: String) {
         if path != pagePath { flush() }
+        // A page left a moment ago may still be on its way to disk.
+        finishSaving()
         do {
-            let loaded: PageDoc = try Core.call("read_page", ["path": path])
+            let loaded: PageDoc = try Core.readPage(path)
             if path != pagePath {
                 undoStack = []
                 redoStack = []
@@ -507,6 +551,8 @@ final class Store {
 
     /// Moves a page, notebook or folder to Recently Deleted.
     private func discard(_ path: String) throws {
+        // A save on its way would otherwise put the file back.
+        finishSaving()
         guard let bin = binURL, let rel = relative(path) else { throw Core.Failure(message: "It isn't in the library folder.") }
         let target = bin.appendingPathComponent(Self.binStamp.string(from: Date())).appendingPathComponent(rel)
         try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -641,6 +687,7 @@ final class Store {
     }
 
     func rename(_ item: LibraryItem, to name: String) {
+        finishSaving()
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         do {
@@ -680,6 +727,7 @@ final class Store {
     func move(_ notebook: SectionInfo, to folder: NotebookInfo) {
         guard notebook.notebookPath != folder.path, let root else { return }
         flush()
+        finishSaving()
         let old = notebook.path
         let newPath: String
         do {
@@ -713,6 +761,7 @@ final class Store {
     }
 
     func delete(_ item: LibraryItem) {
+        finishSaving()
         let path: String
         switch item {
         case .folder(let f): path = f.path
@@ -741,6 +790,7 @@ final class Store {
 
     /// Retitles a page. Its file is renamed to match, as on the Mac.
     func renamePage(_ path: String, to title: String) {
+        finishSaving()
         let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
         let section = (path as NSString).deletingLastPathComponent
@@ -748,10 +798,10 @@ final class Store {
             if path == pagePath {
                 flush()
             }
-            var page: PageDoc = try Core.call("read_page", ["path": path])
+            var page: PageDoc = try Core.readPage(path)
             guard page.title != title else { return }
             page.title = title
-            let _: WriteResult = try Core.call("write_page", ["path": path, "page": try Core.json(page)])
+            let _: WriteResult = try Core.writePage(path, page)
             let moved: String = try Core.call("rename_page", ["section": section, "path": path, "title": title])
             if path == pagePath {
                 // Same page under its new name; keep its undo history.
@@ -1004,25 +1054,46 @@ final class Store {
     }
 
     /// Writes the open page now if it has unsaved changes.
+    /// Pages are written here, in order, off the main thread: saving a big
+    /// page took long enough to make writing stutter.
+    @ObservationIgnored private let saver = DispatchQueue(label: "app.scribe.ipad.save", qos: .userInitiated)
+
     func flush() {
         saveTask?.cancel()
         guard dirty, let pagePath, var doc else { return }
         doc.strokes = ink.map(\.dto)
-        do {
-            let result: WriteResult = try Core.call("write_page", ["path": pagePath, "page": try Core.json(doc)])
-            self.doc = doc
-            if let root {
-                inkReader.pageSaved(doc, modified: result.modifiedUnix, root: root.path, sectionPath: pageSectionPath)
+        self.doc = doc
+        dirty = false
+        let root = self.root?.path
+        let section = pageSectionPath
+        saver.async { [weak self] in
+            do {
+                let result = try Core.writePage(pagePath, doc)
+                let stamp = Store.stamp(pagePath)
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    if let root { self.inkReader.pageSaved(doc, modified: result.modifiedUnix, root: root, sectionPath: section) }
+                    if self.pagePath == pagePath { self.pageStamp = stamp }
+                    self.reloadPages()
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    if self.pagePath == pagePath { self.dirty = true }
+                    self.problem = "Could not save: \(error.localizedDescription)"
+                }
             }
-            pageStamp = Self.stamp(pagePath)
-            dirty = false
-            reloadPages()
-        } catch {
-            problem = "Could not save: \(error.localizedDescription)"
         }
     }
 
-    private static func stamp(_ path: String) -> Date? {
+    /// Waits for saves still being written: before a page file is renamed,
+    /// moved or deleted, before reading one again, and when the app goes
+    /// to the background.
+    func finishSaving() {
+        saver.sync {}
+    }
+
+    nonisolated private static func stamp(_ path: String) -> Date? {
         (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
     }
 }

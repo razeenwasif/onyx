@@ -528,6 +528,7 @@ pub fn import_page(
     let converted = convert(body, content_type, page_id);
     let file = ws.create_page(section, &converted.page.title)?;
     let mut doc = converted.page;
+    crate::model::thin_ink(&mut doc);
     ws.write_page(&file, &mut doc)?;
 
     if let Ok(rel) = file.strip_prefix(&ws.root) {

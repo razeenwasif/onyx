@@ -15,9 +15,10 @@ struct ScribeApp: App {
             switch now {
             case .background, .inactive:
                 store.flush()
+                store.finishSaving()
                 vault.flush()
             case .active:
-                store.refresh()
+                store.refreshInBackground()
                 vault.refresh()
             @unknown default: break
             }

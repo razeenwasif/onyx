@@ -118,6 +118,26 @@ public final class AppModel {
             guard let self else { return }
             self.inkReader.backfill(root: self.root)
         }
+        thinImportedInk()
+    }
+
+    /// Once: thins the ink of OneNote pages imported before import did it
+    /// (scribe-core thin_imported_pages), a few pages at a time in the
+    /// background, never the page that's open. Only the Mac does this, so
+    /// the iPad never rewrites the same files at the same time.
+    private func thinImportedInk() {
+        let root = self.root
+        let openPage: @MainActor () -> String? = { [weak self] in self?.page?.path }
+        Task.detached(priority: .background) {
+            try? await Task.sleep(for: .seconds(20))
+            while !Task.isCancelled {
+                let open = await openPage()
+                var args: [String: Any] = ["root": root, "limit": 3]
+                if let open { args["skip"] = open }
+                guard let done = try? Core.call("thin_imported_pages", args, as: Int.self), done > 0 else { return }
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
     }
 
     private func restoreLastPage() {
@@ -193,6 +213,8 @@ public final class AppModel {
     func openPage(_ path: String) {
         if page?.path == path { return }
         commitOpenPage()
+        // A page left a moment ago may still be on its way to disk.
+        finishSaving()
 
         guard FileManager.default.fileExists(atPath: path) else {
             // Most likely a sync client removed it underneath us.
@@ -203,7 +225,7 @@ public final class AppModel {
 
         let sectionPath = URL(fileURLWithPath: path).deletingLastPathComponent().path
         do {
-            let doc: PageDoc = try Core.call("read_page", ["path": path])
+            let doc: PageDoc = try Core.readPage(path)
             let model = PageModel(path: path, sectionPath: sectionPath, doc: doc)
             model.onChange = { [weak self] in self?.markDirty() }
             page = model
@@ -223,6 +245,8 @@ public final class AppModel {
     }
 
     func closePage() {
+        // The file may be deleted or moved next; let its save land first.
+        finishSaving()
         page?.clearUndo()
         page = nil
         selectedPagePath = nil
@@ -238,6 +262,11 @@ public final class AppModel {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
     }
 
+    /// Pages are written here, in order, off the main thread: a big page
+    /// took the better part of a second to save, and autosave froze the
+    /// app each time.
+    @ObservationIgnored private let saver = DispatchQueue(label: "app.scribe.save", qos: .userInitiated)
+
     public func save() {
         autosave?.cancel()
         guard let page, dirty else { return }
@@ -245,20 +274,38 @@ public final class AppModel {
         // A text box mid-edit holds its latest text in the view.
         activeTextView?.flush()
 
-        do {
-            let doc = page.toDoc()
-            let result: WriteResult = try Core.call("write_page", ["path": page.path, "page": try Core.json(doc)])
-            inkReader.pageSaved(doc, modified: result.modifiedUnix, root: root, sectionPath: page.sectionPath)
-            dirty = false
-            status = "Saved " + Date().formatted(date: .omitted, time: .shortened)
-            if let i = pages.firstIndex(where: { $0.path == page.path }) {
-                pages[i].title = doc.title
-                pages[i].modified = result.modifiedUnix
+        let doc = page.toDoc()
+        let path = page.path
+        let sectionPath = page.sectionPath
+        let root = self.root
+        dirty = false
+        saver.async { [weak self] in
+            do {
+                let result = try Core.writePage(path, doc)
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.inkReader.pageSaved(doc, modified: result.modifiedUnix, root: root, sectionPath: sectionPath)
+                    self.status = "Saved " + Date().formatted(date: .omitted, time: .shortened)
+                    if let i = self.pages.firstIndex(where: { $0.path == path }) {
+                        self.pages[i].title = doc.title
+                        self.pages[i].modified = result.modifiedUnix
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    if self.page?.path == path { self.dirty = true }
+                    self.status = "Could not save"
+                    self.show(error, title: "Scribe could not save this page")
+                }
             }
-        } catch {
-            status = "Could not save"
-            show(error, title: "Scribe could not save this page")
         }
+    }
+
+    /// Waits for saves still being written: before the page file is
+    /// renamed, moved or deleted, and before quitting.
+    func finishSaving() {
+        saver.sync {}
     }
 
     /// Saves and renames the page file to follow its title. Deferred until
@@ -270,6 +317,7 @@ public final class AppModel {
 
         let title = page.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty, title != titleAtLoad else { return }
+        finishSaving()
         do {
             let newPath: String = try Core.call("rename_page", ["section": page.sectionPath, "path": page.path, "title": title])
             if newPath != page.path {
@@ -325,9 +373,9 @@ public final class AppModel {
             return
         }
         do {
-            var doc: PageDoc = try Core.call("read_page", ["path": info.path])
+            var doc: PageDoc = try Core.readPage(info.path)
             doc.title = name
-            let _: WriteResult = try Core.call("write_page", ["path": info.path, "page": try Core.json(doc)])
+            let _: WriteResult = try Core.writePage(info.path, doc)
             _ = try Core.call("rename_page", ["section": info.sectionPath, "path": info.path, "title": name], as: String.self)
             reloadPages()
         } catch {
@@ -737,6 +785,7 @@ public final class AppModel {
 
     public func willTerminate() {
         commitOpenPage()
+        finishSaving()
         saveSettings()
     }
 

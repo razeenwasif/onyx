@@ -248,7 +248,13 @@ final class PageView: UIView {
     struct Content {
         var background = BackgroundDTO()
         var pdf: PDFPage?
-        var ink: [Ink] = []
+        var ink: [Ink] = [] {
+            didSet { splitInk() }
+        }
+        /// `ink` split once into highlighter (drawn under text) and pen
+        /// (over it), rather than filtered again for every tile.
+        private(set) var highlights: [Ink] = []
+        private(set) var pens: [Ink] = []
         var texts: [TextBoxDTO] = []
         var images: [(CGRect, UIImage)] = []
         var latex: [LatexDTO] = []
@@ -269,6 +275,7 @@ final class PageView: UIView {
             background = doc.background
             pdf = PDFBackground.page(for: doc.background, sectionPath: section)
             self.ink = ink
+            splitInk()
             texts = doc.textBoxes
             latex = doc.latexBlocks
             tables = doc.tables
@@ -277,6 +284,11 @@ final class PageView: UIView {
                 guard let image = UIImage(contentsOfFile: path) else { return nil }
                 return (CGRect(x: dto.x, y: dto.y, width: dto.width, height: dto.height), image)
             }
+        }
+
+        private mutating func splitInk() {
+            highlights = ink.filter { $0.dto.highlighter }
+            pens = ink.filter { !$0.dto.highlighter }
         }
     }
 
@@ -328,14 +340,40 @@ final class PageView: UIView {
 
         // Highlighter goes under the text and pictures, as on paper, so
         // highlighted words stay readable; pen ink goes on top.
-        drawInk(c.ink.filter { $0.dto.highlighter }, in: rect, ctx)
+        drawInk(c.highlights, in: rect, ctx)
         for (frame, image) in c.images where frame.intersects(rect) {
             image.draw(in: frame)
         }
-        for table in c.tables { drawTable(table, ctx) }
-        for box in c.texts { drawText(box) }
-        for block in c.latex { drawLatex(block) }
-        drawInk(c.ink.filter { !$0.dto.highlighter }, in: rect, ctx)
+        // Only what reaches this tile: laying out every text box on a big
+        // imported page for each tile was much of the time drawing took.
+        for table in c.tables where Self.frame(of: table).intersects(rect) { drawTable(table, ctx) }
+        for box in c.texts where Self.frame(of: box).intersects(rect) { drawText(box) }
+        for block in c.latex where CGRect(x: block.x, y: block.y - 10, width: 2000, height: block.scale * 4 + 40).intersects(rect) {
+            drawLatex(block)
+        }
+        drawInk(c.pens, in: rect, ctx)
+    }
+
+    /// Generous bounds for a text box: its height if known, else enough for
+    /// its lines, wrapped at its width.
+    private static func frame(of box: TextBoxDTO) -> CGRect {
+        let width: Double = max(box.width, 40)
+        let perLine: Double = box.fontSize * 0.6 / width
+        var lines: Double = 0
+        for line in box.text.split(separator: "\n", omittingEmptySubsequences: false) {
+            lines += max(1, ceil(Double(line.count) * perLine))
+        }
+        let height: Double = box.height ?? (lines * box.fontSize * 1.5)
+        return CGRect(x: box.x - 8, y: box.y - 8, width: width + 16, height: max(height, lines * box.fontSize * 1.5) + 16)
+    }
+
+    private static func frame(of table: TableDTO) -> CGRect {
+        let columns = table.rows.map(\.count).max() ?? 0
+        var width: Double = 0
+        for i in 0..<columns {
+            if let widths = table.columnWidths, i < widths.count { width += widths[i] } else { width += 140 }
+        }
+        return CGRect(x: table.x - 4, y: table.y - 4, width: width + 8, height: Double(table.rows.count) * 30 + 8)
     }
 
     private func drawInk(_ ink: [Ink], in rect: CGRect, _ ctx: CGContext) {
