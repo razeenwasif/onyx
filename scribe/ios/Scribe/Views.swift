@@ -48,6 +48,7 @@ struct WelcomeView: View {
         .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.velvetBackdrop)
+        .overlay(alignment: .topLeading) { AppSwitchButton().padding(20) }
         .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result { store.choose(url) }
         }
@@ -125,6 +126,7 @@ struct LibraryView: View {
                     }
                 }
                 .toolbar {
+                    ToolbarItem(placement: .topBarLeading) { AppSwitchButton() }
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             Button("New Folder…", systemImage: "folder.badge.plus") { prompt = NamePrompt(kind: .newFolder) }

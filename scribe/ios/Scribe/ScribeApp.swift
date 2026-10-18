@@ -3,18 +3,22 @@ import SwiftUI
 @main
 struct ScribeApp: App {
     @State private var store = Store()
+    @State private var vault = VaultStore()
     @Environment(\.scenePhase) private var phase
 
     var body: some Scene {
         WindowGroup {
-            RootView(store: store)
+            AppHost(scribe: store, electron: vault)
                 .preferredColorScheme(.dark)
-                .tint(.velvetAccent)
         }
         .onChange(of: phase) { _, now in
             switch now {
-            case .background, .inactive: store.flush()
-            case .active: store.refresh()
+            case .background, .inactive:
+                store.flush()
+                vault.flush()
+            case .active:
+                store.refresh()
+                vault.refresh()
             @unknown default: break
             }
         }

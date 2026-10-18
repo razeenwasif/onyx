@@ -6,33 +6,34 @@ import Foundation
 /// entitlement, which is what lets Scribe sync without a paid developer
 /// account.
 enum Library {
-    private static let bookmarkKey = "notebookFolderBookmark"
+    static let bookmarkKey = "notebookFolderBookmark"
 
-    /// Remembers `url` (just picked) and starts reading from it.
-    static func choose(_ url: URL) throws -> URL {
+    /// Remembers `url` (just picked) and starts reading from it. `key` keeps
+    /// Scribe's folder and Electron's vault apart.
+    static func choose(_ url: URL, key: String = bookmarkKey) throws -> URL {
         guard url.startAccessingSecurityScopedResource() else {
-            throw Core.Failure(message: "Scribe wasn't given access to that folder.")
+            throw Core.Failure(message: "The app wasn't given access to that folder.")
         }
         let data = try url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
-        UserDefaults.standard.set(data, forKey: bookmarkKey)
+        UserDefaults.standard.set(data, forKey: key)
         return url
     }
 
     /// The remembered folder, opened for reading and writing, or nil.
-    static func restore() -> URL? {
-        guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return nil }
+    static func restore(key: String = bookmarkKey) -> URL? {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
         var stale = false
         guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale),
               url.startAccessingSecurityScopedResource()
         else { return nil }
         if stale, let fresh = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil) {
-            UserDefaults.standard.set(fresh, forKey: bookmarkKey)
+            UserDefaults.standard.set(fresh, forKey: key)
         }
         return url
     }
 
-    static func forget() {
-        UserDefaults.standard.removeObject(forKey: bookmarkKey)
+    static func forget(key: String = bookmarkKey) {
+        UserDefaults.standard.removeObject(forKey: key)
     }
 
     /// Asks iCloud to download every file in the folder that is only a

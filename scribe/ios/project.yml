@@ -1,4 +1,4 @@
-# Scribe for iPad (optimised for iPad mini). Generate the Xcode project with
+# Scribe and Electron for iPad (optimised for iPad mini). Generate the Xcode project with
 #   cd scribe/ios && xcodegen
 # The generated Scribe.xcodeproj is committed, so this is only needed after
 # changing this file.
@@ -14,6 +14,12 @@ options:
     iOS: "18.0"
   createIntermediateGroups: true
 
+# Native LaTeX for Electron's notes.
+packages:
+  SwiftMath:
+    url: https://github.com/mgriebling/SwiftMath
+    exactVersion: 1.7.3
+
 settings:
   base:
     SWIFT_VERSION: "5.0"
@@ -27,6 +33,7 @@ targets:
     deploymentTarget: "18.0"
     sources:
       - path: Scribe
+      - path: Electron
       - path: Resources
         buildPhase: resources
       - path: ../macos/Scribe/Core/Core.swift
@@ -39,6 +46,8 @@ targets:
       - path: ../macos/Scribe/App/InkReader.swift
       - path: ../macos/Scribe/Core/PDFImportJob.swift
       - path: ../macos/Scribe/Views/ImportPopup.swift
+    dependencies:
+      - package: SwiftMath
     preBuildScripts:
       - name: Build the Rust core
         basedOnDependencyAnalysis: false
