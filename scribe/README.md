@@ -295,7 +295,8 @@ pages. Only the labels changed; the format is the same (docs/FORMAT.md).
 ## All pages
 
 The grid button by a page's title (or View → All Pages, ⇧⌘G, on the Mac) shows every
-page in the section as thumbnails. Tap one to open it, drag a page onto another to move
+page in the section as thumbnails. **Add Pages** (or a long press on the + tile) adds 1, 5,
+10, 15 or 20 blank pages at the end. Tap one to open it, drag a page onto another to move
 it there, and use a page's menu to star, rename or delete it. "Starred" lists starred
 pages only. The grid is one SwiftUI view (`macos/Scribe/Views/PageGrid.swift`) shared by
 the Mac app, Scribe inside Electron, and the iPad.
@@ -333,7 +334,10 @@ to undo and three to redo. The lasso selects writing to move, recolour (tap a co
 copy, cut or delete; with the lasso out and writing copied, **Paste** drops it in the middle
 of the screen, selected (⌘C, ⌘X and ⌘V work with a keyboard). Copied writing pastes on the
 Mac too, and the Mac's on the iPad. When scrolling through pages, drag a selection across
-the gap onto the next or previous page and it moves there; one undo puts it back. The **⋯** menu sets the page's paper and line spacing, and new pages in that
+the gap onto the next or previous page and it moves there; one undo puts it back. The
+**+** in the dock inserts text, a table, an equation (typeset, with a live preview) or a
+photo in the middle of the screen, selected so it can be dragged into place; tap one with
+the lasso to edit it. Pulling past the last page always adds a new one. The **⋯** menu sets the page's paper and line spacing, and new pages in that
 notebook follow.
 
 The library's search finds titles, typed text and handwriting; the iPad reads handwriting
