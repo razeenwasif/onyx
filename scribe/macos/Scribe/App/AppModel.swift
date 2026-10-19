@@ -354,6 +354,23 @@ public final class AppModel {
         }
     }
 
+    /// Adds `count` blank pages at the end of the open notebook, staying in
+    /// the page grid.
+    func addPages(_ count: Int) {
+        guard let sec = selectedSectionPath, count > 0 else { return }
+        commitOpenPage()
+        for _ in 0..<count {
+            do {
+                _ = try Core.call("create_page", ["section": sec, "title": "Untitled page"], as: String.self)
+            } catch {
+                show(error, title: "Could not add pages")
+                break
+            }
+        }
+        reloadTree()
+        reloadPages()
+    }
+
     func newPage() {
         guard let sec = selectedSectionPath ?? allSections.first?.path else {
             alert = AlertInfo(title: "New Page", message: "Create a notebook first.")

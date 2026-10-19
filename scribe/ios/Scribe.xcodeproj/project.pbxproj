@@ -23,6 +23,7 @@
 		83E8088CA8239F35669B8A17 /* NotebookCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E3CA41C98CC4FBC7E26526 /* NotebookCanvas.swift */; };
 		9991CF0E5D8130ADD7B0753B /* GraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F77458CD35B81A7CABDC943 /* GraphView.swift */; };
 		9D728A0825C40292DF904968 /* MathRender.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CA4FDBB9E32D7DCC80A445A /* MathRender.swift */; };
+		9D99DF024D967D69B0B73246 /* PageObjects.swift in Sources */ = {isa = PBXBuildFile; fileRef = 681070FF3C45F695C7DBE705 /* PageObjects.swift */; };
 		A7ACA6CFC92A5C3FBDD8A401 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8650DE64B4BDACE4CDCEC84F /* Assets.xcassets */; };
 		ADACD8FF4CE1B4FE9FFAC5DF /* ElectronTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B61DB841BDDBE4F762558DF /* ElectronTheme.swift */; };
 		B223389DD6B7D6F3AF1292C6 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = 00FE534225AA4F19C132D2F0 /* SwiftMath */; };
@@ -58,6 +59,7 @@
 		5BE1E6F13ED1FC990425AA82 /* Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
 		5F50B0C1B73148655154DC4C /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
 		60E1FAA8E2DD1D5F03EB5B57 /* Core.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core.swift; sourceTree = "<group>"; };
+		681070FF3C45F695C7DBE705 /* PageObjects.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageObjects.swift; sourceTree = "<group>"; };
 		693BBEB08977D11534B0D382 /* GraphSim.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphSim.swift; sourceTree = "<group>"; };
 		6B61DB841BDDBE4F762558DF /* ElectronTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElectronTheme.swift; sourceTree = "<group>"; };
 		6E06CAE16DB036846B944DEB /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
@@ -182,6 +184,7 @@
 				70E3CA41C98CC4FBC7E26526 /* NotebookCanvas.swift */,
 				C2E90B89CCA9C197405CACDA /* PageCanvas.swift */,
 				B0A16D8D66F6576150640937 /* PageLinks.swift */,
+				681070FF3C45F695C7DBE705 /* PageObjects.swift */,
 				3ECB559B954847D3FD91E918 /* PenInput.swift */,
 				572ACD849DC28AE0C35FCA9B /* ScribeApp.swift */,
 				5F50B0C1B73148655154DC4C /* Store.swift */,
@@ -343,6 +346,7 @@
 				E05B9C001E4E76D6CF053D77 /* PageCanvas.swift in Sources */,
 				DE1FECFCBE5F19EBAA62AC7E /* PageGrid.swift in Sources */,
 				12177E5F756A5882C8E22413 /* PageLinks.swift in Sources */,
+				9D99DF024D967D69B0B73246 /* PageObjects.swift in Sources */,
 				C2DFAA61D3C90D098EDCA7F5 /* PenInput.swift in Sources */,
 				2A172507F771DB2BB10578CC /* ReadingView.swift in Sources */,
 				C4457AFB46EBCC8F7A30D469 /* ScribeApp.swift in Sources */,

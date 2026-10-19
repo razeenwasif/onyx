@@ -173,7 +173,8 @@ final class PenInput {
             if let host = floatHost(), dropSelection != nil {
                 // Lift it off the page, which clips what it draws, so it
                 // can be carried across the gap onto another page.
-                let layer = FloatingInkLayer(ink: store.selectedInk, area: bounds.insetBy(dx: -10, dy: -10),
+                let layer = FloatingInkLayer(content: store.selectionContent ?? PageView.Content(),
+                                             area: bounds.insetBy(dx: -10, dy: -10),
                                              scale: min(wetScale, 6), zoom: Double(zoom()))
                 CATransaction.begin()
                 CATransaction.setDisableActions(true)
@@ -233,7 +234,10 @@ final class PenInput {
     }
 
     private func endLasso(commit: Bool) {
-        if lasso == .drawing, commit, points.count >= 6 {
+        if lasso == .drawing, commit, isTap(points) {
+            // A tap with the lasso on a text box, table or equation edits it.
+            store.editObject(at: CGPoint(x: points[0], y: points[1]))
+        } else if lasso == .drawing, commit, points.count >= 6 {
             store.select(lasso: points)
         }
         if let layer = floating {
@@ -257,6 +261,18 @@ final class PenInput {
         refreshSelection()
     }
 
+    /// Whether a lasso loop (flat x, y pairs) is really a tap: it never
+    /// strays more than a few points from where it began.
+    private func isTap(_ loop: [Double]) -> Bool {
+        guard loop.count >= 2 else { return false }
+        let slop = 8 / max(Double(zoom()), 0.5)
+        for i in stride(from: 0, to: loop.count - 1, by: 2)
+        where abs(loop[i] - loop[0]) > slop || abs(loop[i + 1] - loop[1]) > slop {
+            return false
+        }
+        return true
+    }
+
     /// Draws the dashed outline around the selection, or removes it.
     func refreshSelection() {
         guard let bounds = store.selectionBounds, let page = activePage() else {
@@ -275,16 +291,16 @@ final class PenInput {
     }
 }
 
-/// A selection being dragged: its strokes drawn once into a layer that
-/// moves with the pen, above every page, with the selection's outline.
+/// A selection being dragged: its ink and objects drawn once into a layer
+/// that moves with the pen, above every page, with the selection's outline.
 final class FloatingInkLayer: CALayer {
     /// The selection's area on its page, in page units.
     let area: CGRect
-    private let ink: [Ink]
+    private let content: PageView.Content
     private let zoom: Double
 
-    init(ink: [Ink], area: CGRect, scale: CGFloat, zoom: Double) {
-        self.ink = ink
+    init(content: PageView.Content, area: CGRect, scale: CGFloat, zoom: Double) {
+        self.content = content
         self.area = area
         self.zoom = max(zoom, 0.1)
         super.init()
@@ -296,7 +312,7 @@ final class FloatingInkLayer: CALayer {
 
     override init(layer: Any) {
         let other = layer as! FloatingInkLayer
-        ink = other.ink
+        content = other.content
         area = other.area
         zoom = other.zoom
         super.init(layer: layer)
@@ -307,11 +323,10 @@ final class FloatingInkLayer: CALayer {
 
     override func draw(in ctx: CGContext) {
         ctx.translateBy(x: -area.minX, y: -area.minY)
-        for stroke in ink {
-            ctx.addPath(stroke.path)
-            ctx.setFillColor(stroke.color)
-            ctx.fillPath(using: .winding)
-        }
+        // Text is drawn through UIKit, which needs this context current.
+        UIGraphicsPushContext(ctx)
+        PageView.draw(content, in: area, ctx, paper: false)
+        UIGraphicsPopContext()
         let outline = CGPath(roundedRect: area.insetBy(dx: 2, dy: 2), cornerWidth: 10, cornerHeight: 10, transform: nil)
         ctx.addPath(outline)
         ctx.setStrokeColor(Velvet.accent.cgColor)

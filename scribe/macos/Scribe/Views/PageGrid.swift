@@ -30,6 +30,10 @@ struct PageGrid: View {
     let rename: (PageInfo) -> Void
     let delete: (PageInfo) -> Void
     let add: () -> Void
+    /// Adds this many blank pages at the end (the Add Pages menu).
+    var addMany: ((Int) -> Void)?
+
+    static let addCounts = [1, 5, 10, 15, 20]
 
     @State private var starredOnly = false
     @State private var target: String?
@@ -39,13 +43,25 @@ struct PageGrid: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            Picker("Show", selection: $starredOnly) {
-                Text("All pages · \(pages.count)").tag(false)
-                Text("Starred · \(pages.filter(\.isBookmarked).count)").tag(true)
+            HStack(spacing: 14) {
+                Picker("Show", selection: $starredOnly) {
+                    Text("All pages · \(pages.count)").tag(false)
+                    Text("Starred · \(pages.filter(\.isBookmarked).count)").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: 320)
+                if let addMany {
+                    Menu {
+                        addMenuItems(addMany)
+                    } label: {
+                        Label("Add Pages", systemImage: "plus")
+                            .foregroundStyle(style.accent)
+                    }
+                    .fixedSize()
+                    .accessibilityLabel("Add pages")
+                }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: 320)
             .padding(.top, 12)
 
             ScrollViewReader { scroller in
@@ -153,6 +169,9 @@ struct PageGrid: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { add() }
+        .contextMenu {
+            if let addMany { addMenuItems(addMany) }
+        }
         .dropDestination(for: String.self) { paths, _ in
             guard let moving = paths.first else { return false }
             move(moving, before: nil)
@@ -163,6 +182,15 @@ struct PageGrid: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("New Page")
         .accessibilityAddTraits(.isButton)
+    }
+
+    @ViewBuilder
+    private func addMenuItems(_ addMany: @escaping (Int) -> Void) -> some View {
+        Section("Add at the end") {
+            ForEach(Self.addCounts, id: \.self) { n in
+                Button(n == 1 ? "1 Page" : "\(n) Pages") { addMany(n) }
+            }
+        }
     }
 
     /// Moves `path` to just before `before` (nil: the end) and reports the order.

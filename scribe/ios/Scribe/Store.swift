@@ -1,6 +1,7 @@
 import Observation
 import PDFKit
 import UIKit
+import UniformTypeIdentifiers
 
 /// One stroke ready to draw: its outline and colour are built once, on the
 /// main thread, and never change, so the tiled page can draw it from any
@@ -391,11 +392,9 @@ final class Store {
     }
 
     /// Whether the last page has anything on it, so a new one may follow.
-    func canAddAfter(_ layouts: [PageLayout]) -> Bool {
-        guard let last = layouts.last else { return true }
-        if last.path == pagePath { return !pageIsBlank }
-        return !last.blank
-    }
+    /// Pulling past the end always offers a new page, blank last page or
+    /// not: you may want a few empty pages ready to write on.
+    func canAddAfter(_ layouts: [PageLayout]) -> Bool { true }
 
     // --------------------------------------------------------------- tabs
 
@@ -453,6 +452,7 @@ final class Store {
             remember(path)
             pageStamp = Self.stamp(path)
             selection = []
+            selectedObjects = []
             hasSelection = false
             ink = loaded.strokes.filter { $0.points.count >= 3 }.map(Ink.init)
             measurePage()
@@ -467,6 +467,22 @@ final class Store {
         pagePath = nil
         doc = nil
         ink = []
+    }
+
+    /// Adds `count` blank pages at the end of the notebook, staying where
+    /// you are (the page grid).
+    func addPages(_ count: Int) {
+        guard let sectionPath, count > 0 else { return }
+        flush()
+        for _ in 0..<count {
+            do {
+                _ = try Core.call("create_page", ["section": sectionPath, "title": "Untitled page"], as: String.self)
+            } catch {
+                problem = error.localizedDescription
+                break
+            }
+        }
+        reloadPages()
     }
 
     func newPage() {
@@ -860,7 +876,7 @@ final class Store {
     }
 
     /// Whether pulling past the bottom does anything on this page.
-    var canTurnForward: Bool { hasNextPage || !pageIsBlank }
+    var canTurnForward: Bool { true }
 
     /// The next page in the section, or a fresh one after the last.
     func turnForward() {
@@ -868,7 +884,7 @@ final class Store {
         reloadPages()
         if let i = pageIndex, i + 1 < pages.count {
             openPage(pages[i + 1].path)
-        } else if !pageIsBlank {
+        } else {
             newPage()
         }
     }
@@ -942,6 +958,7 @@ final class Store {
         guard !hits.isEmpty else { return false }
         if recordUndo { record() }
         selection = []
+        selectedObjects = []
         hasSelection = false
         let area = hits.map { ink[$0].bounds }.reduce(CGRect.null) { $0.union($1) }
         for i in hits.reversed() { ink.remove(at: i) }
@@ -971,44 +988,67 @@ final class Store {
 
     /// Strokes picked with the lasso, by index into `ink`.
     @ObservationIgnored private(set) var selection: Set<Int> = []
+    /// Text boxes, pictures, equations and tables picked with the lasso, by id.
+    @ObservationIgnored private(set) var selectedObjects: Set<String> = []
     /// Whether anything is selected, for the dock.
     private(set) var hasSelection = false
 
+    private func selectionChanged() {
+        hasSelection = !selection.isEmpty || !selectedObjects.isEmpty
+    }
+
+    /// The page's objects as they are now.
+    var objects: PageObjects { PageObjects(doc: doc) }
+
     var selectionBounds: CGRect? {
-        guard !selection.isEmpty else { return nil }
-        return selection.map { ink[$0].bounds }.reduce(CGRect.null) { $0.union($1) }
+        var r = CGRect.null
+        for i in selection { r = r.union(ink[i].bounds) }
+        if !selectedObjects.isEmpty {
+            for (_, frame) in objects.only(selectedObjects).frames { r = r.union(frame) }
+        }
+        return r.isNull ? nil : r
     }
 
     /// Selects the strokes mostly inside `lasso` (flat x, y pairs in page
-    /// units), the same rule as the Mac.
+    /// units), and the objects with most of their corners and middle inside,
+    /// the same rules as the Mac.
     func select(lasso: [Double]) {
         selection = Set(ink.indices.filter { Core.lassoFraction(lasso: lasso, points: ink[$0].dto.points) >= 0.6 })
-        hasSelection = !selection.isEmpty
+        selectedObjects = Set(objects.frames.filter { _, f in
+            let points = [f.origin, CGPoint(x: f.maxX, y: f.minY), CGPoint(x: f.minX, y: f.maxY),
+                          CGPoint(x: f.maxX, y: f.maxY), CGPoint(x: f.midX, y: f.midY)]
+            return points.filter { Core.pointInPolygon(lasso, $0) }.count >= 3
+        }.map(\.id))
+        selectionChanged()
     }
 
     func clearSelection() {
-        guard !selection.isEmpty else { return }
+        guard hasSelection || !selection.isEmpty || !selectedObjects.isEmpty else { return }
         selection = []
-        hasSelection = false
+        selectedObjects = []
+        selectionChanged()
         inkChanged?(nil)
     }
 
-    /// Moves the selected strokes; `first` marks the start of one drag.
+    /// Moves the selection; `first` marks the start of one drag.
     func moveSelection(dx: Double, dy: Double, first: Bool) {
-        guard !selection.isEmpty, dx != 0 || dy != 0 else { return }
+        guard hasSelection, dx != 0 || dy != 0 else { return }
         if first { record() }
-        var area = CGRect.null
+        var area = selectionBounds ?? .null
         for i in selection {
-            area = area.union(ink[i].bounds)
             var dto = ink[i].dto
             for j in stride(from: 0, to: dto.points.count - 2, by: 3) {
                 dto.points[j] += dx
                 dto.points[j + 1] += dy
             }
             ink[i] = Ink(dto)
-            area = area.union(ink[i].bounds)
         }
-        inkChanged?(area.insetBy(dx: -4, dy: -4))
+        if !selectedObjects.isEmpty, var page = doc {
+            objects.translated(selectedObjects, dx: dx, dy: dy).apply(to: &page)
+            doc = page
+        }
+        area = area.union(selectionBounds ?? .null)
+        inkChanged?(selectedObjects.isEmpty ? area.insetBy(dx: -4, dy: -4) : nil)
         changed()
     }
 
@@ -1024,13 +1064,27 @@ final class Store {
         return ink.indices.filter { !selection.contains($0) }.map { ink[$0] }
     }
 
+    /// The page as the page view shows it: less any objects being dragged.
+    var visibleDoc: PageDoc? {
+        guard floating, !selectedObjects.isEmpty, var page = doc else { return doc }
+        objects.without(selectedObjects).apply(to: &page)
+        return page
+    }
+
     /// The selected strokes, for drawing them while they're dragged.
     var selectedInk: [Ink] { selection.sorted().map { ink[$0] } }
 
+    /// The whole selection, ink and objects, drawn while it's dragged.
+    var selectionContent: PageView.Content? {
+        guard var page = doc, hasSelection else { return nil }
+        objects.only(selectedObjects).apply(to: &page)
+        return PageView.Content(doc: page, sectionPath: pageSectionPath, ink: selectedInk)
+    }
+
     func liftSelection() {
-        guard !selection.isEmpty, !floating else { return }
+        guard hasSelection, !floating else { return }
         floating = true
-        inkChanged?(selectionBounds?.insetBy(dx: -4, dy: -4))
+        inkChanged?(selectedObjects.isEmpty ? selectionBounds?.insetBy(dx: -4, dy: -4) : nil)
     }
 
     /// Lands a lifted selection on this page, moved by (dx, dy).
@@ -1038,35 +1092,58 @@ final class Store {
         guard floating else { return }
         floating = false
         if dx == 0 && dy == 0 {
-            inkChanged?(selectionBounds?.insetBy(dx: -4, dy: -4))
+            inkChanged?(nil)
         } else {
             moveSelection(dx: dx, dy: dy, first: true)
         }
     }
 
     /// Moves the selection onto the page at `path`, by (dx, dy) in that
-    /// page's units, and makes it the page being written on with the
-    /// writing still selected. One undo there puts it back on this page.
+    /// page's units, and makes it the page being written on with it still
+    /// selected. One undo there puts it back on this page.
     func moveSelection(toPage path: String, dx: Double, dy: Double) {
-        guard let source = pagePath, path != source, !selection.isEmpty else { return dropSelection(dx: 0, dy: 0) }
+        guard let source = pagePath, path != source, hasSelection else { return dropSelection(dx: 0, dy: 0) }
         floating = false
-        let before = ink.map(\.dto)
+        let before = state
         let moving = selection.sorted().map { Self.translated(ink[$0].dto, dx: dx, dy: dy) }
+        let movingObjects = objects.only(selectedObjects).translated(dx: dx, dy: dy)
         for i in selection.sorted(by: >) { ink.remove(at: i) }
+        if var page = doc {
+            objects.without(selectedObjects).apply(to: &page)
+            doc = page
+        }
         selection = []
-        hasSelection = false
+        selectedObjects = []
+        selectionChanged()
         dirty = true
         flush()
         openPage(path)
         guard pagePath == path else { return }
         record(other: (source, before))
+        add(strokes: moving, objects: movingObjects)
+        pageRewritten?(source)
+    }
+
+    /// Adds strokes and objects to the page, selected, as one change
+    /// (already recorded for undo).
+    private func add(strokes: [StrokeDTO], objects added: PageObjects) {
         let start = ink.count
-        ink += moving.map(Ink.init)
+        ink += strokes.map(Ink.init)
         selection = Set(start..<ink.count)
-        hasSelection = true
+        if var page = doc {
+            var all = objects
+            all.textBoxes += added.textBoxes
+            all.images += added.images
+            all.latex += added.latex
+            all.tables += added.tables
+            all.apply(to: &page)
+            doc = page
+        }
+        selectedObjects = Set(added.ids)
+        selectionChanged()
         inkChanged?(nil)
         changed()
-        pageRewritten?(source)
+        if let area = selectionBounds { growCanvas(for: area) }
     }
 
     static let fragmentType = "app.scribe.fragment"
@@ -1083,10 +1160,17 @@ final class Store {
     }
 
     func copySelection() {
-        guard !selection.isEmpty else { return }
-        let fragment = Fragment(sectionPath: pageSectionPath, strokes: selectedInk.map(\.dto))
+        guard hasSelection else { return }
+        let picked = objects.only(selectedObjects)
+        let fragment = Fragment(sectionPath: pageSectionPath, strokes: selectedInk.map(\.dto),
+                                textBoxes: picked.textBoxes, images: picked.images,
+                                latexBlocks: picked.latex, tables: picked.tables)
         guard let data = try? JSONEncoder().encode(fragment) else { return }
-        UIPasteboard.general.setData(data, forPasteboardType: Self.fragmentType)
+        var items: [String: Any] = [Self.fragmentType: data]
+        // Typed text goes out as plain text too, for pasting elsewhere.
+        let text = picked.textBoxes.map(\.text).joined(separator: "\n\n")
+        if !text.isEmpty { items[UTType.utf8PlainText.identifier] = text }
+        UIPasteboard.general.setItems([items])
     }
 
     func cutSelection() {
@@ -1097,30 +1181,41 @@ final class Store {
     /// Whether there's copied writing to paste.
     var canPaste: Bool { UIPasteboard.general.contains(pasteboardTypes: [Self.fragmentType]) }
 
-    /// Where pasted writing lands: the middle of what's on screen (page
-    /// units), from the canvas.
+    /// Where pasted and inserted things land: the middle of what's on
+    /// screen (page units), from the canvas.
     @ObservationIgnored var visibleCentre: (() -> CGPoint?)?
 
-    /// Pastes copied writing in the middle of the screen, selected, so it
-    /// can be dragged into place.
+    /// Pastes copied writing (and objects) in the middle of the screen,
+    /// selected, so it can be dragged into place.
     func paste() {
         guard doc != nil,
               let data = UIPasteboard.general.data(forPasteboardType: Self.fragmentType),
               let fragment = try? JSONDecoder().decode(Fragment.self, from: data) else { return }
         let strokes = fragment.strokes.filter { $0.points.count >= 3 }
-        guard !strokes.isEmpty else { return }
-        let bounds = strokes.map { Ink($0).bounds }.reduce(CGRect.null) { $0.union($1) }
+        var pasted = PageObjects()
+        pasted.textBoxes = fragment.textBoxes
+        pasted.images = fragment.images
+        pasted.latex = fragment.latexBlocks
+        pasted.tables = fragment.tables
+        pasted = pasted.withNewIDs()
+        guard !strokes.isEmpty || !pasted.isEmpty else { return }
+        // Pictures live beside their section's pages; bring them along.
+        if fragment.sectionPath != pageSectionPath {
+            for i in pasted.images.indices {
+                let src = URL(fileURLWithPath: fragment.sectionPath).appendingPathComponent(pasted.images[i].file)
+                if let slot = try? Core.call("new_asset", ["section": pageSectionPath, "ext": src.pathExtension], as: AssetSlot.self),
+                   (try? FileManager.default.copyItem(at: src, to: URL(fileURLWithPath: slot.path))) != nil {
+                    pasted.images[i].file = slot.rel
+                }
+            }
+        }
+        var bounds = strokes.map { Ink($0).bounds }.reduce(CGRect.null) { $0.union($1) }
+        for (_, frame) in pasted.frames { bounds = bounds.union(frame) }
         let centre = visibleCentre?() ?? CGPoint(x: bounds.midX + 24, y: bounds.midY + 24)
         let dx = centre.x - bounds.midX, dy = centre.y - bounds.midY
         record()
-        let start = ink.count
-        ink += strokes.map { Ink(Self.translated($0, dx: dx, dy: dy)) }
-        selection = Set(start..<ink.count)
-        hasSelection = true
+        add(strokes: strokes.map { Self.translated($0, dx: dx, dy: dy) }, objects: pasted.translated(dx: dx, dy: dy))
         tool = .select
-        inkChanged?(nil)
-        changed()
-        if let pasted = selectionBounds { growCanvas(for: pasted) }
     }
 
     private static func translated(_ stroke: StrokeDTO, dx: Double, dy: Double) -> StrokeDTO {
@@ -1133,13 +1228,17 @@ final class Store {
     }
 
     func deleteSelection() {
-        guard !selection.isEmpty else { return }
+        guard hasSelection else { return }
         record()
-        let area = selectionBounds ?? .null
         for i in selection.sorted(by: >) { ink.remove(at: i) }
+        if !selectedObjects.isEmpty, var page = doc {
+            objects.without(selectedObjects).apply(to: &page)
+            doc = page
+        }
         selection = []
-        hasSelection = false
-        inkChanged?(area)
+        selectedObjects = []
+        selectionChanged()
+        inkChanged?(nil)
         changed()
     }
 
@@ -1155,17 +1254,152 @@ final class Store {
         changed()
     }
 
-    /// One undo step: the page's ink before a change, and, when writing was
-    /// moved here from another page, that page's ink before too, so one
-    /// undo puts it back where it was.
-    struct InkSnapshot {
+    // ------------------------------------------- inserting and editing objects
+
+    /// The text box, table or equation being written or edited, for its sheet.
+    var editing: ObjectEditing?
+
+    /// Where a new object goes: centred on the middle of the screen, or
+    /// moved down below whatever it would cover (other objects and ink),
+    /// so two inserts in a row don't land on top of each other.
+    private func placement(width: Double, height: Double) -> CGPoint {
+        let c = visibleCentre?() ?? CGPoint(x: 240, y: 240)
+        var r = CGRect(x: max(8, c.x - width / 2), y: max(8, c.y - height / 2), width: width, height: height)
+        let taken = objects.frames.map(\.frame) + ink.map(\.bounds)
+        for _ in 0..<40 {
+            guard let hit = taken.first(where: { $0.intersects(r.insetBy(dx: -6, dy: -6)) }) else { break }
+            r.origin.y = hit.maxY + 16
+        }
+        return r.origin
+    }
+
+    /// Adds `added` to the page, selected with the lasso so it can be
+    /// dragged into place.
+    private func insert(_ added: PageObjects) {
+        guard doc != nil else { return }
+        record()
+        add(strokes: [], objects: added)
+        tool = .select
+    }
+
+    func insert(textBox: TextBoxDTO) {
+        var box = textBox
+        let at = placement(width: box.width, height: ObjectGeometry.frame(of: box).height)
+        box.x = at.x; box.y = at.y
+        var added = PageObjects()
+        added.textBoxes = [box]
+        insert(added)
+    }
+
+    func insert(table: TableDTO) {
+        var t = table
+        let frame = ObjectGeometry.frame(of: t)
+        let at = placement(width: frame.width, height: frame.height)
+        t.x = at.x; t.y = at.y
+        var added = PageObjects()
+        added.tables = [t]
+        insert(added)
+    }
+
+    func insert(latex: LatexDTO) {
+        var l = latex
+        let frame = ObjectGeometry.frame(of: l, size: ObjectGeometry.latexSize(l))
+        let at = placement(width: frame.width, height: frame.height)
+        l.x = at.x; l.y = at.y
+        var added = PageObjects()
+        added.latex = [l]
+        insert(added)
+    }
+
+    /// Saves a photo beside the section's pages and places it, at most
+    /// 420 units wide.
+    func insert(image: UIImage) {
+        guard doc != nil, let data = image.jpegData(compressionQuality: 0.88) else { return }
+        do {
+            let slot: AssetSlot = try Core.call("new_asset", ["section": pageSectionPath, "ext": "jpg"])
+            try data.write(to: URL(fileURLWithPath: slot.path), options: .atomic)
+            let scale = min(1, 420 / max(image.size.width, 1))
+            let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+            let at = placement(width: size.width, height: size.height)
+            var added = PageObjects()
+            added.images = [ImageDTO(x: at.x, y: at.y, width: size.width, height: size.height, file: slot.rel)]
+            insert(added)
+        } catch {
+            problem = "Could not add the photo: \(error.localizedDescription)"
+        }
+    }
+
+    private func replace(_ change: (inout PageObjects) -> Void) {
+        guard var page = doc else { return }
+        record()
+        var all = objects
+        change(&all)
+        all.apply(to: &page)
+        doc = page
+        inkChanged?(nil)
+        changed()
+    }
+
+    func update(textBox: TextBoxDTO) {
+        replace { all in if let i = all.textBoxes.firstIndex(where: { $0.id == textBox.id }) { all.textBoxes[i] = textBox } }
+    }
+
+    func update(table: TableDTO) {
+        replace { all in if let i = all.tables.firstIndex(where: { $0.id == table.id }) { all.tables[i] = table } }
+    }
+
+    func update(latex: LatexDTO) {
+        replace { all in if let i = all.latex.firstIndex(where: { $0.id == latex.id }) { all.latex[i] = latex } }
+    }
+
+    func deleteObject(id: String) {
+        selectedObjects.remove(id)
+        selectionChanged()
+        replace { all in all = all.without([id]) }
+    }
+
+    /// Opens the editor for the text box, table or equation at `point`
+    /// (page units). True if there was one.
+    @discardableResult
+    func editObject(at point: CGPoint) -> Bool {
+        let all = objects
+        // The topmost: drawn last.
+        for (id, frame) in all.frames.reversed() where frame.contains(point) {
+            if let box = all.textBoxes.first(where: { $0.id == id }) {
+                editing = .text(box, isNew: false)
+            } else if let table = all.tables.first(where: { $0.id == id }) {
+                editing = .table(table, isNew: false)
+            } else if let block = all.latex.first(where: { $0.id == id }) {
+                editing = .equation(block, isNew: false)
+            } else {
+                continue
+            }
+            return true
+        }
+        return false
+    }
+
+    // ---------------------------------------------------------------- undo
+
+    /// A page's ink and objects.
+    struct PageState {
         var ink: [StrokeDTO]
-        var other: (path: String, ink: [StrokeDTO])?
+        var objects: PageObjects
+    }
+
+    var state: PageState { PageState(ink: ink.map(\.dto), objects: objects) }
+
+    /// One undo step: the page before a change, and, when writing was moved
+    /// here from another page, that page before too, so one undo puts it
+    /// back where it was.
+    struct InkSnapshot {
+        var state: PageState
+        var other: (path: String, state: PageState)?
     }
 
     /// Marks the start of one undoable change (a stroke, or one eraser drag).
-    func record(other: (path: String, ink: [StrokeDTO])? = nil) {
-        undoStack.append(InkSnapshot(ink: ink.map(\.dto), other: other))
+    func record(other: (path: String, state: PageState)? = nil) {
+        undoStack.append(InkSnapshot(state: state, other: other))
         if undoStack.count > 200 { undoStack.removeFirst() }
         redoStack = []
         updateUndo()
@@ -1173,38 +1407,45 @@ final class Store {
 
     func undo() {
         guard let last = undoStack.popLast() else { return }
-        redoStack.append(InkSnapshot(ink: ink.map(\.dto), other: last.other.map { ($0.path, inkOnDisk($0.path)) }))
+        redoStack.append(InkSnapshot(state: state, other: last.other.map { ($0.path, stateOnDisk($0.path)) }))
         restore(last)
     }
 
     func redo() {
         guard let next = redoStack.popLast() else { return }
-        undoStack.append(InkSnapshot(ink: ink.map(\.dto), other: next.other.map { ($0.path, inkOnDisk($0.path)) }))
+        undoStack.append(InkSnapshot(state: state, other: next.other.map { ($0.path, stateOnDisk($0.path)) }))
         restore(next)
     }
 
     private func restore(_ snapshot: InkSnapshot) {
         selection = []
-        hasSelection = false
+        selectedObjects = []
+        selectionChanged()
         floating = false
-        if let other = snapshot.other { writeInk(other.ink, to: other.path) }
-        ink = snapshot.ink.map(Ink.init)
+        if let other = snapshot.other { writeState(other.state, to: other.path) }
+        ink = snapshot.state.ink.map(Ink.init)
+        if var page = doc {
+            snapshot.state.objects.apply(to: &page)
+            doc = page
+        }
         inkChanged?(nil)
         updateUndo()
         changed()
     }
 
-    /// The strokes saved in another page's file.
-    private func inkOnDisk(_ path: String) -> [StrokeDTO] {
+    /// Another page as saved.
+    private func stateOnDisk(_ path: String) -> PageState {
         finishSaving()
-        return (try? Core.readPage(path))?.strokes ?? []
+        let other = try? Core.readPage(path)
+        return PageState(ink: other?.strokes ?? [], objects: PageObjects(doc: other))
     }
 
-    /// Replaces the strokes in another page's file.
-    private func writeInk(_ strokes: [StrokeDTO], to path: String) {
+    /// Replaces another page's ink and objects in its file.
+    private func writeState(_ state: PageState, to path: String) {
         finishSaving()
         guard var other = try? Core.readPage(path) else { return }
-        other.strokes = strokes
+        other.strokes = state.ink
+        state.objects.apply(to: &other)
         do {
             try Core.writePage(path, other)
         } catch {

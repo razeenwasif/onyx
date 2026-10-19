@@ -618,7 +618,8 @@ struct PageGridPanel: View {
                 add: {
                     app.showingPageGrid = false
                     app.newPage()
-                }
+                },
+                addMany: { app.addPages($0) }
             )
         }
     }

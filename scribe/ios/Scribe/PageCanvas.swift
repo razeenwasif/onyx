@@ -275,6 +275,9 @@ final class PageView: UIView {
         var texts: [TextBoxDTO] = []
         var images: [(CGRect, UIImage)] = []
         var latex: [LatexDTO] = []
+        /// Equations typeset ahead (on the main thread, as SwiftMath
+        /// needs), by id, for the tiles to draw.
+        var latexImages: [String: UIImage] = [:]
         var tables: [TableDTO] = []
 
         init() {}
@@ -285,9 +288,10 @@ final class PageView: UIView {
                 self.init()
                 return
             }
-            self.init(doc: doc, sectionPath: store.pageSectionPath, ink: store.visibleInk)
+            self.init(doc: store.visibleDoc ?? doc, sectionPath: store.pageSectionPath, ink: store.visibleInk)
         }
 
+        @MainActor
         init(doc: PageDoc, sectionPath section: String, ink: [Ink]) {
             background = doc.background
             pdf = PDFBackground.page(for: doc.background, sectionPath: section)
@@ -295,6 +299,9 @@ final class PageView: UIView {
             splitInk()
             texts = doc.textBoxes
             latex = doc.latexBlocks
+            for block in latex {
+                if let image = ObjectGeometry.latexImage(block) { latexImages[block.id] = image }
+            }
             tables = doc.tables
             images = doc.images.compactMap { dto in
                 let path = (section as NSString).appendingPathComponent(dto.file)
@@ -350,10 +357,18 @@ final class PageView: UIView {
         lock.lock()
         let c = content
         lock.unlock()
+        Self.draw(c, in: rect, ctx, paper: true)
+    }
 
-        ctx.setFillColor(Velvet.page.cgColor)
-        ctx.fill(rect)
-        drawBackground(c, in: rect, ctx)
+    /// Draws `c` within `rect` (page units) into the current UIKit context:
+    /// the paper (unless `paper` is false, for a selection being dragged),
+    /// then highlighter, pictures, tables, text, equations and pen ink.
+    nonisolated static func draw(_ c: Content, in rect: CGRect, _ ctx: CGContext, paper: Bool) {
+        if paper {
+            ctx.setFillColor(Velvet.page.cgColor)
+            ctx.fill(rect)
+            drawBackground(c, in: rect, ctx)
+        }
 
         // Highlighter goes under the text and pictures, as on paper, so
         // highlighted words stay readable; pen ink goes on top.
@@ -363,37 +378,17 @@ final class PageView: UIView {
         }
         // Only what reaches this tile: laying out every text box on a big
         // imported page for each tile was much of the time drawing took.
-        for table in c.tables where Self.frame(of: table).intersects(rect) { drawTable(table, ctx) }
-        for box in c.texts where Self.frame(of: box).intersects(rect) { drawText(box) }
-        for block in c.latex where CGRect(x: block.x, y: block.y - 10, width: 2000, height: block.scale * 4 + 40).intersects(rect) {
-            drawLatex(block)
+        for table in c.tables where ObjectGeometry.frame(of: table).intersects(rect) { drawTable(table, ctx) }
+        for box in c.texts where ObjectGeometry.frame(of: box).intersects(rect) { drawText(box) }
+        for block in c.latex {
+            let image = c.latexImages[block.id]
+            guard ObjectGeometry.frame(of: block, size: image?.size).intersects(rect) else { continue }
+            drawLatex(block, image: image)
         }
         drawInk(c.pens, in: rect, ctx)
     }
 
-    /// Generous bounds for a text box: its height if known, else enough for
-    /// its lines, wrapped at its width.
-    private static func frame(of box: TextBoxDTO) -> CGRect {
-        let width: Double = max(box.width, 40)
-        let perLine: Double = box.fontSize * 0.6 / width
-        var lines: Double = 0
-        for line in box.text.split(separator: "\n", omittingEmptySubsequences: false) {
-            lines += max(1, ceil(Double(line.count) * perLine))
-        }
-        let height: Double = box.height ?? (lines * box.fontSize * 1.5)
-        return CGRect(x: box.x - 8, y: box.y - 8, width: width + 16, height: max(height, lines * box.fontSize * 1.5) + 16)
-    }
-
-    private static func frame(of table: TableDTO) -> CGRect {
-        let columns = table.rows.map(\.count).max() ?? 0
-        var width: Double = 0
-        for i in 0..<columns {
-            if let widths = table.columnWidths, i < widths.count { width += widths[i] } else { width += 140 }
-        }
-        return CGRect(x: table.x - 4, y: table.y - 4, width: width + 8, height: Double(table.rows.count) * 30 + 8)
-    }
-
-    private func drawInk(_ ink: [Ink], in rect: CGRect, _ ctx: CGContext) {
+    nonisolated private static func drawInk(_ ink: [Ink], in rect: CGRect, _ ctx: CGContext) {
         for s in ink where s.bounds.intersects(rect) {
             ctx.addPath(s.path)
             ctx.setFillColor(s.color)
@@ -401,7 +396,7 @@ final class PageView: UIView {
         }
     }
 
-    private func drawBackground(_ c: Content, in rect: CGRect, _ ctx: CGContext) {
+    nonisolated private static func drawBackground(_ c: Content, in rect: CGRect, _ ctx: CGContext) {
         let kind = c.background.kind.lowercased()
         if kind == "pdf" {
             if let pdf = c.pdf { PDFBackground.draw(pdf, in: ctx) }
@@ -448,7 +443,7 @@ final class PageView: UIView {
         }
     }
 
-    private func drawText(_ box: TextBoxDTO) {
+    nonisolated private static func drawText(_ box: TextBoxDTO) {
         var traits: UIFontDescriptor.SymbolicTraits = []
         if box.bold || box.heading != nil { traits.insert(.traitBold) }
         if box.italic { traits.insert(.traitItalic) }
@@ -465,8 +460,12 @@ final class PageView: UIView {
         (box.text as NSString).draw(with: frame, options: [.usesLineFragmentOrigin], attributes: attrs, context: nil)
     }
 
-    /// Formulas show as their source until the iPad can typeset them.
-    private func drawLatex(_ block: LatexDTO) {
+    /// A formula typeset ahead; its source if SwiftMath couldn't set it.
+    nonisolated private static func drawLatex(_ block: LatexDTO, image: UIImage?) {
+        if let image {
+            image.draw(at: CGPoint(x: block.x, y: block.y))
+            return
+        }
         let attrs: [NSAttributedString.Key: Any] = [
             .font: UIFont.monospacedSystemFont(ofSize: max(block.scale * 0.8, 10), weight: .regular),
             .foregroundColor: Velvet.muted,
@@ -474,7 +473,7 @@ final class PageView: UIView {
         (block.latex as NSString).draw(at: CGPoint(x: block.x, y: block.y), withAttributes: attrs)
     }
 
-    private func drawTable(_ table: TableDTO, _ ctx: CGContext) {
+    nonisolated private static func drawTable(_ table: TableDTO, _ ctx: CGContext) {
         let columns = table.rows.map(\.count).max() ?? 0
         guard columns > 0 else { return }
         let widths = (0..<columns).map { i in table.columnWidths.flatMap { i < $0.count ? $0[i] : nil } ?? 140 }

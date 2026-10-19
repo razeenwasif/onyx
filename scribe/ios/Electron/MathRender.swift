@@ -16,7 +16,8 @@ enum MathRender {
     private static var failures: Set<String> = []
 
     static func render(_ latex: String, size: CGFloat, display: Bool, color: UIColor = EV.fg) -> Rendered? {
-        let key = "\(display ? "D" : "I")\(size)|\(latex)"
+        let rgba = color.cgColor.components?.map { String(format: "%.3f", $0) }.joined(separator: ",") ?? ""
+        let key = "\(display ? "D" : "I")\(size)|\(rgba)|\(latex)"
         if let hit = cache[key] { return hit }
         if failures.contains(key) { return nil }
         func draw(_ loose: Bool) -> (UIImage, MathImage.LayoutInfo)? {

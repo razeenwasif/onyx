@@ -18,6 +18,7 @@ enum Velvet {
 extension Color {
     static let velvetAccent = Color(uiColor: Velvet.accent)
     static let velvetMuted = Color(uiColor: Velvet.muted)
+    static let velvetText = Color(uiColor: Velvet.text)
     static let velvetBackdrop = Color(uiColor: Velvet.backdrop)
     static let velvetSidebar = Color(uiColor: Velvet.sidebar)
 

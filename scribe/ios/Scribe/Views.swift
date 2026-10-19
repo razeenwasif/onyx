@@ -237,7 +237,8 @@ struct WritingView: View {
                     add: {
                         store.showingGrid = false
                         store.newPage()
-                    }
+                    },
+                    addMany: { store.addPages($0) }
                 )
             } else if store.doc != nil {
                 Group {
@@ -355,6 +356,7 @@ struct WritingView: View {
         }
         .modifier(RenameTitleMenu(store: store, prompt: $prompt))
         .onAppear { canPaste = store.canPaste }
+        .sheet(item: $store.editing) { ObjectEditor(store: store, editing: $0) }
         .onReceive(NotificationCenter.default.publisher(for: UIPasteboard.changedNotification)) { _ in canPaste = store.canPaste }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in canPaste = store.canPaste }
         .background {
@@ -627,6 +629,7 @@ struct ToolDock: View {
             tool(.highlighter, "highlighter")
             tool(.strokeEraser, "eraser")
             tool(.select, "lasso")
+            InsertObjectMenu(store: store)
             divider
             if compact {
                 colorMenu
