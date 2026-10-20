@@ -35,6 +35,8 @@ import { toggleTaskOnLine } from '../lib/notes'
 import { frontmatterLength } from '@shared/parse'
 import { isScribeTarget } from '@shared/scribe-link'
 import { openScribeTarget, scribePageFor } from '../lib/scribe-links'
+import type { AppSettings } from '@shared/types'
+import { NoteHeader } from './NoteHeader'
 
 /** Decoration layers for a mode: Live Preview also renders the block widgets. */
 function livePreviewExtensions(live: boolean): Extension {
@@ -61,10 +63,12 @@ const highlightStyle = HighlightStyle.define([
 ])
 
 const baseTheme = EditorView.theme({
-  '&': { height: '100%' },
+  // The note's view scrolls, not the editor, so the header above the text
+  // scrolls away with it. CodeMirror follows a scrolling ancestor.
+  '&': { minHeight: '100%' },
   // CodeMirror's base theme hardcodes a monospace scroller; this is scoped to
   // the generated theme class, so it wins without an `!important`.
-  '.cm-scroller': { overflow: 'auto', fontFamily: 'var(--font-text)' },
+  '.cm-scroller': { overflow: 'visible', fontFamily: 'var(--font-note)' },
   // Same reason: CodeMirror's base theme paints a pale blue active line and a
   // blue selection, neither of which belongs in a themed note editor.
   '.cm-activeLine': { backgroundColor: 'transparent' },
@@ -73,6 +77,17 @@ const baseTheme = EditorView.theme({
   },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--accent)' },
 })
+
+/** A note's view: wide without readable line length, sans when serif is off. */
+function viewClass(settings: AppSettings | null): string {
+  return [
+    'markdown-view',
+    settings?.readableLineLength === false ? 'wide' : '',
+    settings?.serifText === false ? '' : 'is-serif',
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
 
 export function MarkdownView({ tab }: { tab: Tab }): JSX.Element {
   const mode = tab.mode ?? 'livePreview'
@@ -287,6 +302,8 @@ function CodeMirrorView({ tab, mode }: { tab: Tab; mode: 'livePreview' | 'source
         changes: { from: 0, to: current.length, insert: doc.content },
         selection: { anchor },
       })
+      // The update listener marked that as an edit; it isn't one.
+      setDoc(path, doc.content, doc.dirty)
     }
   }, [doc?.content])
 
@@ -300,7 +317,7 @@ function CodeMirrorView({ tab, mode }: { tab: Tab; mode: 'livePreview' | 'source
   const width = settings?.readableLineLength === false ? 'none' : '720px'
   return (
     <div
-      className="markdown-view"
+      className={viewClass(settings)}
       style={
         {
           '--content-width': width,
@@ -308,11 +325,8 @@ function CodeMirrorView({ tab, mode }: { tab: Tab; mode: 'livePreview' | 'source
         } as React.CSSProperties
       }
     >
-      <div
-        ref={hostRef}
-        style={{ height: '100%' }}
-        className={settings?.readableLineLength === false ? 'onyx-wide' : ''}
-      />
+      <NoteHeader path={path} />
+      <div ref={hostRef} className={settings?.readableLineLength === false ? 'onyx-wide' : ''} />
     </div>
   )
 }
@@ -446,7 +460,7 @@ function ReadingView({ tab }: { tab: Tab }): JSX.Element {
 
   return (
     <div
-      className="markdown-view"
+      className={viewClass(settings)}
       style={
         {
           '--content-width': settings?.readableLineLength === false ? 'none' : '720px',
@@ -455,6 +469,7 @@ function ReadingView({ tab }: { tab: Tab }): JSX.Element {
       }
     >
       <div className="markdown-sizer">
+        <NoteHeader path={path} />
         <div
           className="rendered"
           ref={ref}

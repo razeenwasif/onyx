@@ -391,6 +391,10 @@ export const useStore = create<State & Actions>((set, get) => ({
     // Already open in this pane? Just focus it.
     const existing = pane.tabs.find((t) => t.path === path)
     if (existing && !opts.newTab) {
+      // A tab restored from the last session loads its buffer only when
+      // selected; without this the editor opens empty, and typing into it
+      // would autosave over the file.
+      if (type === 'markdown') void get().ensureDoc(path)
       set({
         activePaneId: pane.id,
         panes: s.panes.map((p) => (p.id === pane.id ? { ...p, activeTabId: existing.id } : p)),

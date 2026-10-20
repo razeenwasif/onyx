@@ -335,6 +335,8 @@ export interface AppSettings {
   vimMode: boolean
   lineNumbers: boolean
   readableLineLength: boolean
+  /** Notes in a serif face (the reading column); off for the UI's sans. */
+  serifText: boolean
   spellcheck: boolean
   /**
    * Filesystem watching. `auto` polls when the vault is on a filesystem that

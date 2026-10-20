@@ -67,6 +67,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   vimMode: false,
   lineNumbers: false,
   readableLineLength: true,
+  serifText: true,
   spellcheck: false,
   watchMode: 'auto',
   fontSize: 16,

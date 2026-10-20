@@ -280,8 +280,12 @@
 
 [data-style='velvet'] .inline-title {
   font-weight: 600;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.02em;
   color: var(--heading);
+}
+
+[data-style='velvet'] .note-tag {
+  background: rgba(167, 139, 250, 0.12);
 }
 
 [data-style='velvet'] .rendered h1,
@@ -540,12 +544,16 @@
 /* CodeMirror's base theme (scoped to its generated class) beats app.css's
    line and content padding; these selectors are specific enough to win, so
    the text sits clear of the card's rounded edges. */
+[data-style='velvet'] .markdown-view {
+  --line-pad: 36px;
+}
+
 [data-style='velvet'] .cm-editor .cm-content {
-  padding: 26px 0 40vh;
+  padding: 12px 0 40vh;
 }
 
 [data-style='velvet'] .cm-editor .cm-line {
-  padding: 0 36px;
+  padding: 0 var(--line-pad);
 }
 
 [data-style='velvet'] .cm-editor .cm-content > .properties {

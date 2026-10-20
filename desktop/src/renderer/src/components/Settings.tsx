@@ -81,6 +81,12 @@ export function Settings(): JSX.Element {
                 onChange={(v) => void set({ readableLineLength: v })}
               />
               <Toggle
+                name="Serif text"
+                desc="Set notes in a serif face, like a page; off uses the interface's sans."
+                on={settings.serifText}
+                onChange={(v) => void set({ serifText: v })}
+              />
+              <Toggle
                 name="Autosave"
                 desc="Write the file after a pause in typing."
                 on={settings.autosave}
