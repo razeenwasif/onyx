@@ -13,7 +13,6 @@
   --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   --radius: 6px;
   --radius-lg: 10px;
-  --ribbon-w: 44px;
   --header-h: 38px;
   --status-h: 24px;
   --ui-font-size: 13px;
@@ -98,42 +97,19 @@ textarea {
   min-height: 0;
 }
 
-/* Ribbon ------------------------------------------------------------------ */
-
-.ribbon {
-  width: var(--ribbon-w);
-  flex: 0 0 var(--ribbon-w);
-  background: var(--bg-ribbon);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 8px 0;
-  gap: 2px;
-  border-right: 1px solid var(--divider);
-}
-
-.ribbon-spacer {
-  flex: 1;
-}
-
-.ribbon-logo {
-  display: none;
-}
-
-/* Electron and Scribe (macOS): the current app, then the one to switch to. */
+/* Electron and Scribe (macOS), at the left of the top bar: the current
+   app, then the one to switch to. */
 .app-switcher {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: 4px;
 }
 
 .app-switch {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   padding: 3px;
-  border-radius: 10px;
+  border-radius: 9px;
   display: grid;
   place-items: center;
   opacity: 0.55;
@@ -157,26 +133,6 @@ textarea {
   width: 100%;
   height: 100%;
   display: block;
-}
-
-.ribbon-btn {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius);
-  color: var(--fg-subtle);
-  transition: color 80ms ease, background 80ms ease;
-}
-
-.ribbon-btn:hover {
-  color: var(--fg);
-  background: var(--bg-hover);
-}
-
-.ribbon-btn.is-active {
-  color: var(--accent);
-  background: var(--accent-soft);
 }
 
 /* Sidebars ---------------------------------------------------------------- */
@@ -524,17 +480,15 @@ textarea {
   display: none;
 }
 
-/* With no native title bar (macOS), the tab bar's empty space and the ribbon
-   are what move the window. Anything clickable inside them opts back out. */
-.tabbar,
-.ribbon {
+/* With no native title bar (macOS), the top bar's and the tab bar's empty
+   space are what move the window. Anything clickable inside opts back out. */
+.tabbar {
   -webkit-app-region: drag;
 }
 
 .tabbar .tab,
 .tabbar button,
-.tabbar .context-menu,
-.ribbon button {
+.tabbar .context-menu {
   -webkit-app-region: no-drag;
 }
 
@@ -2839,8 +2793,66 @@ textarea {
   -webkit-app-region: drag;
 }
 
-.topbar button {
+.topbar button,
+.topbar .context-menu {
   -webkit-app-region: no-drag;
+}
+
+/* In zen mode the top bar goes, but a strip stays to move the window and
+   keep the traffic lights off the tabs. */
+.zen-strip {
+  flex: 0 0 28px;
+  -webkit-app-region: drag;
+}
+
+/* Room for the traffic lights, which sit over the window's top left. */
+.topbar.is-mac {
+  padding-left: 80px;
+}
+
+.topbar-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.topbar-tool {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fg-subtle);
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
+}
+
+.topbar-tool:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+
+.topbar-tool.is-active {
+  color: var(--accent);
+}
+
+.topbar-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  background: var(--divider);
+}
+
+.topbar-more {
+  position: relative;
+}
+
+.topbar-more .topbar-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
 }
 
 .topbar-centre {
@@ -3311,6 +3323,10 @@ textarea {
   color: var(--fg);
 }
 
+.topbar-today.is-active {
+  color: var(--accent);
+}
+
 .today {
   flex: 1;
   min-height: 0;
@@ -3700,6 +3716,41 @@ textarea {
   flex-direction: column;
   gap: 18px;
   padding: 12px 8px 16px;
+}
+
+/* The vault's name and settings, held at the bottom as the list scrolls. */
+.lib-foot {
+  position: sticky;
+  bottom: -16px;
+  margin: auto -8px -16px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-top: 1px solid var(--divider);
+  background: inherit;
+}
+
+.lib-vault {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--fg-dim);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lib-vault:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
 }
 
 .lib-today {

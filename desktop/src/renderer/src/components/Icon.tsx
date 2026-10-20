@@ -157,6 +157,19 @@ const P: Record<string, JSX.Element> = {
       <path d="M6.5 19a4.5 4.5 0 0 1-.6-8.96 6 6 0 0 1 11.5 1.36A3.8 3.8 0 0 1 17.5 19Z" />
     </>
   ),
+  /** The window with its left or right column marked: the panel toggles. */
+  panelLeft: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2.5" />
+      <path d="M9 4v16" />
+    </>
+  ),
+  panelRight: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2.5" />
+      <path d="M15 4v16" />
+    </>
+  ),
   trash: (
     <>
       <path d="M4 7h16M10 11v6M14 11v6" />

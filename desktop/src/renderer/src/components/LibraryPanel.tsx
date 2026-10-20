@@ -7,6 +7,8 @@
  *   Ink          Scribe's notebooks, by folder; one opens its latest page
  *   Scratch pad  the quick note (`.onyx/quicknote.md`), folded away
  *
+ * At the foot: the vault's name (click to open another) and settings.
+ *
  * Sections fold by their heading; which are folded is remembered.
  */
 
@@ -105,9 +107,37 @@ export function LibraryPanel(): JSX.Element {
             </div>
           )}
         </section>
+        <VaultFoot />
       </div>
       <Resizer edge="right" value={width} onChange={setWidth} />
     </aside>
+  )
+}
+
+function VaultFoot(): JSX.Element {
+  const vault = useStore((s) => s.vault)
+  return (
+    <div className="lib-foot">
+      <button
+        type="button"
+        className="lib-vault"
+        title={`${vault?.root ?? ''}\nOpen another vault…`}
+        onClick={() => runCommand('vault:open')}
+      >
+        <Icon name="vault" size={14} />
+        <span className="lib-row-label">{vault?.name ?? 'Vault'}</span>
+        <Icon name="chevronDown" size={11} />
+      </button>
+      <button
+        type="button"
+        className="icon-btn"
+        title="Settings"
+        aria-label="Settings"
+        onClick={() => runCommand('settings:open')}
+      >
+        <Icon name="settings" size={15} />
+      </button>
+    </div>
   )
 }
 

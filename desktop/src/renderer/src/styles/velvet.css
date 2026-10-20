@@ -9,7 +9,6 @@
   --radius-lg: 14px;
   --radius-card: 18px;
   --gap: 8px;
-  --ribbon-w: 54px;
   --header-h: 46px;
   --status-h: 30px;
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
@@ -37,53 +36,17 @@
 }
 
 [data-style='velvet'] .app-body {
-  padding: var(--gap) var(--gap) 0 0;
+  padding: 0 var(--gap);
 }
 
 [data-style='velvet'] .app-main {
   gap: var(--gap);
 }
 
-/* Ribbon: icons float on the backdrop, no strip behind them. */
-[data-style='velvet'] .ribbon {
-  background: transparent;
-  border-right: none;
-  padding: 14px 0 12px;
-  gap: 4px;
-}
-
-[data-style='velvet'] .app-switcher {
-  margin-bottom: 14px;
-}
-
 [data-style='velvet'] .app-switch {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-}
-
-[data-style='velvet'] .app-switcher + .ribbon-logo {
-  display: none;
-}
-
-[data-style='velvet'] .ribbon-logo {
-  display: block;
-  width: 30px;
-  height: 30px;
-  margin-bottom: 12px;
-  flex: 0 0 auto;
-}
-
-[data-style='velvet'] .ribbon-btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease;
-}
-
-/* Several panes are usually open at once, so "active" stays quiet: tint, no glow. */
-[data-style='velvet'] .ribbon-btn.is-active {
-  background: rgba(167, 139, 250, 0.09);
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
 }
 
 /* ------------------------------------------------------------- sidebars */
@@ -912,7 +875,11 @@
 /* ---------------------------------------- top bar, command bar, context */
 
 [data-style='velvet'] .topbar {
-  padding: 0 var(--gap) 0 0;
+  padding: 0;
+}
+
+[data-style='velvet'] .topbar.is-mac {
+  padding-left: 72px;
 }
 
 [data-style='velvet'] .topbar-search {
@@ -981,5 +948,5 @@
   background: var(--velvet);
   border-radius: var(--radius-card);
   box-shadow: var(--card-shadow);
-  margin: 0 0 var(--gap) var(--gap);
+  margin: 0 0 var(--gap);
 }

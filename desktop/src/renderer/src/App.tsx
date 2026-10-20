@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { useStore } from './store'
 import { COMMANDS, keyString, runCommand } from './commands'
-import { Ribbon } from './components/Ribbon'
 import { LeftSidebar, RightSidebar } from './components/Sidebars'
 import { Workspace } from './components/Workspace'
 import { StatusBar } from './components/StatusBar'
@@ -153,9 +152,8 @@ export function App(): JSX.Element {
 
   return (
     <div className="app">
-      <Ribbon />
       <div className="app-body">
-        {!zen && <TopBar />}
+        {zen ? <div className="zen-strip" /> : <TopBar />}
         <div className="app-main">
           {leftOpen && !zen && <LeftSidebar />}
           <Workspace />
