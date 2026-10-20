@@ -14,6 +14,10 @@ export function TopBar(): JSX.Element {
   const setModal = useStore((s) => s.setModal)
   return (
     <header className="topbar">
+      <button type="button" className="topbar-today" onClick={() => runCommand('today:open')}>
+        <Icon name="calendar" size={14} />
+        Today
+      </button>
       <div className="topbar-centre">
         <button type="button" className="topbar-search" onClick={() => setModal({ kind: 'command' })}>
           <Icon name="search" size={15} />

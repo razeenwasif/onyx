@@ -3289,3 +3289,403 @@ textarea {
   position: absolute;
   inset: 0;
 }
+
+/* ---------------------------------------------------------------- today */
+
+.topbar-today {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fg-dim);
+  font: inherit;
+  cursor: pointer;
+}
+
+.topbar-today:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.today {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.today-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 36px 36px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.today-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.today-date {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.today-title {
+  margin: 8px 0 0;
+  font-family: ui-serif, 'New York', Georgia, serif;
+  font-weight: 500;
+  font-size: 42px;
+  line-height: 1.1;
+  color: var(--heading);
+}
+
+.today-continue {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--bg-alt);
+  color: var(--fg);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  max-width: 100%;
+}
+
+.today-continue:hover {
+  background: var(--bg-hover);
+}
+
+.today-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.today-note {
+  flex: 999 1 480px;
+  min-width: 0;
+}
+
+.today-side {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.today-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 22px;
+  border-radius: 18px;
+  background: var(--bg-alt);
+}
+
+.today-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.today-card-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.today-link {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.today-link:hover {
+  text-decoration: underline;
+}
+
+.today-dim {
+  font-size: 12.5px;
+  color: var(--fg-subtle);
+}
+
+.today-pad {
+  padding: 4px 0;
+}
+
+.today-note-text {
+  flex: 1;
+  min-height: 220px;
+  resize: none;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--fg);
+  font-family: ui-serif, 'New York', Georgia, serif;
+  font-size: 18px;
+  line-height: 1.7;
+}
+
+.today-note-text::placeholder {
+  color: var(--fg-subtle);
+}
+
+.today-capture {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 8px 0 14px;
+  border-radius: 12px;
+  background: var(--bg-chrome);
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+}
+
+.today-capture input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+}
+
+.today-capture kbd {
+  font: 500 11px var(--font-ui);
+  color: var(--fg-dim);
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--bg-active);
+}
+
+.today-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.today-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 0 7px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.today-day:hover {
+  background: var(--bg-hover);
+}
+
+.today-day.is-today {
+  background: var(--bg-active);
+}
+
+.today-day-name {
+  font-size: 11px;
+  color: var(--fg-subtle);
+}
+
+.today-day.is-today .today-day-name {
+  color: var(--accent);
+}
+
+.today-day-num {
+  font-weight: 600;
+}
+
+.today-day-marks {
+  display: flex;
+  gap: 3px;
+  height: 5px;
+}
+
+.today-day-marks span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.mark-note {
+  background: var(--accent);
+}
+
+.mark-event {
+  background: #e39072;
+}
+
+.today-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.today-events span {
+  display: inline-block;
+  width: 64px;
+  color: var(--fg-subtle);
+}
+
+.today-tasks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.today-tasks li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+}
+
+.today-tasks input {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  accent-color: var(--accent);
+}
+
+.today-task-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-task-note {
+  max-width: 30%;
+  border: 0;
+  background: transparent;
+  color: var(--fg-subtle);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-task-note:hover {
+  color: var(--accent);
+}
+
+.today-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.today-filter {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--bg-alt);
+}
+
+.today-filter button {
+  height: 28px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.today-filter button.is-on {
+  background: var(--bg-active);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.today-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.today-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 132px;
+  padding: 16px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--bg-alt);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.today-tile:hover {
+  background: var(--bg-hover);
+}
+
+.today-tile.is-ink {
+  box-shadow: inset 0 0 0 1px rgba(227, 144, 114, 0.3);
+}
+
+.today-tile-kind {
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.today-tile.is-ink .today-tile-kind {
+  color: #f0ad93;
+}
+
+.today-tile-title {
+  font-family: ui-serif, 'New York', Georgia, serif;
+  font-size: 19px;
+  line-height: 1.25;
+}
+
+.today-tile-when {
+  margin-top: auto;
+  font-size: 12px;
+  color: var(--fg-subtle);
+}

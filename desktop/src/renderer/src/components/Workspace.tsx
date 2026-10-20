@@ -9,6 +9,7 @@ import { GraphView } from '../graph/GraphView'
 import { CanvasView } from '../canvas/CanvasView'
 import { DatabaseView } from './DatabaseView'
 import { SearchPane } from './LeftSidebar'
+import { TodayView } from './TodayView'
 import { DriveView } from './DriveView'
 import { AIView } from './AIView'
 import { assetUrl } from '../lib/assets'
@@ -290,7 +291,7 @@ function ViewFor({ tab }: { tab: Tab }): JSX.Element {
     case 'pdf':
       return <PdfView path={tab.path!} />
     default:
-      return <EmptyView />
+      return <TodayView />
   }
 }
 
@@ -336,36 +337,3 @@ function PdfView({ path }: { path: string }): JSX.Element {
   )
 }
 
-function EmptyView(): JSX.Element {
-  const notes = useStore((s) => s.notes)
-  const openFile = useStore((s) => s.openFile)
-  const recent = [...notes.values()].sort((a, b) => b.mtime - a.mtime).slice(0, 5)
-
-  return (
-    <div className="view-empty">
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 15, marginBottom: 4 }}>No file is open</div>
-        <div className="actions">
-          <button onClick={() => runCommand('file:new')}>Create new note</button>
-          <button onClick={() => runCommand('switcher:open')}>Go to file…</button>
-          <button onClick={() => runCommand('graph:open')}>Open graph view</button>
-          <button onClick={() => runCommand('file:daily')}>Open today's daily note</button>
-        </div>
-        {recent.length > 0 && (
-          <>
-            <div style={{ marginTop: 22, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em' }}>
-              Recent
-            </div>
-            <div className="actions">
-              {recent.map((n) => (
-                <button key={n.path} onClick={() => void openFile(n.path)}>
-                  {stem(n.path)}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  )
-}

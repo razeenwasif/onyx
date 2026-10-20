@@ -117,6 +117,13 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    id: 'today:open',
+    name: 'Today',
+    hotkey: `${mod}+Shift+D`,
+    keys: ['mod+shift+d'],
+    run: () => s().openView('empty', { title: 'Today' }),
+  },
+  {
     id: 'file:daily',
     name: "Open today's daily note",
     run: async () => {

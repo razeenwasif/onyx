@@ -3,7 +3,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { fuzzyScore, linkedMentions, matchesMeta, parseQuery, search, unlinkedMentions } from './search'
+import { fuzzyScore, linkedMentions, matchesMeta, openTasks, parseQuery, search, unlinkedMentions } from './search'
 import { Vault, parseNote } from './vault'
 
 describe('query parsing', () => {
@@ -141,6 +141,19 @@ describe('full-vault search', () => {
     const delta = linked.find((m) => m.path === 'Delta.md')
     expect(delta?.contexts.map((c) => c.line)).toEqual([2, 4])
     expect(delta?.contexts[0].text).toBe('First [[Alpha]] here.')
+  })
+
+  it('lists open tasks, not done ones or ones in code', async () => {
+    await fs.writeFile(
+      path.join(root, 'Delta.md'),
+      '# Delta\n\n- [ ] Read 5.3\n- [x] Done already\n```\n- [ ] not a task\n```\n  * [ ] Nested one\n',
+    )
+    await vault.load()
+    const tasks = (await openTasks(vault)).filter((t) => t.path === 'Delta.md')
+    expect(tasks.map((t) => [t.line, t.text])).toEqual([
+      [2, 'Read 5.3'],
+      [7, 'Nested one'],
+    ])
   })
 
   it('does not report a note that already links the target', async () => {

@@ -954,3 +954,24 @@
 [data-style='velvet'] .context-wide-btn {
   background: rgba(255, 255, 255, 0.025);
 }
+
+[data-style='velvet'] .today-card,
+[data-style='velvet'] .today-tile,
+[data-style='velvet'] .today-continue {
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+[data-style='velvet'] .today-tile.is-ink {
+  box-shadow: inset 0 0 0 1px rgba(227, 144, 114, 0.28);
+}
+
+[data-style='velvet'] .today-capture {
+  border: none;
+  background: var(--well);
+  box-shadow: var(--well-shadow);
+}
+
+[data-style='velvet'] .today-filter {
+  background: var(--well);
+}

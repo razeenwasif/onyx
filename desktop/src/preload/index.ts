@@ -14,6 +14,7 @@ import type {
   GoogleStatus,
   GraphData,
   NoteMeta,
+  OpenTask,
   ScribeHit,
   ScribePage,
   SearchHit,
@@ -108,6 +109,8 @@ export const api = {
     unlinked: (rel: string): Promise<Backlink[]> => ipcRenderer.invoke('search:unlinked', rel),
     /** Notes linking to `rel`, with the lines the links are on. */
     linked: (rel: string): Promise<Backlink[]> => ipcRenderer.invoke('search:linked', rel),
+    /** Open `- [ ]` tasks across the vault, most recently edited notes first. */
+    tasks: (): Promise<OpenTask[]> => ipcRenderer.invoke('search:tasks'),
   },
 
   google: {

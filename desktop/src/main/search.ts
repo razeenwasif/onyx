@@ -6,7 +6,7 @@
  * case-insensitive unless they contain an uppercase letter (smart case).
  */
 
-import type { NoteMeta, SearchHit } from '../shared/types.js'
+import type { NoteMeta, OpenTask, SearchHit } from '../shared/types.js'
 import { extractLinks, extractMdLinks } from '../shared/parse.js'
 import type { Vault } from './vault.js'
 
@@ -204,6 +204,40 @@ export async function linkedMentions(
     out.push({ path: other, title: vault.notes.get(other)?.title ?? other, contexts })
   }
   return out.sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' }))
+}
+
+
+const TASK_RE = /^\s*[-*+]\s+\[ \]\s+(.+)$/
+const FENCE_LINE = /^\s*(```|~~~)/
+
+/**
+ * Every open task in the vault, from notes edited most recently first, for
+ * the Today view. Skips fenced code and the vault's own `.onyx` files.
+ */
+export async function openTasks(vault: Vault, limit = 200): Promise<OpenTask[]> {
+  const out: OpenTask[] = []
+  const notes = [...vault.notes.values()]
+    .filter((m) => !m.path.startsWith('.onyx/'))
+    .sort((a, b) => b.mtime - a.mtime)
+  for (const meta of notes) {
+    let content: string
+    try {
+      content = await vault.cachedContent(meta.path)
+    } catch {
+      continue
+    }
+    if (!content.includes('[ ]')) continue
+    let fenced = false
+    const lines = content.split(/\r?\n/)
+    for (let i = 0; i < lines.length; i++) {
+      if (FENCE_LINE.test(lines[i])) fenced = !fenced
+      if (fenced) continue
+      const m = TASK_RE.exec(lines[i])
+      if (m) out.push({ path: meta.path, title: meta.title, line: i, text: m[1].trim(), mtime: meta.mtime })
+      if (out.length >= limit) return out
+    }
+  }
+  return out
 }
 
 // ------------------------------------------------------------------ fuzzy

@@ -190,7 +190,7 @@ function newTab(partial: Partial<Tab> = {}): Tab {
     id: uid(),
     type: 'empty',
     path: null,
-    title: 'New tab',
+    title: 'Today',
     state: {},
     pinned: false,
     history: [],
@@ -506,7 +506,7 @@ export const useStore = create<State & Actions>((set, get) => ({
       ai: 'Electron AI',
       database: 'Database',
       canvas: 'Canvas',
-      empty: 'New tab',
+      empty: 'Today',
     }
     const tab = newTab({
       type,

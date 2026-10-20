@@ -85,6 +85,15 @@ export interface Backlink {
   contexts: Array<{ line: number; text: string }>
 }
 
+/** An unticked `- [ ]` task somewhere in the vault (main/search.ts openTasks). */
+export interface OpenTask {
+  path: string
+  title: string
+  line: number
+  text: string
+  mtime: number
+}
+
 export interface SearchHit {
   path: string
   title: string
