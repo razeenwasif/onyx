@@ -1489,8 +1489,12 @@ function fitToContent(
     if (y > maxY) maxY = y
   }
   if (!Number.isFinite(minX)) return 0
-  const w = Math.max(maxX - minX, 1)
-  const h = Math.max(maxY - minY, 1)
+  // Frame the nodes' discs and labels too, not just their centres: a small
+  // graph (a local one) otherwise zooms in until the outer nodes are cut off.
+  // Negligible on a whole vault, which spans tens of thousands of units.
+  const margin = 70
+  const w = Math.max(maxX - minX, 1) + margin * 2
+  const h = Math.max(maxY - minY, 1) + margin * 2
   const targetX = (minX + maxX) / 2
   const targetY = (minY + maxY) / 2
   // The floor has to be low enough to frame a whole large vault: a 1500-node

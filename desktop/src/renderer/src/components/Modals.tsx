@@ -6,33 +6,11 @@ import { COMMANDS } from '../commands'
 import { Icon } from './Icon'
 import { SearchPane } from './LeftSidebar'
 import { Settings } from './Settings'
+import { CommandBar } from './CommandBar'
 import { stem } from '../lib/notes'
+import { fuzzy } from '../lib/fuzzy'
 
-/** Same scorer as the main process's, kept here so the list filters locally. */
-function fuzzy(needle: string, haystack: string): { score: number; positions: number[] } | null {
-  if (!needle) return { score: 0, positions: [] }
-  const n = needle.toLowerCase()
-  const h = haystack.toLowerCase()
-  const positions: number[] = []
-  let score = 0
-  let hi = 0
-  let last = -2
-  for (const c of n) {
-    const found = h.indexOf(c, hi)
-    if (found < 0) return null
-    positions.push(found)
-    let bonus = 1
-    if (found === last + 1) bonus += 8
-    if (found === 0) bonus += 10
-    else if (/[\s/_\-.]/.test(haystack[found - 1])) bonus += 7
-    score += bonus
-    last = found
-    hi = found + 1
-  }
-  return { score: score - Math.floor(haystack.length / 12) - Math.floor(positions[0] / 4), positions }
-}
-
-function Highlight({ text, positions }: { text: string; positions: number[] }): JSX.Element {
+export function Highlight({ text, positions }: { text: string; positions: number[] }): JSX.Element {
   if (!positions.length) return <>{text}</>
   const set = new Set(positions)
   return (
@@ -64,6 +42,7 @@ export function Modals(): JSX.Element | null {
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setModal(null)}>
       {modal.kind === 'switcher' && <QuickSwitcher />}
       {modal.kind === 'palette' && <CommandPalette />}
+      {modal.kind === 'command' && <CommandBar initial={modal.initial} />}
       {modal.kind === 'search' && (
         <div className="modal wide">
           <SearchPane initial={modal.initial} />

@@ -22,6 +22,7 @@ import { TodoPane, QuicknotePane } from './TodoPane'
 import { CalendarPane } from './CalendarPane'
 import { SidebarGraph } from '../graph/SidebarGraph'
 import { runCommand } from '../commands'
+import { ContextPanel } from './ContextPanel'
 
 const META: Record<SectionId, { title: string; icon: IconName }> = {
   files: { title: 'Files', icon: 'files' },
@@ -136,6 +137,7 @@ export function LeftSidebar(): JSX.Element {
   return <Side side="left" />
 }
 
+/** The right-hand side is one Context panel (ContextPanel.tsx), not a stack. */
 export function RightSidebar(): JSX.Element {
-  return <Side side="right" />
+  return <ContextPanel />
 }

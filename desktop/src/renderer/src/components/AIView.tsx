@@ -157,11 +157,12 @@ export function AIView({ tab }: { tab: Tab }): JSX.Element {
 
   // `AI: summarize this note` / `AI: ask my vault` open this pane with a
   // pending action; run it once, then clear it so a tab switch doesn't repeat.
-  const pending = tab.state.pending as { kind: string; path?: string } | undefined
+  const pending = tab.state.pending as { kind: string; path?: string; question?: string } | undefined
   useEffect(() => {
     if (!pending) return
     tab.state.pending = undefined
     if (pending.kind === 'summarize') send('/summarize')
+    else if (pending.kind === 'ask' && pending.question) send(`/ask ${pending.question}`)
     else if (pending.kind === 'ask') setDraft('/ask ')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending])

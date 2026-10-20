@@ -2824,3 +2824,468 @@ textarea {
   min-width: 70px;
   text-align: right;
 }
+
+/* ------------------------------------------------------------- top bar */
+/* The command bar's pill, centred, with New note at the right. The bar's
+   empty space moves the window (no native title bar on macOS). */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 52px;
+  flex: 0 0 52px;
+  padding: 0 12px;
+  -webkit-app-region: drag;
+}
+
+.topbar button {
+  -webkit-app-region: no-drag;
+}
+
+.topbar-centre {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.topbar-search {
+  flex: 0 1 600px;
+  min-width: 0;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--bg-alt);
+  color: var(--fg-dim);
+  font: inherit;
+  cursor: text;
+}
+
+.topbar-search:hover {
+  border-color: var(--border-focus);
+}
+
+.topbar-search-label {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar kbd,
+.command-bar kbd {
+  font: 500 11px var(--font-ui, inherit);
+  color: var(--fg-dim);
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--bg-active);
+}
+
+.topbar-new {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------- command bar */
+
+.command-bar {
+  width: min(680px, 92vw);
+  max-height: 74vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-modal);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.cb-input {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 58px;
+  flex: 0 0 58px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--divider);
+  color: var(--accent);
+}
+
+.cb-input input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 17px;
+}
+
+.cb-input input::placeholder {
+  color: var(--fg-subtle);
+}
+
+.cb-esc {
+  font-size: 12px;
+  color: var(--fg-subtle);
+}
+
+.cb-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 10px 14px 4px;
+}
+
+.cb-filters button {
+  height: 28px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.cb-filters button:hover {
+  background: var(--bg-hover);
+}
+
+.cb-filters button.is-on {
+  background: var(--bg-active);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.cb-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 8px 10px;
+}
+
+.cb-group-title {
+  margin: 12px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.cb-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border-radius: 11px;
+  cursor: pointer;
+  color: var(--fg);
+}
+
+.cb-item.is-selected {
+  background: var(--bg-active);
+}
+
+.cb-icon {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: var(--fg-dim);
+}
+
+.cb-icon-ask {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Scribe's coral, as ink is everywhere in Electron. */
+.cb-icon-ink::before {
+  content: '';
+  width: 13px;
+  height: 17px;
+  border-radius: 3px;
+  background: #e39072;
+}
+
+.cb-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cb-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cb-title mark {
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.cb-sub {
+  font-size: 12.5px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cb-dim,
+.cb-hint {
+  color: var(--fg-subtle);
+  font-size: 12px;
+}
+
+.cb-empty {
+  padding: 24px 16px;
+  color: var(--fg-subtle);
+  text-align: center;
+}
+
+.cb-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 10px 18px;
+  border-top: 1px solid var(--divider);
+  font-size: 12px;
+  color: var(--fg-subtle);
+}
+
+.cb-spacer {
+  flex: 1;
+}
+
+/* ------------------------------------------------------- context panel */
+
+.context-panel .context-inner {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+.context-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 11px;
+  background: var(--bg-chrome);
+}
+
+.context-tabs button {
+  flex: 1;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.context-tabs button.is-on {
+  background: var(--bg-active);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.context-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.linked-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.linked-view section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.context-heading {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 4px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-dim);
+}
+
+.context-heading span,
+.context-count {
+  color: var(--fg-subtle);
+  font-weight: 500;
+}
+
+.context-count {
+  margin-left: auto;
+}
+
+.context-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--bg-alt);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-card:hover {
+  background: var(--bg-hover);
+}
+
+.context-card-title {
+  font-weight: 600;
+}
+
+.context-line {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--fg-dim);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.context-link {
+  background: transparent;
+  color: var(--wikilink);
+}
+
+.context-ink {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 6px;
+}
+
+.context-ink-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--bg-alt);
+  box-shadow: inset 0 0 0 1px rgba(227, 144, 114, 0.28);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-ink-tile:hover {
+  background: var(--bg-hover);
+}
+
+.context-ink-mark {
+  width: 12px;
+  height: 16px;
+  border-radius: 3px;
+  background: #e39072;
+}
+
+.context-ink-how {
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+.context-wide-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--bg-alt);
+  color: var(--fg-dim);
+  font: inherit;
+  cursor: pointer;
+}
+
+.context-wide-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.context-graph {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.context-graph-canvas {
+  flex: 1;
+  min-height: 260px;
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-chrome);
+}
+
+/* The graph sizes itself by percent; give it the box outright. */
+.context-graph-canvas > .graph-view {
+  position: absolute;
+  inset: 0;
+}

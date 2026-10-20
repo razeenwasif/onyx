@@ -33,6 +33,8 @@ run them side by side.
 - **Links to handwriting** — `[[scribe:…]]` links open a Scribe page, or zoom to a lassoed area of one (copy them in Scribe with ⌥⌘L, or pick a page after `[[`); linked pages show in the graph and backlinks, and `[[Note]]` typed on a page links back (macOS and iPad, see `scribe/README.md`)
 - Backlinks (plus **unlinked mentions** — notes that name this one without linking it), outline (click to jump), tag, and **Pages** (parent/child) panels in the right sidebar
 - Command palette (`Ctrl-P`) and quick switcher (`Ctrl-O`) with fuzzy matching
+- **Command bar** (desktop, `⌘K`, or the search pill at the top of the window) — one search across note titles, the text inside notes, Scribe handwriting, commands and tags, with *Ask your vault* a Tab away; `>` lists commands only, `#` tags only, `⌘↵` opens in a new tab, and a missing note can be created from it
+- **Context panel** (desktop) — the right-hand side is one panel about the open note with four views: *Linked* (notes linking here with the line they do it on, Scribe pages linked either way, unlinked mentions on request), *Outline*, *Graph* (the local graph) and *Calendar*
 - Full-vault content search (`Ctrl-Shift-F`) with **`tag:` / `path:` / `line:N` operators**, and a vault-wide **task rollup** (`:tasks`) of every `- [ ]` checkbox
 - Left-column **Quicknote** scratch pad and **Todo** checklist (autosaved to the vault); focus either and press `Ctrl-F` to expand it full-screen, `Esc`/`Ctrl-F` to collapse. Completed todos drop to the bottom (`Space` to check/uncheck) and auto-clear a week after they're finished
 - ASCII graph view (`Ctrl-G`) centered on the current note

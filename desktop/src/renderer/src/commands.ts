@@ -133,6 +133,13 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    id: 'command:open',
+    name: 'Search everything, run a command, or ask',
+    hotkey: `${mod}+K`,
+    keys: ['mod+k'],
+    run: () => s().setModal({ kind: 'command' }),
+  },
+  {
     id: 'palette:open',
     name: 'Open command palette',
     hotkey: `${mod}+P`,
@@ -355,24 +362,12 @@ export const COMMANDS: Command[] = [
   },
   { id: 'pane:toggle-todo', name: 'Toggle Todo pane', run: () => s().toggleSection('todo') },
   { id: 'pane:toggle-files', name: 'Toggle Files pane', run: () => s().toggleSection('files') },
-  {
-    id: 'pane:toggle-backlinks',
-    name: 'Toggle Backlinks pane',
-    run: () => s().toggleSection('backlinks'),
-  },
-  { id: 'pane:toggle-graph', name: 'Toggle Graph pane', run: () => s().toggleSection('graph') },
-  {
-    id: 'pane:toggle-calendar',
-    name: 'Toggle Calendar pane',
-    run: () => s().toggleSection('calendar'),
-  },
-  { id: 'pane:toggle-outline', name: 'Toggle Outline pane', run: () => s().toggleSection('outline') },
-  { id: 'pane:toggle-tags', name: 'Toggle Tags pane', run: () => s().toggleSection('tags') },
-  {
-    id: 'pane:toggle-properties',
-    name: 'Toggle Properties pane',
-    run: () => s().toggleSection('properties'),
-  },
+  // The right-hand side is one Context panel; these pick its view.
+  { id: 'pane:toggle-backlinks', name: 'Show linked notes and ink', run: () => s().showContext('linked') },
+  { id: 'pane:toggle-graph', name: 'Show local graph', run: () => s().showContext('graph') },
+  { id: 'pane:toggle-calendar', name: 'Show calendar', run: () => s().showContext('calendar') },
+  { id: 'pane:toggle-outline', name: 'Show outline', run: () => s().showContext('outline') },
+
   {
     id: 'app:scribe',
     name: 'Switch to Scribe',

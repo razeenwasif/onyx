@@ -14,7 +14,7 @@ import { promises as fs } from 'node:fs'
 
 import { Vault, defaultVaultPath, isMarkdown } from './vault.js'
 import { SettingsStore } from './settings.js'
-import { search, unlinkedMentions } from './search.js'
+import { linkedMentions, search, unlinkedMentions } from './search.js'
 import {
   RagIndex,
   askPrompt,
@@ -437,6 +437,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('search:query', (_e, q: string) => search(requireVault(), q))
+  ipcMain.handle('search:linked', (_e, rel: string) => linkedMentions(requireVault(), safeRel(rel)))
   ipcMain.handle('search:unlinked', (_e, rel: string) =>
     unlinkedMentions(requireVault(), safeRel(rel)),
   )

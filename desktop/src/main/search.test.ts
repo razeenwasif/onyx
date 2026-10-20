@@ -3,7 +3,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { fuzzyScore, matchesMeta, parseQuery, search, unlinkedMentions } from './search'
+import { fuzzyScore, linkedMentions, matchesMeta, parseQuery, search, unlinkedMentions } from './search'
 import { Vault, parseNote } from './vault'
 
 describe('query parsing', () => {
@@ -129,6 +129,18 @@ describe('full-vault search', () => {
     const mentions = await unlinkedMentions(vault, 'Alpha.md')
     expect(mentions.map((m) => m.path)).toEqual(['Delta.md'])
     expect(mentions[0].contexts[0].text).toContain('mention Alpha')
+  })
+
+  it('gives each backlink the lines its link is on', async () => {
+    await fs.writeFile(
+      path.join(root, 'Delta.md'),
+      '# Delta\n\nFirst [[Alpha]] here.\nNothing.\nAgain [the alpha note](Alpha.md).\n',
+    )
+    await vault.load()
+    const linked = await linkedMentions(vault, 'Alpha.md')
+    const delta = linked.find((m) => m.path === 'Delta.md')
+    expect(delta?.contexts.map((c) => c.line)).toEqual([2, 4])
+    expect(delta?.contexts[0].text).toBe('First [[Alpha]] here.')
   })
 
   it('does not report a note that already links the target', async () => {

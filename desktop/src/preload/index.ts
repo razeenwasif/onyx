@@ -106,6 +106,8 @@ export const api = {
   search: {
     query: (q: string): Promise<SearchHit[]> => ipcRenderer.invoke('search:query', q),
     unlinked: (rel: string): Promise<Backlink[]> => ipcRenderer.invoke('search:unlinked', rel),
+    /** Notes linking to `rel`, with the lines the links are on. */
+    linked: (rel: string): Promise<Backlink[]> => ipcRenderer.invoke('search:linked', rel),
   },
 
   google: {

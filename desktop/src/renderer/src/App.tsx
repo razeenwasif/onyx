@@ -5,6 +5,7 @@ import { Ribbon } from './components/Ribbon'
 import { LeftSidebar, RightSidebar } from './components/Sidebars'
 import { Workspace } from './components/Workspace'
 import { StatusBar } from './components/StatusBar'
+import { TopBar } from './components/TopBar'
 import { Modals } from './components/Modals'
 import { Icon } from './components/Icon'
 import { invalidateAsset } from './lib/assets'
@@ -154,6 +155,7 @@ export function App(): JSX.Element {
     <div className="app">
       <Ribbon />
       <div className="app-body">
+        {!zen && <TopBar />}
         <div className="app-main">
           {leftOpen && !zen && <LeftSidebar />}
           <Workspace />

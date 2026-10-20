@@ -81,6 +81,8 @@ interface State {
   activePaneId: string
   leftOpen: boolean
   rightOpen: boolean
+  /** Which view the right-hand Context panel shows. */
+  contextTab: ContextTab
   leftWidth: number
   rightWidth: number
   /** Stacked panes per side, in order. */
@@ -102,6 +104,7 @@ interface State {
     | null
     | { kind: 'switcher' }
     | { kind: 'palette' }
+    | { kind: 'command'; initial?: string }
     | { kind: 'search'; initial?: string }
     | { kind: 'settings'; section?: string }
     | { kind: 'prompt'; title: string; value: string; onSubmit: (v: string) => void }
@@ -160,6 +163,8 @@ interface Actions {
 
   toggleLeft(): void
   toggleRight(): void
+  /** Shows a Context view, opening the right-hand panel if it's closed. */
+  showContext(tab: ContextTab): void
   setSectionHeight(id: SectionId, height: number): void
   toggleSectionCollapsed(id: SectionId): void
   /** Show/hide a pane; `show` forces a state, otherwise it flips. */
@@ -209,6 +214,18 @@ function viewTypeFor(path: string): ViewType {
   return 'empty'
 }
 
+export type ContextTab = 'linked' | 'outline' | 'graph' | 'calendar'
+
+function readContextTab(): ContextTab {
+  try {
+    const saved = localStorage.getItem('contextTab')
+    if (saved === 'linked' || saved === 'outline' || saved === 'graph' || saved === 'calendar') return saved
+  } catch {
+    /* fall through */
+  }
+  return 'linked'
+}
+
 export const useStore = create<State & Actions>((set, get) => ({
   ready: false,
   vault: null,
@@ -224,6 +241,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   activePaneId: 'p0',
   leftOpen: true,
   rightOpen: true,
+  contextTab: readContextTab(),
   leftWidth: 260,
   rightWidth: 300,
   sections: { left: [], right: [] },
@@ -739,6 +757,16 @@ export const useStore = create<State & Actions>((set, get) => ({
     set({ leftOpen })
     get().persistLayout({ leftOpen })
   },
+  showContext: (tab) => {
+    try {
+      localStorage.setItem('contextTab', tab)
+    } catch {
+      /* a convenience only */
+    }
+    set({ contextTab: tab })
+    if (!get().rightOpen) get().toggleRight()
+  },
+
   toggleRight: () => {
     const rightOpen = !get().rightOpen
     set({ rightOpen })

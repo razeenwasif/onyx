@@ -7,6 +7,7 @@
  */
 
 import type { NoteMeta, SearchHit } from '../shared/types.js'
+import { extractLinks, extractMdLinks } from '../shared/parse.js'
 import type { Vault } from './vault.js'
 
 export interface Query {
@@ -174,6 +175,35 @@ export async function unlinkedMentions(
     }
   }
   return out.sort((a, b) => a.path.localeCompare(b.path))
+}
+
+/**
+ * The notes that link to `rel`, each with the lines the link is on (up to
+ * three), for the Context panel's "Linked from" list.
+ */
+export async function linkedMentions(
+  vault: Vault,
+  rel: string,
+): Promise<Array<{ path: string; title: string; contexts: Array<{ line: number; text: string }> }>> {
+  const out: Array<{ path: string; title: string; contexts: Array<{ line: number; text: string }> }> = []
+  for (const other of vault.backlinks(rel)) {
+    let content: string
+    try {
+      content = await vault.cachedContent(other)
+    } catch {
+      continue
+    }
+    const lines = content.split(/\r?\n/)
+    const contexts: Array<{ line: number; text: string }> = []
+    for (let i = 0; i < lines.length && contexts.length < 3; i++) {
+      const line = lines[i]
+      if (!line.includes('[[') && !line.includes('](')) continue
+      const targets = [...extractLinks(line).map((l) => l.target), ...extractMdLinks(line)]
+      if (targets.some((t) => vault.resolve(t, other) === rel)) contexts.push({ line: i, text: line.trim() })
+    }
+    out.push({ path: other, title: vault.notes.get(other)?.title ?? other, contexts })
+  }
+  return out.sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' }))
 }
 
 // ------------------------------------------------------------------ fuzzy
