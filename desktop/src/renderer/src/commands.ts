@@ -363,12 +363,15 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    // The scratch pad lives in the Library and the to-do list in Today.
     id: 'pane:toggle-quicknote',
-    name: 'Toggle Quicknote pane',
-    run: () => s().toggleSection('quicknote'),
+    name: 'Show the scratch pad',
+    run: () => {
+      if (!s().leftOpen) s().toggleLeft()
+    },
   },
-  { id: 'pane:toggle-todo', name: 'Toggle Todo pane', run: () => s().toggleSection('todo') },
-  { id: 'pane:toggle-files', name: 'Toggle Files pane', run: () => s().toggleSection('files') },
+  { id: 'pane:toggle-todo', name: 'Show the to-do list (Today)', run: () => s().openView('empty', { title: 'Today' }) },
+  { id: 'pane:toggle-files', name: 'Toggle Library', run: () => s().toggleLeft() },
   // The right-hand side is one Context panel; these pick its view.
   { id: 'pane:toggle-backlinks', name: 'Show linked notes and ink', run: () => s().showContext('linked') },
   { id: 'pane:toggle-graph', name: 'Show local graph', run: () => s().showContext('graph') },

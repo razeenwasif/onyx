@@ -975,3 +975,11 @@
 [data-style='velvet'] .today-filter {
   background: var(--well);
 }
+
+/* The Library is one card, like the note and the Context panel. */
+[data-style='velvet'] .library .library-inner {
+  background: var(--velvet);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-shadow);
+  margin: 0 0 var(--gap) var(--gap);
+}

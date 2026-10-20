@@ -23,6 +23,7 @@ import { CalendarPane } from './CalendarPane'
 import { SidebarGraph } from '../graph/SidebarGraph'
 import { runCommand } from '../commands'
 import { ContextPanel } from './ContextPanel'
+import { LibraryPanel } from './LibraryPanel'
 
 const META: Record<SectionId, { title: string; icon: IconName }> = {
   files: { title: 'Files', icon: 'files' },
@@ -133,8 +134,9 @@ function Side({ side }: { side: 'left' | 'right' }): JSX.Element {
   )
 }
 
+/** The left-hand side is the Library (LibraryPanel.tsx). */
 export function LeftSidebar(): JSX.Element {
-  return <Side side="left" />
+  return <LibraryPanel />
 }
 
 /** The right-hand side is one Context panel (ContextPanel.tsx), not a stack. */

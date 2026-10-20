@@ -10,6 +10,7 @@ import type { CalEvent, OpenTask } from '@shared/types'
 import { useStore } from '../store'
 import { dailyNotePath, formatDate, relativeTime, stem, toggleTaskOnLine } from '../lib/notes'
 import { Icon } from './Icon'
+import { TodoPane } from './TodoPane'
 
 const DAY_MS = 86_400_000
 
@@ -82,6 +83,12 @@ export function TodayView(): JSX.Element {
           <DailyNote path={dailyPath} date={now} />
           <div className="today-side">
             <Week now={now} />
+            <section className="today-card today-todo" aria-label="To do">
+              <div className="today-card-head">
+                <h2>To do</h2>
+              </div>
+              <TodoPane />
+            </section>
             <Tasks />
           </div>
         </div>
