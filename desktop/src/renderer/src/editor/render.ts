@@ -21,6 +21,8 @@ export interface RenderContext {
   embed(target: string): string | null
   /** The note being rendered, for relative resolution. */
   path: string
+  /** A card for a Scribe link on a line of its own, or null to leave it a link. */
+  scribeCard?(target: string, label?: string): string | null
 }
 
 const CALLOUT_COLORS: Record<string, string> = {
@@ -233,6 +235,14 @@ function preprocessBlocks(source: string): string {
 
 /** Inline pass over the produced HTML for wikilinks, embeds and tags. */
 function postprocessInline(html: string, ctx: RenderContext): string {
+  // A Scribe link alone in its paragraph is an ink card.
+  if (ctx.scribeCard) {
+    html = html.replace(
+      /<p>\s*!?\[\[(scribe:[^\]|\n]+)(?:\|([^\]\n]*))?\]\]\s*<\/p>/gi,
+      (m, target: string, label?: string) => ctx.scribeCard!(decodeEntities(target), label && decodeEntities(label)) ?? m,
+    )
+  }
+
   // Embeds first (they consume the whole `![[…]]`).
   html = html.replace(/!\[\[([^[\]]+?)\]\]/g, (_m, inner: string) => {
     const [rawTarget] = String(inner).split('|')
@@ -333,4 +343,9 @@ export function renderMarkdown(
   )
 
   return sanitize(head + html)
+}
+
+/** Undo markdown-it's escaping of a link's text before it's used again. */
+function decodeEntities(s: string): string {
+  return s.replace(/&(amp|lt|gt|quot|#39);/g, (_m, e: string) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" })[e]!)
 }

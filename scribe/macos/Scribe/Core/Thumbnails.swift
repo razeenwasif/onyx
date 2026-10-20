@@ -105,6 +105,12 @@ final class Thumbnails: @unchecked Sendable {
     /// The page at thumbnail size: the standard page (or the PDF page's own
     /// shape), with anything beyond it cut off.
     static func render(_ doc: PageDoc, sectionPath: String) -> CGImage? {
+        render(doc, sectionPath: sectionPath, crop: nil, width: pixelWidth)
+    }
+
+    /// `crop` (page units) draws just that part of the page, `width` pixels
+    /// wide: the cards that show a page inside a note.
+    static func render(_ doc: PageDoc, sectionPath: String, crop: CGRect?, width pixels: Int) -> CGImage? {
         let pdf = PDFBackground.page(for: doc.background, sectionPath: sectionPath)
         var size = pdf.map { PDFBackground.size(of: $0) } ?? PDFBackground.standardSize
         if doc.isCanvas {
@@ -113,20 +119,23 @@ final class Thumbnails: @unchecked Sendable {
             let width = max(size.width, contentRight(doc) + 24)
             size = CGSize(width: width, height: width * size.height / size.width)
         }
-        let scale = CGFloat(pixelWidth) / size.width
-        let height = Int((size.height * scale).rounded())
+        let bounds = CGRect(origin: .zero, size: size)
+        let view = crop ?? bounds
+        guard view.width > 0, view.height > 0 else { return nil }
+        let scale = CGFloat(pixels) / view.width
+        let height = max(1, Int((view.height * scale).rounded()))
         guard let ctx = CGContext(
-            data: nil, width: pixelWidth, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            data: nil, width: pixels, height: height, bitsPerComponent: 8, bytesPerRow: 0,
             space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return nil }
 
         // Page coordinates run top-down.
         ctx.translateBy(x: 0, y: CGFloat(height))
         ctx.scaleBy(x: scale, y: -scale)
-        let bounds = CGRect(origin: .zero, size: size)
-        ctx.clip(to: bounds)
+        ctx.translateBy(x: -view.minX, y: -view.minY)
         ctx.setFillColor(paper)
-        ctx.fill(bounds)
+        ctx.fill(view)
+        ctx.clip(to: view)
 
         if let pdf {
             PDFBackground.draw(pdf, in: ctx)
@@ -147,6 +156,34 @@ final class Thumbnails: @unchecked Sendable {
         }
         drawInk(strokes.filter { !$0.highlighter }, ctx)
         return ctx.makeImage()
+    }
+
+    /// The part of the page a card shows: a linked area with a margin, or
+    /// else everything on the page, from the top of what's written and no
+    /// taller than a wide card (the rest is left for Scribe).
+    static func cardCrop(_ doc: PageDoc, area: CGRect?) -> CGRect {
+        let size = PDFBackground.standardSize
+        if let area, area.width > 0, area.height > 0 {
+            return area.insetBy(dx: -16, dy: -16)
+        }
+        var box = CGRect.null
+        for s in doc.strokes {
+            let pad = max(s.width, s.height) / 2
+            for i in stride(from: 0, to: s.points.count - 2, by: 3) {
+                box = box.union(CGRect(x: s.points[i] - pad, y: s.points[i + 1] - pad, width: pad * 2, height: pad * 2))
+            }
+        }
+        for t in doc.textBoxes { box = box.union(CGRect(x: t.x, y: t.y, width: t.width, height: t.height ?? t.fontSize * 1.4)) }
+        for i in doc.images { box = box.union(CGRect(x: i.x, y: i.y, width: i.width, height: i.height)) }
+        if box.isNull {
+            return CGRect(x: 0, y: 0, width: size.width, height: size.width * 0.3)
+        }
+        // Full width, so the page's left margin and rules read as a page.
+        let left = min(0, box.minX - 24)
+        let width = max(size.width, box.maxX + 24) - left
+        let top = max(0, box.minY - 24)
+        let height = min(box.maxY + 24 - top, width * 0.6)
+        return CGRect(x: left, y: top, width: width, height: max(height, width * 0.18))
     }
 
     /// How far right the page's content reaches.
@@ -275,4 +312,34 @@ final class Thumbnails: @unchecked Sendable {
             y += 30
         }
     }
+}
+
+/// Cards for pages linked from notes (Electron shows them inline): the
+/// linked area of a page, or what's written on it, as a cached PNG.
+public enum PageCards {
+    /// The card's PNG path for page `id`, drawing it if the cached one is
+    /// older than the page; nil when the page can't be found or drawn.
+    public static func image(id: String, area: CGRect?, pixels: Int, root: String) -> String? {
+        guard !id.isEmpty, id.allSatisfy({ $0.isHexDigit }),
+              let page = (try? Core.call("page_with_id", ["root": root, "id": id], as: String?.self)) ?? nil
+        else { return nil }
+        let fm = FileManager.default
+        let folder = URL(fileURLWithPath: root).appendingPathComponent(".scribe/thumbs.nosync", isDirectory: true)
+        let part = area.map { a in [a.minX, a.minY, a.width, a.height].map { String(Int($0.rounded())) }.joined(separator: "_") } ?? "page"
+        let file = folder.appendingPathComponent("\(id)-card-\(part)-\(pixels).png")
+        let pageDate = (try? fm.attributesOfItem(atPath: page))?[.modificationDate] as? Date
+        if let made = (try? fm.attributesOfItem(atPath: file.path))?[.modificationDate] as? Date,
+           let pageDate, made >= pageDate {
+            return file.path
+        }
+        let sectionPath = URL(fileURLWithPath: page).deletingLastPathComponent().path
+        guard let doc = try? Core.readPage(page),
+              let image = Thumbnails.render(doc, sectionPath: sectionPath, crop: Thumbnails.cardCrop(doc, area: area), width: pixels),
+              (try? fm.createDirectory(at: folder, withIntermediateDirectories: true)) != nil,
+              let out = CGImageDestinationCreateWithURL(file as CFURL, UTType.png.identifier as CFString, 1, nil)
+        else { return nil }
+        CGImageDestinationAddImage(out, image, nil)
+        return CGImageDestinationFinalize(out) ? file.path : nil
+    }
+
 }

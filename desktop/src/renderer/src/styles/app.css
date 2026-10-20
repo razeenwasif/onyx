@@ -3981,3 +3981,105 @@ textarea {
 [data-style='velvet'] .library .lib-tree .tree {
   padding-bottom: 4px;
 }
+
+/* ------------------------------------------------------------ ink cards */
+/* A Scribe page (or lassoed area) linked on a line of its own: the page as
+   Scribe draws it, then its title and an Open in Scribe button. */
+
+.ink-card {
+  margin: 10px 0 18px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--bg-alt) 85%, #e39072 4%);
+  box-shadow: inset 0 0 0 1px rgba(227, 144, 114, 0.28);
+  font-family: var(--font-ui);
+  line-height: 1.4;
+}
+
+.ink-card a {
+  text-decoration: none;
+}
+
+.ink-card-ink {
+  display: flex;
+  justify-content: center;
+  background: #1c1920;
+  cursor: pointer;
+}
+
+.ink-card-ink img {
+  display: block;
+  width: 100%;
+  max-height: 380px;
+  object-fit: contain;
+}
+
+.ink-card-wait {
+  width: 100%;
+  height: 120px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  color: var(--fg-subtle);
+}
+
+.ink-card figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px 12px 18px;
+}
+
+.ink-card-mark {
+  flex: none;
+  width: 9px;
+  height: 12px;
+  border-radius: 2px;
+  background: #e39072;
+}
+
+.ink-card-text {
+  flex: 1 1 220px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ink-card-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--fg);
+}
+
+.ink-card-meta {
+  font-size: 12.5px;
+  color: var(--fg-subtle);
+}
+
+.ink-card-open {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 13px;
+  border-radius: 10px;
+  background: rgba(227, 144, 114, 0.16);
+  color: #f4b8a0;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ink-card-open:hover {
+  background: rgba(227, 144, 114, 0.26);
+}
+
+.cm-ink-card {
+  padding: 0 var(--line-pad, 40px);
+}
+
+.cm-ink-card .ink-card {
+  margin: 6px 0 12px;
+}

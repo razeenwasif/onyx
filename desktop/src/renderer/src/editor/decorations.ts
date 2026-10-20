@@ -22,6 +22,8 @@ import { syntaxTree } from '@codemirror/language'
 
 import { extractFrontmatterProperties, frontmatterLength } from '@shared/parse'
 import { isScribeTarget } from '@shared/scribe-link'
+import { CARD_LINE, cardHtml, cardInfo, onCardLoaded } from '../lib/scribe-cards'
+import { openScribeTarget } from '../lib/scribe-links'
 import { renderMarkdown } from './render'
 
 /** Callout types → the CSS color token and glyph used in Live Preview. */
@@ -360,6 +362,51 @@ class ImageWidget extends WidgetType {
     img.src = this.src
     img.alt = this.alt
     return img
+  }
+}
+
+/** A Scribe link on a line of its own, shown as an ink card (scribe-cards.ts). */
+class InkCardWidget extends WidgetType {
+  constructor(
+    readonly target: string,
+    readonly label: string | undefined,
+  ) {
+    super()
+  }
+
+  eq(o: InkCardWidget): boolean {
+    return o.target === this.target && o.label === this.label
+  }
+
+  toDOM(): HTMLElement {
+    const el = document.createElement('div')
+    el.className = 'cm-ink-card'
+    const paint = (): void => {
+      const card = cardInfo(this.target, this.label)
+      el.innerHTML = card ? cardHtml(card) : ''
+    }
+    paint()
+    const stop = onCardLoaded(paint)
+    ;(el as HTMLElement & { stop?: () => void }).stop = stop
+    el.addEventListener('mousedown', (e) => {
+      if ((e.target as HTMLElement).closest('a')) e.preventDefault()
+    })
+    el.addEventListener('click', (e) => {
+      if (!(e.target as HTMLElement).closest('a')) return
+      e.preventDefault()
+      openScribeTarget(this.target)
+    })
+    return el
+  }
+
+  destroy(dom: HTMLElement): void {
+    ;(dom as HTMLElement & { stop?: () => void }).stop?.()
+  }
+
+  // Clicks on the card's links are the card's; a click elsewhere on it puts
+  // the cursor on the line, showing the link's source to edit.
+  ignoreEvent(e: Event): boolean {
+    return e.type === 'mousedown' && !!(e.target as HTMLElement).closest?.('a')
   }
 }
 
@@ -706,8 +753,8 @@ function frontmatterEditing(state: EditorState, fmEnd: number): boolean {
 }
 
 /**
- * Block-level widgets for Live Preview: the frontmatter properties table and
- * `::: columns` blocks. Both replace line breaks, which CodeMirror only allows
+ * Block-level widgets for Live Preview: the frontmatter properties table,
+ * `::: columns` blocks and ink cards. Both replace line breaks, which CodeMirror only allows
  * from a state field — hence this living apart from the view plugin.
  */
 export const blockWidgets = StateField.define<DecorationSet>({
@@ -725,6 +772,13 @@ function buildBlockWidgets(state: EditorState): DecorationSet {
 
   for (let n = 1; n <= state.doc.lines; n++) {
     const line = state.doc.line(n)
+    const card = CARD_LINE.exec(line.text)
+    if (card && cardInfo(card[1], card[2]) && !selectionTouches(state, line.from, line.to)) {
+      marks.push(
+        Decoration.replace({ widget: new InkCardWidget(card[1], card[2]), block: true }).range(line.from, line.to),
+      )
+      continue
+    }
     if (!/^:::\s*columns\s*$/i.test(line.text.trim())) continue
     let last = n + 1
     while (last <= state.doc.lines && state.doc.line(last).text.trim() !== ':::') last++

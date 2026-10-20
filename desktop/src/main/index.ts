@@ -38,6 +38,7 @@ import {
   currentApp,
   initScribe,
   openScribeLink,
+  scribeCard,
   openScribePage,
   refreshScribePages,
   scribeAvailable,
@@ -332,6 +333,7 @@ function registerIpc(): void {
     return scribePages()
   })
   ipcMain.handle('apps:scribe-open-link', (_e, target: string) => openScribeLink(target))
+  ipcMain.handle('apps:scribe-card', (_e, target: string, pixels: number) => scribeCard(target, pixels))
 
   ipcMain.handle('settings:get', () => settings.get())
   ipcMain.handle('settings:set', (_e, patch: Partial<AppSettings>) => settings.update(patch))

@@ -173,6 +173,28 @@ public func scribeEmbedOpenLink(_ pageId: UnsafePointer<CChar>, _ x: Double, _ y
     Embedded.shared.app.showLinkedPage(id: String(cString: pageId), area: area)
 }
 
+/// Draws the card a note shows for a link to page `pageId`: a PNG of the
+/// linked area (when `width` and `height` are positive) or of what's written
+/// on the page, `pixels` wide, cached in the library's
+/// `.scribe/thumbs.nosync/` while it is newer than the page. Works off the
+/// main thread and calls `done(context, path)` from there, with an empty path
+/// when the page can't be found or drawn.
+@_cdecl("scribe_embed_card")
+public func scribeEmbedCard(
+    _ pageId: UnsafePointer<CChar>, _ x: Double, _ y: Double, _ width: Double, _ height: Double, _ pixels: Int32,
+    _ context: UnsafeMutableRawPointer?,
+    _ done: @escaping @convention(c) (UnsafeMutableRawPointer?, UnsafePointer<CChar>) -> Void
+) {
+    let id = String(cString: pageId)
+    let root = Embedded.shared.app.libraryRoot
+    let area = width > 0 && height > 0 ? CGRect(x: x, y: y, width: width, height: height) : nil
+    let box = UInt(bitPattern: context)
+    DispatchQueue.global(qos: .userInitiated).async {
+        let path = PageCards.image(id: id, area: area, pixels: Int(max(pixels, 64)), root: root) ?? ""
+        path.withCString { done(UnsafeMutableRawPointer(bitPattern: box), $0) }
+    }
+}
+
 /// The host's Markdown vault, so a page can list the notes linking to it.
 @_cdecl("scribe_embed_set_vault")
 public func scribeEmbedSetVault(_ path: UnsafePointer<CChar>?) {

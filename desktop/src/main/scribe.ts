@@ -13,6 +13,7 @@
 
 import { app, BrowserWindow, Menu } from 'electron'
 import { existsSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import * as path from 'node:path'
 
@@ -38,6 +39,7 @@ interface Bridge {
   openLink(pageId: string, x: number, y: number, width: number, height: number): void
   setVault(path: string): void
   onOpenNote(fn: (rel: string) => void): void
+  card(pageId: string, x: number, y: number, width: number, height: number, pixels: number): Promise<string>
 }
 
 /** One entry of Scribe's menu JSON (see scribe/macos/Scribe/App/ScribeMenu.swift). */
@@ -251,6 +253,25 @@ export function openScribeLink(target: string): boolean {
   bridge.openLink(link.pageId, a?.x ?? 0, a?.y ?? 0, a?.width ?? 0, a?.height ?? 0)
   switchApp('scribe')
   return true
+}
+
+/**
+ * The card a note shows for a `scribe:` link: a PNG (base64) of the linked
+ * area, or of what's written on the page, `pixels` wide. Null when it isn't
+ * a Scribe link, Scribe isn't here, or the page is gone.
+ */
+export async function scribeCard(target: string, pixels: number): Promise<string | null> {
+  const link = parseScribeTarget(target)
+  if (!bridge || !link) return null
+  const a = link.area
+  const width = Math.round(Math.min(Math.max(pixels, 200), 2400))
+  const file = await bridge.card(link.pageId, a?.x ?? 0, a?.y ?? 0, a?.width ?? 0, a?.height ?? 0, width)
+  if (!file) return null
+  try {
+    return (await readFile(file)).toString('base64')
+  } catch {
+    return null
+  }
 }
 
 /** Tell Scribe where the vault is, so a page can list the notes linking to it. */

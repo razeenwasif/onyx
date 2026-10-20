@@ -27,6 +27,7 @@ typedef void (*SetHandlerFn)(void (*)(void));
 typedef void (*OpenLinkFn)(const char *, double, double, double, double);
 typedef void (*SetVaultFn)(const char *);
 typedef void (*SetOpenNoteHandlerFn)(void (*)(const char *));
+typedef void (*CardFn)(const char *, double, double, double, double, int32_t, void *, void (*)(void *, const char *));
 
 static void *library = nullptr;
 static CreateViewFn createView = nullptr;
@@ -42,6 +43,7 @@ static SetHandlerFn setLinksChangedHandler = nullptr;
 static OpenLinkFn openLink = nullptr;
 static SetVaultFn setVault = nullptr;
 static SetOpenNoteHandlerFn setOpenNoteHandler = nullptr;
+static CardFn drawCard = nullptr;
 
 static NSView *scribeView = nil;
 static napi_threadsafe_function switchCallback = nullptr;
@@ -110,6 +112,8 @@ static napi_value Load(napi_env env, napi_callback_info info) {
   openLink = (OpenLinkFn)dlsym(handle, "scribe_embed_open_link");
   setVault = (SetVaultFn)dlsym(handle, "scribe_embed_set_vault");
   setOpenNoteHandler = (SetOpenNoteHandlerFn)dlsym(handle, "scribe_embed_set_open_note_handler");
+  // Optional: a library without cards still loads; card() then finds nothing.
+  drawCard = (CardFn)dlsym(handle, "scribe_embed_card");
   if (!createView || !setActive || !performAction || !menuJson || !setSwitchHandler || !searchPages ||
       !freeString || !openPage || !linkIndex || !setLinksChangedHandler || !openLink || !setVault ||
       !setOpenNoteHandler) {
@@ -290,6 +294,64 @@ static napi_value OpenLink(napi_env env, napi_callback_info info) {
   return nullptr;
 }
 
+// One card() call in flight: the promise it returns, settled back on the JS
+// thread once Scribe has drawn (or failed to draw) the card.
+struct CardRequest {
+  napi_deferred deferred;
+  napi_threadsafe_function done;
+  std::string path;
+};
+
+static void SettleCard(napi_env env, napi_value, void *, void *data) {
+  CardRequest *request = static_cast<CardRequest *>(data);
+  if (env) {
+    napi_value path;
+    napi_create_string_utf8(env, request->path.c_str(), NAPI_AUTO_LENGTH, &path);
+    napi_resolve_deferred(env, request->deferred, path);
+  }
+  napi_release_threadsafe_function(request->done, napi_tsfn_release);
+  delete request;
+}
+
+static void CardDrawn(void *context, const char *path) {
+  CardRequest *request = static_cast<CardRequest *>(context);
+  request->path = path ? path : "";
+  napi_call_threadsafe_function(request->done, request, napi_tsfn_blocking);
+}
+
+/**
+ * card(pageId, x, y, width, height, pixels): a promise of the path of a PNG
+ * showing the page (or, with a positive size, that area of it), `pixels`
+ * wide; "" when the page isn't there.
+ */
+static napi_value Card(napi_env env, napi_callback_info info) {
+  napi_value argv[6];
+  if (!Args(env, info, 6, argv)) return nullptr;
+  if (!library) return Fail(env, "call load() first");
+  std::string id = ToStdString(env, argv[0]);
+  double area[4] = {0, 0, 0, 0};
+  for (int i = 0; i < 4; i++) napi_get_value_double(env, argv[i + 1], &area[i]);
+  int32_t pixels = 0;
+  napi_get_value_int32(env, argv[5], &pixels);
+
+  napi_value promise;
+  auto *request = new CardRequest();
+  napi_create_promise(env, &request->deferred, &promise);
+  if (!drawCard) {
+    napi_value empty;
+    napi_create_string_utf8(env, "", 0, &empty);
+    napi_resolve_deferred(env, request->deferred, empty);
+    delete request;
+    return promise;
+  }
+  napi_value name;
+  napi_create_string_utf8(env, "scribe-card", NAPI_AUTO_LENGTH, &name);
+  napi_create_threadsafe_function(env, nullptr, nullptr, name, 0, 1, nullptr, nullptr, nullptr, SettleCard,
+                                  &request->done);
+  drawCard(id.c_str(), area[0], area[1], area[2], area[3], pixels, request, CardDrawn);
+  return promise;
+}
+
 /** setVault(path): the Markdown vault, so Scribe can list notes linking to a page. */
 static napi_value SetVault(napi_env env, napi_callback_info info) {
   napi_value argv[1];
@@ -364,6 +426,7 @@ static napi_value Init(napi_env env, napi_value exports) {
       {"openLink", nullptr, OpenLink, nullptr, nullptr, nullptr, napi_default, nullptr},
       {"setVault", nullptr, SetVault, nullptr, nullptr, nullptr, napi_default, nullptr},
       {"onOpenNote", nullptr, OnOpenNote, nullptr, nullptr, nullptr, napi_default, nullptr},
+      {"card", nullptr, Card, nullptr, nullptr, nullptr, napi_default, nullptr},
   };
   napi_define_properties(env, exports, sizeof(props) / sizeof(props[0]), props);
   return exports;

@@ -37,6 +37,7 @@ import { isScribeTarget } from '@shared/scribe-link'
 import { openScribeTarget, scribePageFor } from '../lib/scribe-links'
 import type { AppSettings } from '@shared/types'
 import { NoteHeader } from './NoteHeader'
+import { cardHtml, cardInfo, onCardLoaded } from '../lib/scribe-cards'
 
 /** Decoration layers for a mode: Live Preview also renders the block widgets. */
 function livePreviewExtensions(live: boolean): Extension {
@@ -268,6 +269,12 @@ function CodeMirrorView({ tab, mode }: { tab: Tab; mode: 'livePreview' | 'source
     // Rebuilt only when the file changes — everything else reconfigures below.
   }, [path])
 
+  // Scribe's pages arriving (or changing) turns links to them into cards.
+  const scribePages = useStore((s) => s.scribePages)
+  useEffect(() => {
+    viewRef.current?.dispatch({ effects: setHost.of(host) })
+  }, [scribePages, host])
+
   // Mode / settings reconfiguration without losing the buffer or cursor.
   useEffect(() => {
     const view = viewRef.current
@@ -346,6 +353,9 @@ function ReadingView({ tab }: { tab: Tab }): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => onAssetLoaded(() => forceRender((n) => n + 1)), [])
+  // A card's picture arriving re-renders the note around it.
+  const [cardTick, setCardTick] = useState(0)
+  useEffect(() => onCardLoaded(() => setCardTick((n) => n + 1)), [])
 
   const resolve = useCallback(
     (target: string): string | null => {
@@ -403,8 +413,14 @@ function ReadingView({ tab }: { tab: Tab }): JSX.Element {
         return hit ? assetUrl(hit) : null
       },
       embed: (target) => embeds.get(target) ?? null,
+      scribeCard: (target, label) => {
+        const card = cardInfo(target, label)
+        return card && cardHtml(card)
+      },
     }),
-    [path, resolve, embeds],
+    // cardTick: a card's picture arrived.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [path, resolve, embeds, cardTick],
   )
 
   const html = useMemo(

@@ -50,6 +50,9 @@ export const api = {
     scribePages: (): Promise<ScribePage[]> => ipcRenderer.invoke('apps:scribe-pages'),
     /** Open the page (or area) a `scribe:` link target names; false without Scribe. */
     scribeOpenLink: (target: string): Promise<boolean> => ipcRenderer.invoke('apps:scribe-open-link', target),
+    /** A PNG (base64) of the page or area a `scribe:` link names, for its card in a note. */
+    scribeCard: (target: string, pixels: number): Promise<string | null> =>
+      ipcRenderer.invoke('apps:scribe-card', target, pixels),
     /** Scribe's pages or their links changed; ask scribePages again. */
     onScribePagesChanged: (fn: () => void): Unsubscribe => on('apps:scribe-pages-changed', fn),
     /** Scribe asked to open a note (vault-relative path). */
