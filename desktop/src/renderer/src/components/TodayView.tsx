@@ -230,7 +230,7 @@ function Week({ now }: { now: Date }): JSX.Element {
   const today = events.filter((e) => e.date === isoDay(now))
 
   return (
-    <section className="today-card" aria-label="This week">
+    <section className="today-card today-week-card" aria-label="This week">
       <div className="today-card-head">
         <h2>This week</h2>
         <button type="button" className="today-link" onClick={() => useStore.getState().showContext('calendar')}>
@@ -309,7 +309,7 @@ function Tasks(): JSX.Element {
 
   const shown = tasks?.slice(0, 8) ?? []
   return (
-    <section className="today-card" aria-label="Open tasks">
+    <section className="today-card today-tasks-card" aria-label="Open tasks">
       <div className="today-card-head">
         <h2>Tasks across the vault</h2>
         <span className="today-dim">{tasks ? `${tasks.length} open` : '…'}</span>

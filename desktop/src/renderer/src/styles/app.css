@@ -3538,7 +3538,52 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
-  align-items: stretch;
+  align-items: flex-start;
+}
+
+/* The cards keep the redesign's heights (measured at 1440×980) and scroll
+   inside, rather than growing with every note line, event or task. */
+.today-note,
+.today-week-card,
+.today-todo,
+.today-tasks-card {
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.today-note {
+  height: 394px;
+}
+
+.today-week-card {
+  height: 178px;
+}
+
+.today-todo,
+.today-tasks-card {
+  height: 200px;
+}
+
+.today-events,
+.today-tasks,
+.today-todo .mini-pane {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.today-card-head,
+.today-week,
+.today-capture {
+  flex-shrink: 0;
+}
+
+/* The add-a-todo box stays put while the list scrolls under it. */
+.today-todo .todo-add-row {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-alt);
 }
 
 .today-note {
@@ -3602,7 +3647,8 @@ textarea {
 
 .today-note-text {
   flex: 1;
-  min-height: 220px;
+  min-height: 0;
+  overflow-y: auto;
   resize: none;
   border: 0;
   outline: none;
