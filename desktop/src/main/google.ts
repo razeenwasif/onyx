@@ -182,11 +182,20 @@ export async function runConsentFlow(creds: GoogleCredentials): Promise<OAuthTok
 
   const { code, redirectUri } = await new Promise<{ code: string; redirectUri: string }>(
     (resolve, reject) => {
+      // The port we listen on is the redirect URI Google was given; it must
+      // be sent again, unchanged, when the code is exchanged.
+      let redirect = ''
       const server = http.createServer((req, res) => {
         const url = new URL(req.url ?? '/', `http://127.0.0.1`)
         const gotCode = url.searchParams.get('code')
         const gotState = url.searchParams.get('state')
         const error = url.searchParams.get('error')
+        // Anything else the browser asks for (a favicon) isn't the redirect.
+        if (!gotCode && !error) {
+          res.writeHead(404)
+          res.end()
+          return
+        }
         const body = error
           ? `<html><body style="font-family:sans-serif">Authorization failed: ${error}. You can close this tab.</body></html>`
           : '<html><body style="font-family:sans-serif">Electron is authorized — you can close this tab.</body></html>'
@@ -195,11 +204,8 @@ export async function runConsentFlow(creds: GoogleCredentials): Promise<OAuthTok
         server.close()
         clearTimeout(timer)
         if (error) return reject(new Error(`Google returned "${error}"`))
-        if (!gotCode) return reject(new Error('no authorization code in the redirect'))
         if (gotState !== state) return reject(new Error('OAuth state mismatch (possible CSRF)'))
-        const address = server.address()
-        const port = typeof address === 'object' && address ? address.port : 0
-        resolve({ code: gotCode, redirectUri: `http://127.0.0.1:${port}` })
+        resolve({ code: gotCode!, redirectUri: redirect })
       })
 
       const timer = setTimeout(
@@ -214,7 +220,7 @@ export async function runConsentFlow(creds: GoogleCredentials): Promise<OAuthTok
       server.listen(0, '127.0.0.1', () => {
         const address = server.address()
         const port = typeof address === 'object' && address ? address.port : 0
-        const redirect = `http://127.0.0.1:${port}`
+        redirect = `http://127.0.0.1:${port}`
         const url =
           `${AUTH_ENDPOINT}?client_id=${encodeURIComponent(creds.clientId)}` +
           `&redirect_uri=${encodeURIComponent(redirect)}` +
@@ -303,6 +309,15 @@ export function monthBounds(year: number, month: number): [string, string] {
   return [ymd(first), ymd(next)]
 }
 
+/**
+ * The month as instants: local midnight on the 1st to local midnight on the
+ * next 1st. (Midnight UTC would drop the first hours of the month east of
+ * Greenwich and pull in the next month's, e.g. before 11am in Sydney.)
+ */
+export function monthRange(year: number, month: number): [string, string] {
+  return [new Date(year, month - 1, 1).toISOString(), new Date(year, month, 1).toISOString()]
+}
+
 export function parseEvents(
   json: { items?: Array<Record<string, unknown>> },
   calendarId: string,
@@ -347,9 +362,7 @@ export async function fetchMonth(
   month: number,
 ): Promise<CalEvent[]> {
   const at = await accessToken(creds)
-  const [first, next] = monthBounds(year, month)
-  const timeMin = `${first}T00:00:00Z`
-  const timeMax = `${next}T00:00:00Z`
+  const [timeMin, timeMax] = monthRange(year, month)
 
   const list = await api<{ items?: Array<{ id: string; summary?: string }> }>(
     `${CALENDAR_API}/users/me/calendarList`,
