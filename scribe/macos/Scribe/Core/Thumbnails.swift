@@ -327,8 +327,14 @@ public enum PageCards {
         guard !id.isEmpty, id.allSatisfy({ $0.isHexDigit }),
               let page = (try? Core.call("page_with_id", ["root": root, "id": id], as: String?.self)) ?? nil
         else { return nil }
-        let fm = FileManager.default
         let folder = URL(fileURLWithPath: root).appendingPathComponent(".scribe/thumbs.nosync", isDirectory: true)
+        return image(page: page, id: id, area: area, pixels: pixels, folder: folder)
+    }
+
+    /// The card for the page file at `page` (its id `id`), cached in `folder`.
+    static func image(page: String, id: String, area: CGRect?, pixels: Int, folder: URL) -> String? {
+        guard !id.isEmpty, id.allSatisfy({ $0.isHexDigit }) else { return nil }
+        let fm = FileManager.default
         let part = area.map { a in [a.minX, a.minY, a.width, a.height].map { String(Int($0.rounded())) }.joined(separator: "_") } ?? "page"
         let file = folder.appendingPathComponent("\(id)-card2-\(part)-\(pixels).png")
         let pageDate = (try? fm.attributesOfItem(atPath: page))?[.modificationDate] as? Date

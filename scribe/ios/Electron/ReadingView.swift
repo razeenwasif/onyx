@@ -10,17 +10,13 @@ struct NoteReader: View {
     /// The block at the top of the screen.
     @State private var topID: Int?
 
-    static let bodySize: CGFloat = 17
+    static let bodySize: CGFloat = 18
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(((rel as NSString).lastPathComponent as NSString).deletingPathExtension)
-                        .font(.system(size: 30, weight: .bold))
-                        .foregroundStyle(Color(uiColor: EV.heading))
-                        .padding(.bottom, 10)
-                        .textSelection(.enabled)
+                    NoteHeader(store: store, rel: rel)
                     Properties(store: store, source: store.text)
                     LazyVStack(alignment: .leading, spacing: 14) {
                         ForEach(nodes) { node in
@@ -35,7 +31,7 @@ struct NoteReader: View {
                 }
                 .padding(.horizontal, 28)
                 .padding(.vertical, 24)
-                .frame(maxWidth: 780, alignment: .leading)
+                .frame(maxWidth: 776, alignment: .leading)
                 .frame(maxWidth: .infinity)
             }
             .scrollPosition(id: $topID, anchor: .top)
@@ -89,13 +85,44 @@ struct NoteReader: View {
     }
 }
 
-/// The frontmatter as a small properties table; tags become chips.
+/// The top of the reading column: the folder the note is in, its title, and
+/// its tags as chips (the desktop's NoteHeader.tsx).
+private struct NoteHeader: View {
+    let store: VaultStore
+    let rel: String
+
+    var body: some View {
+        let folders = (rel as NSString).deletingLastPathComponent
+        VStack(alignment: .leading, spacing: 10) {
+            if !folders.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "folder").font(.system(size: 11))
+                    Text(folders.split(separator: "/").joined(separator: "  /  ").uppercased())
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .tracking(0.9)
+                        .lineLimit(1)
+                }
+                .foregroundStyle(Color.evSubtle)
+            }
+            Text(((rel as NSString).lastPathComponent as NSString).deletingPathExtension)
+                .font(.system(size: 36, weight: .semibold, design: .serif))
+                .foregroundStyle(Color(uiColor: EV.heading))
+                .textSelection(.enabled)
+            if let tags = store.notes[rel]?.tags, !tags.isEmpty {
+                FlowTags(tags: tags) { store.tagFilter = $0 }
+            }
+        }
+        .padding(.bottom, 16)
+    }
+}
+
+/// The frontmatter as a small properties table (tags show above, as chips).
 private struct Properties: View {
     let store: VaultStore
     let source: String
 
     var body: some View {
-        let props = NoteParse.properties(source)
+        let props = NoteParse.properties(source).filter { !["tags", "tag"].contains($0.key.lowercased()) }
         if !props.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(Array(props.enumerated()), id: \.offset) { _, prop in
@@ -184,12 +211,17 @@ struct BlockView: View {
     var body: some View {
         switch block {
         case .heading(let level, let text):
-            InlineText(source: text, size: Self.headingSize(level), weight: level <= 3 ? .bold : .semibold,
+            InlineText(source: text, size: Self.headingSize(level), weight: level <= 3 ? .semibold : .medium,
                        color: level == 6 ? Color.evDim : Color(uiColor: EV.heading))
                 .padding(.top, level <= 2 ? 14 : 6)
 
         case .paragraph(let text):
-            InlineText(source: text, size: size)
+            if let card = InkCard.parse(line: text), let link = ScribeLink(target: card.target),
+               let page = store.scribePage(card.target) {
+                InkCard(link: link, page: page, label: card.label, store: store)
+            } else {
+                InlineText(source: text, size: size)
+            }
 
         case .list(let items):
             VStack(alignment: .leading, spacing: 6) {
@@ -229,7 +261,12 @@ struct BlockView: View {
             NoteImage(source: source, alt: alt, store: store)
 
         case .embed(let target):
-            EmbedView(target: target, store: store, depth: depth)
+            if let card = InkCard.parse(line: "[[\(target)]]"), let link = ScribeLink(target: card.target),
+               let page = store.scribePage(card.target) {
+                InkCard(link: link, page: page, label: card.label, store: store)
+            } else {
+                EmbedView(target: target, store: store, depth: depth)
+            }
         }
     }
 
@@ -249,7 +286,7 @@ struct InlineText: View {
     let source: String
     var size: CGFloat = NoteReader.bodySize
     var weight: Font.Weight = .regular
-    var color: Color = .evFg
+    var color: Color = .evText
 
     var body: some View {
         let pieces = Inline.parse(source)
@@ -259,9 +296,9 @@ struct InlineText: View {
         VStack(alignment: .leading, spacing: 8) {
             if pieces.contains(where: { if case .image = $0 { false } else { true } }) {
                 Text.pieces(pieces.filter { if case .image = $0 { false } else { true } }, size: size)
-                    .font(.system(size: size, weight: weight))
+                    .font(.system(size: size, weight: weight, design: .serif))
                     .foregroundStyle(color)
-                    .lineSpacing(size * 0.28)
+                    .lineSpacing(size * 0.32)
                     .tint(Color(uiColor: EV.wikilink))
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
@@ -298,7 +335,7 @@ private struct ListRow: View {
             }
             .frame(minWidth: 16, alignment: .trailing)
             VStack(alignment: .leading, spacing: 6) {
-                InlineText(source: item.text, color: item.task == true ? .evDim : .evFg)
+                InlineText(source: item.text, color: item.task == true ? .evDim : .evText)
                     .strikethrough(item.task == true, color: .evSubtle)
                 ForEach(Array(item.children.enumerated()), id: \.offset) { _, child in
                     BlockView(block: child, line: item.line, store: store, depth: depth + 1)

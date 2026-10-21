@@ -13,6 +13,7 @@
 		208107C86710E02C5C10FAFC /* AppSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F5F58A8AF8ACBF957810FB /* AppSwitcher.swift */; };
 		2A172507F771DB2BB10578CC /* ReadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9560152484C6FB9DD533F97D /* ReadingView.swift */; };
 		315A05C01E7BCA99ECB13EE6 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB911B4EFF147E75B54578F /* EditorView.swift */; };
+		37973A4BF0FB83343209BA12 /* InkCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CD648A36B0856CB9C2D66C4 /* InkCard.swift */; };
 		43BB0BFB7503B1DE63C79456 /* ImportPopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1B97368B968B9EA7A98E4E /* ImportPopup.swift */; };
 		584F21555D252EB26E2C8877 /* VaultStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7DFDBF4CEADE100F11DF80B /* VaultStore.swift */; };
 		5A9C5A62BB1B39E868FAC2A7 /* GraphSim.swift in Sources */ = {isa = PBXBuildFile; fileRef = 693BBEB08977D11534B0D382 /* GraphSim.swift */; };
@@ -53,6 +54,7 @@
 		10075054A2E953FD835C1284 /* Thumbnails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Thumbnails.swift; sourceTree = "<group>"; };
 		11345C81116DC36BA7419B25 /* Scribe.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Scribe.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		21A1816517869BFE33A8CD79 /* InkReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InkReader.swift; sourceTree = "<group>"; };
+		2CD648A36B0856CB9C2D66C4 /* InkCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InkCard.swift; sourceTree = "<group>"; };
 		2F77458CD35B81A7CABDC943 /* GraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphView.swift; sourceTree = "<group>"; };
 		3ECB559B954847D3FD91E918 /* PenInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PenInput.swift; sourceTree = "<group>"; };
 		45F59826CA139258AB536628 /* Velvet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Velvet.swift; sourceTree = "<group>"; };
@@ -221,6 +223,7 @@
 				C13920EAFF24E0A57E26E1BB /* ElectronViews.swift */,
 				693BBEB08977D11534B0D382 /* GraphSim.swift */,
 				2F77458CD35B81A7CABDC943 /* GraphView.swift */,
+				2CD648A36B0856CB9C2D66C4 /* InkCard.swift */,
 				4A2318E4D0EAAB9072D2E57F /* Inline.swift */,
 				59DF6175F65D66837FB70317 /* Markdown.swift */,
 				0CA4FDBB9E32D7DCC80A445A /* MathRender.swift */,
@@ -343,6 +346,7 @@
 				5A9C5A62BB1B39E868FAC2A7 /* GraphSim.swift in Sources */,
 				9991CF0E5D8130ADD7B0753B /* GraphView.swift in Sources */,
 				43BB0BFB7503B1DE63C79456 /* ImportPopup.swift in Sources */,
+				37973A4BF0FB83343209BA12 /* InkCard.swift in Sources */,
 				F6131F4DB4683F5D8D5AB0AC /* InkReader.swift in Sources */,
 				731E1662D1413CD10AF0EE2A /* Inline.swift in Sources */,
 				F244FA5829D8033601AB3D02 /* Library.swift in Sources */,
