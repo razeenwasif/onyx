@@ -100,6 +100,7 @@ private struct ElectronMain: View {
                             Button("New Note", systemImage: "square.and.pencil") { store.newNote(in: folderForNew) }
                             Button("New Folder…", systemImage: "folder.badge.plus") { ask = NameAsk(kind: .newFolder(parent: ""), text: "") }
                             Divider()
+                            Button("Today", systemImage: "calendar") { store.showToday() }
                             Button("Today's Note", systemImage: "sun.max") { store.openDaily() }
                             Button("Daily Notes…", systemImage: "calendar") { showingCalendar = true }
                             Button("Graph", systemImage: "point.3.connected.trianglepath.dotted") { graphFocus = GraphFocus(rel: nil) }
@@ -153,7 +154,7 @@ private struct ElectronMain: View {
         .fullScreenCover(item: $graphFocus) { focus in GraphScreen(store: store, focus: focus.rel) }
         .background {
             // Keyboard: today's note and the graph, as on the desktop.
-            Button("Today's Note") { store.openDaily() }.keyboardShortcut("d", modifiers: [.command, .shift]).hidden()
+            Button("Today") { store.showToday() }.keyboardShortcut("d", modifiers: [.command, .shift]).hidden()
             Button("Graph") { graphFocus = GraphFocus(rel: nil) }.keyboardShortcut("g", modifiers: .command).hidden()
         }
         .sheet(isPresented: $showingTags) { TagSheet(store: store, start: nil) }
@@ -208,8 +209,8 @@ private struct ElectronMain: View {
                 if !store.loaded {
                     HStack { ProgressView(); Text("Reading the vault…").foregroundStyle(Color.evDim) }
                 }
-                LibraryTodayRow(store: store, active: store.current == VaultStore.dailyPath(.now)) {
-                    store.openDaily()
+                LibraryTodayRow(store: store, active: store.current == nil) {
+                    store.showToday()
                     hideSidebarIfNarrow()
                 }
                 Section("Pinned", isExpanded: isOpen("pinned")) {
@@ -353,13 +354,7 @@ private struct NoteDetail: View {
                     ContentUnavailableView("Can't show this file", systemImage: "doc", description: Text(rel))
                 }
             } else {
-                ContentUnavailableView {
-                    Label("No note open", systemImage: "doc.text")
-                } description: {
-                    Text("Pick a note on the left, or start a new one.")
-                } actions: {
-                    Button("New Note") { store.newNote(in: "") }.buttonStyle(.borderedProminent)
-                }
+                TodayView(store: store)
             }
         }
         .background(Color.evBg)
@@ -412,7 +407,7 @@ private struct NoteDetail: View {
     }
 
     private var title: String {
-        guard let rel = store.current else { return "" }
+        guard let rel = store.current else { return "Today" }
         return VaultNode.kind(of: rel) == .note ? ((rel as NSString).lastPathComponent as NSString).deletingPathExtension : (rel as NSString).lastPathComponent
     }
 }

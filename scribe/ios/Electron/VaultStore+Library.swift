@@ -52,6 +52,16 @@ extension VaultStore {
         coordinatedWrite(url, data)
     }
 
+    /// Ticks a task off in its note.
+    func complete(_ task: OpenTask) {
+        guard var lines = texts[task.rel]?.components(separatedBy: "\n"), task.line < lines.count,
+              let box = lines[task.line].range(of: "[ ]") else { return }
+        lines[task.line].replaceSubrange(box, with: "[x]")
+        let content = lines.joined(separator: "\n")
+        if task.rel == current { text = content }
+        _ = write(task.rel, content)
+    }
+
     func loadQuicknote() -> String {
         url(for: Self.quicknotePath).flatMap(VaultScan.read) ?? ""
     }

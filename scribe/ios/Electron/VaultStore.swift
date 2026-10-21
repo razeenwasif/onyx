@@ -288,7 +288,6 @@ final class VaultStore {
             text = fresh
             openedStamp = stamp
         }
-        if current == nil, let last = recents.first, notes[last] != nil { show(last, remember: false) }
     }
 
     private func reindex() {
@@ -461,6 +460,15 @@ final class VaultStore {
         text = ""
     }
 
+    /// Today, the home view: no note open. Back returns to the note left.
+    func showToday() {
+        guard current != nil else { return }
+        flush()
+        if let current { back.append(current); forward = [] }
+        current = nil
+        text = ""
+    }
+
     // MARK: Editing
 
     /// Called on every edit; saves a second after typing stops.
@@ -500,7 +508,7 @@ final class VaultStore {
     }
 
     @discardableResult
-    private func write(_ rel: String, _ content: String) -> Bool {
+    func write(_ rel: String, _ content: String) -> Bool {
         guard let url = url(for: rel) else { return false }
         var failure: Error?
         var coordError: NSError?
