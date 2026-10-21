@@ -1,8 +1,8 @@
 /** Panes, tab bars, and the view router. */
 
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { useStore, type Pane, type Tab } from '../store'
-import { Icon } from './Icon'
+import { Icon, type IconName } from './Icon'
 import { runCommand } from '../commands'
 import { MarkdownView } from '../editor/MarkdownView'
 import { GraphView } from '../graph/GraphView'
@@ -31,12 +31,6 @@ export function Workspace(): JSX.Element {
 
 function PaneView({ pane, zen }: { pane: Pane; zen: boolean }): JSX.Element {
   const activePaneId = useStore((s) => s.activePaneId)
-  const setActiveTab = useStore((s) => s.setActiveTab)
-  const closeTab = useStore((s) => s.closeTab)
-  const moveTab = useStore((s) => s.moveTab)
-  const docs = useStore((s) => s.docs)
-  const [dropIndex, setDropIndex] = useState<number | null>(null)
-
   const active = pane.tabs.find((t) => t.id === pane.activeTabId) ?? pane.tabs[0]
 
   return (
@@ -45,72 +39,211 @@ function PaneView({ pane, zen }: { pane: Pane; zen: boolean }): JSX.Element {
       onMouseDown={() => useStore.setState({ activePaneId: pane.id })}
     >
       <div className="tabbar">
-        <div className="tabbar-tabs">
-          {pane.tabs.map((tab, i) => (
-            <div
-              key={tab.id}
-              className={`tab${tab.id === pane.activeTabId ? ' is-active' : ''}${dropIndex === i ? ' is-active' : ''}`}
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData('text/onyx-tab', JSON.stringify({ pane: pane.id, tab: tab.id }))
-              }}
-              onDragOver={(e) => {
-                e.preventDefault()
-                setDropIndex(i)
-              }}
-              onDragLeave={() => setDropIndex(null)}
-              onDrop={(e) => {
-                e.preventDefault()
-                setDropIndex(null)
-                try {
-                  const { pane: from, tab: id } = JSON.parse(
-                    e.dataTransfer.getData('text/onyx-tab'),
-                  ) as { pane: string; tab: string }
-                  moveTab(from, id, pane.id, i)
-                } catch {
-                  /* not a tab drag */
-                }
-              }}
-              onMouseDown={(e) => {
-                if (e.button === 1) {
-                  e.preventDefault()
-                  closeTab(pane.id, tab.id)
-                  return
-                }
-                setActiveTab(pane.id, tab.id)
-              }}
-              title={tab.path ?? tab.title}
-            >
-              <span className="tab-title">{tab.title}</span>
-              {tab.path && docs.get(tab.path)?.dirty ? (
-                <span className="dirty-dot" />
-              ) : (
-                <span
-                  className="tab-close"
-                  onMouseDown={(e) => {
-                    e.stopPropagation()
-                    closeTab(pane.id, tab.id)
-                  }}
-                >
-                  <Icon name="close" size={12} />
-                </span>
-              )}
-            </div>
-          ))}
-          <button
-            className="icon-btn"
-            style={{ margin: '4px' }}
-            title="New tab"
-            onClick={() => useStore.getState().openView('empty')}
-          >
-            <Icon name="plus" size={14} />
-          </button>
-        </div>
+        <TabStrip pane={pane} />
         <TabActions pane={pane} tab={active} />
       </div>
       <div className="view">{active ? <ViewFor tab={active} /> : null}</div>
     </div>
   )
+}
+
+/**
+ * A pane's tabs at their full titles (up to a cap). Tabs that don't fit go
+ * into a "+N" menu at the end, the open tab always staying in view. A
+ * hidden copy of the strip measures every tab, so the split is exact.
+ */
+function TabStrip({ pane }: { pane: Pane }): JSX.Element {
+  const setActiveTab = useStore((s) => s.setActiveTab)
+  const closeTab = useStore((s) => s.closeTab)
+  const moveTab = useStore((s) => s.moveTab)
+  const docs = useStore((s) => s.docs)
+  const [dropIndex, setDropIndex] = useState<number | null>(null)
+  const [shown, setShown] = useState<Set<string> | null>(null)
+  const [menu, setMenu] = useState<{ left: number; top: number } | null>(null)
+  const stripRef = useRef<HTMLDivElement>(null)
+  const measureRef = useRef<HTMLDivElement>(null)
+  const titles = pane.tabs.map((t) => t.title).join('\u0000')
+
+  useLayoutEffect(() => {
+    const strip = stripRef.current
+    const measure = measureRef.current
+    if (!strip || !measure) return
+    const fit = (): void => {
+      const widths = [...measure.children].map((el) => (el as HTMLElement).offsetWidth)
+      const gap = parseFloat(getComputedStyle(strip).columnGap) || 0
+      const plus = 40 + gap // the New tab button
+      const more = 64 + gap // the "+N" button
+      const room = strip.clientWidth - plus
+      const total = widths.reduce((a, w) => a + w + gap, 0)
+      if (total <= room) {
+        setShown(null)
+        return
+      }
+      const keep: number[] = []
+      let used = 0
+      for (let i = 0; i < widths.length; i++) {
+        if (used + widths[i] + gap > room - more) break
+        keep.push(i)
+        used += widths[i] + gap
+      }
+      const activeIndex = pane.tabs.findIndex((t) => t.id === pane.activeTabId)
+      if (activeIndex >= 0 && !keep.includes(activeIndex)) {
+        while (keep.length && used + widths[activeIndex] + gap > room - more) {
+          used -= widths[keep.pop()!] + gap
+        }
+        keep.push(activeIndex)
+      }
+      setShown(new Set(keep.map((i) => pane.tabs[i].id)))
+    }
+    fit()
+    const observer = new ResizeObserver(fit)
+    observer.observe(strip)
+    return () => observer.disconnect()
+  }, [titles, pane.tabs, pane.activeTabId])
+
+  const hidden = shown ? pane.tabs.filter((t) => !shown.has(t.id)) : []
+  const dirty = (tab: Tab): boolean => !!(tab.path && docs.get(tab.path)?.dirty)
+
+  return (
+    <div className="tabbar-tabs" ref={stripRef}>
+      {pane.tabs.map((tab, i) =>
+        shown && !shown.has(tab.id) ? null : (
+          <div
+            key={tab.id}
+            className={`tab${tab.id === pane.activeTabId ? ' is-active' : ''}${dropIndex === i ? ' is-active' : ''}`}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('text/onyx-tab', JSON.stringify({ pane: pane.id, tab: tab.id }))
+            }}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setDropIndex(i)
+            }}
+            onDragLeave={() => setDropIndex(null)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDropIndex(null)
+              try {
+                const { pane: from, tab: id } = JSON.parse(e.dataTransfer.getData('text/onyx-tab')) as {
+                  pane: string
+                  tab: string
+                }
+                moveTab(from, id, pane.id, i)
+              } catch {
+                /* not a tab drag */
+              }
+            }}
+            onMouseDown={(e) => {
+              if (e.button === 1) {
+                e.preventDefault()
+                closeTab(pane.id, tab.id)
+                return
+              }
+              setActiveTab(pane.id, tab.id)
+            }}
+            title={tab.path ?? tab.title}
+          >
+            <Icon name={tabIcon(tab)} size={13} className="tab-icon" />
+            <span className="tab-title">{tab.title}</span>
+            {dirty(tab) ? (
+              <span className="dirty-dot" />
+            ) : (
+              <span
+                className="tab-close"
+                onMouseDown={(e) => {
+                  e.stopPropagation()
+                  closeTab(pane.id, tab.id)
+                }}
+              >
+                <Icon name="close" size={12} />
+              </span>
+            )}
+          </div>
+        ),
+      )}
+      {hidden.length > 0 && (
+        <div className="tab-more">
+          <button
+            type="button"
+            className={`tab-more-btn${menu ? ' is-open' : ''}`}
+            title={`${hidden.length} more tab${hidden.length === 1 ? '' : 's'}`}
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect()
+              setMenu(menu ? null : { left: Math.max(8, Math.min(r.left, window.innerWidth - 368)), top: r.bottom + 6 })
+            }}
+          >
+            +{hidden.length}
+            <Icon name="chevronDown" size={11} />
+          </button>
+          {menu && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 90 }} onClick={() => setMenu(null)} />
+              <div className="context-menu tab-more-menu" style={menu}>
+                {hidden.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    title={tab.path ?? tab.title}
+                    onClick={() => {
+                      setMenu(null)
+                      setActiveTab(pane.id, tab.id)
+                    }}
+                  >
+                    <Icon name={tabIcon(tab)} size={13} />
+                    <span className="tab-more-title">{tab.title}</span>
+                    {tab.path && tab.path.includes('/') && (
+                      <span className="tab-more-folder">{tab.path.split('/').slice(0, -1).join('/')}</span>
+                    )}
+                    {dirty(tab) && <span className="dirty-dot" />}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+      <button
+        className="icon-btn tab-new"
+        title="New tab"
+        onClick={() => useStore.getState().openView('empty')}
+      >
+        <Icon name="plus" size={14} />
+      </button>
+      {/* Every tab at its natural width, out of sight, for measuring. */}
+      <div className="tabbar-measure" ref={measureRef} aria-hidden="true">
+        {pane.tabs.map((tab) => (
+          <div key={tab.id} className="tab">
+            <Icon name={tabIcon(tab)} size={13} className="tab-icon" />
+            <span className="tab-title">{tab.title}</span>
+            <span className="tab-close" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** A small icon for what a tab shows. */
+function tabIcon(tab: Tab): IconName {
+  switch (tab.type) {
+    case 'empty':
+      return 'calendar'
+    case 'graph':
+    case 'localgraph':
+      return 'graph'
+    case 'canvas':
+      return 'canvas'
+    case 'ai':
+      return 'bot'
+    case 'drive':
+      return 'cloud'
+    case 'database':
+      return 'list'
+    case 'search':
+      return 'search'
+    default:
+      return 'note'
+  }
 }
 
 function TabActions({ pane, tab }: { pane: Pane; tab: Tab | undefined }): JSX.Element {

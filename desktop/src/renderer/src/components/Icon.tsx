@@ -157,6 +157,13 @@ const P: Record<string, JSX.Element> = {
       <path d="M6.5 19a4.5 4.5 0 0 1-.6-8.96 6 6 0 0 1 11.5 1.36A3.8 3.8 0 0 1 17.5 19Z" />
     </>
   ),
+  /** A page with a folded corner: a note. */
+  note: (
+    <>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 3v5h5M9 13h6M9 17h4" />
+    </>
+  ),
   /** The window with its left or right column marked: the panel toggles. */
   panelLeft: (
     <>
