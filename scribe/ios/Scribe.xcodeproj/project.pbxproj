@@ -21,6 +21,7 @@
 		73EAA4B79C3F9F00519C6A2A /* ElectronViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C13920EAFF24E0A57E26E1BB /* ElectronViews.swift */; };
 		7A96DE04F655CEAF1AC10883 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F50B0C1B73148655154DC4C /* Store.swift */; };
 		83E8088CA8239F35669B8A17 /* NotebookCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E3CA41C98CC4FBC7E26526 /* NotebookCanvas.swift */; };
+		8468D806AB976175AB7ECBCB /* ElectronLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F9D7033121C64764648DE8C /* ElectronLibrary.swift */; };
 		9991CF0E5D8130ADD7B0753B /* GraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F77458CD35B81A7CABDC943 /* GraphView.swift */; };
 		9D728A0825C40292DF904968 /* MathRender.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CA4FDBB9E32D7DCC80A445A /* MathRender.swift */; };
 		9D99DF024D967D69B0B73246 /* PageObjects.swift in Sources */ = {isa = PBXBuildFile; fileRef = 681070FF3C45F695C7DBE705 /* PageObjects.swift */; };
@@ -32,6 +33,7 @@
 		C0AC686D602BDD92D5E4FE0C /* Core.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60E1FAA8E2DD1D5F03EB5B57 /* Core.swift */; };
 		C2DFAA61D3C90D098EDCA7F5 /* PenInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ECB559B954847D3FD91E918 /* PenInput.swift */; };
 		C4457AFB46EBCC8F7A30D469 /* ScribeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 572ACD849DC28AE0C35FCA9B /* ScribeApp.swift */; };
+		C8712F20BA50F0F8C32EDEC1 /* VaultStore+Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04A9E1457DF77208E4E635B7 /* VaultStore+Library.swift */; };
 		D4A6DD7A8D98E8CB3119B1F8 /* PDFBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9017CAEE01B5AC8085F73E9 /* PDFBackground.swift */; };
 		DE1FECFCBE5F19EBAA62AC7E /* PageGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = A01DAF81BFF5F19B0C8A8E66 /* PageGrid.swift */; };
 		E05B9C001E4E76D6CF053D77 /* PageCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E90B89CCA9C197405CACDA /* PageCanvas.swift */; };
@@ -45,6 +47,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		04A9E1457DF77208E4E635B7 /* VaultStore+Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VaultStore+Library.swift"; sourceTree = "<group>"; };
 		0CA4FDBB9E32D7DCC80A445A /* MathRender.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathRender.swift; sourceTree = "<group>"; };
 		10075054A2E953FD835C1284 /* Thumbnails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Thumbnails.swift; sourceTree = "<group>"; };
 		11345C81116DC36BA7419B25 /* Scribe.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Scribe.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -69,6 +72,7 @@
 		8930E33BFE96CC0DF6861196 /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
 		94B50B840A6F28ACEF2FC4C8 /* FolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderAccess.swift; sourceTree = "<group>"; };
 		9560152484C6FB9DD533F97D /* ReadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingView.swift; sourceTree = "<group>"; };
+		9F9D7033121C64764648DE8C /* ElectronLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElectronLibrary.swift; sourceTree = "<group>"; };
 		A01DAF81BFF5F19B0C8A8E66 /* PageGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageGrid.swift; sourceTree = "<group>"; };
 		AC1B97368B968B9EA7A98E4E /* ImportPopup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportPopup.swift; sourceTree = "<group>"; };
 		AEB911B4EFF147E75B54578F /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
@@ -210,6 +214,7 @@
 			children = (
 				6E06CAE16DB036846B944DEB /* CalendarView.swift */,
 				AEB911B4EFF147E75B54578F /* EditorView.swift */,
+				9F9D7033121C64764648DE8C /* ElectronLibrary.swift */,
 				6B61DB841BDDBE4F762558DF /* ElectronTheme.swift */,
 				C13920EAFF24E0A57E26E1BB /* ElectronViews.swift */,
 				693BBEB08977D11534B0D382 /* GraphSim.swift */,
@@ -220,6 +225,7 @@
 				CB33200061EAB3BA677755CF /* NoteParse.swift */,
 				9560152484C6FB9DD533F97D /* ReadingView.swift */,
 				D7DFDBF4CEADE100F11DF80B /* VaultStore.swift */,
+				04A9E1457DF77208E4E635B7 /* VaultStore+Library.swift */,
 			);
 			path = Electron;
 			sourceTree = "<group>";
@@ -327,6 +333,7 @@
 				EA54154DE4F69B7068F389CB /* CalendarView.swift in Sources */,
 				C0AC686D602BDD92D5E4FE0C /* Core.swift in Sources */,
 				315A05C01E7BCA99ECB13EE6 /* EditorView.swift in Sources */,
+				8468D806AB976175AB7ECBCB /* ElectronLibrary.swift in Sources */,
 				ADACD8FF4CE1B4FE9FFAC5DF /* ElectronTheme.swift in Sources */,
 				73EAA4B79C3F9F00519C6A2A /* ElectronViews.swift in Sources */,
 				FFB1C571B5B76C90F0C6AE97 /* FolderAccess.swift in Sources */,
@@ -353,6 +360,7 @@
 				7A96DE04F655CEAF1AC10883 /* Store.swift in Sources */,
 				BD15A724EAC201BDC240C58C /* Thumbnails.swift in Sources */,
 				F9C39EC7D1F0EB83BD46CC0D /* Tools.swift in Sources */,
+				C8712F20BA50F0F8C32EDEC1 /* VaultStore+Library.swift in Sources */,
 				584F21555D252EB26E2C8877 /* VaultStore.swift in Sources */,
 				0E65E97DE98AEC0D5CCAB2DF /* Velvet.swift in Sources */,
 				FDECDAD04F07FC6C8CA218CB /* Views.swift in Sources */,

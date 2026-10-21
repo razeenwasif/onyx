@@ -195,6 +195,11 @@ final class VaultStore {
     private var byFileName: [String: String] = [:]
     private(set) var backlinkMap: [String: Set<String>] = [:]
     private(set) var tagCounts: [(tag: String, count: Int)] = []
+    /// Unchecked `- [ ]` items across the vault, newest note first (the
+    /// Library's count, and Today's list).
+    private(set) var openTasks: [OpenTask] = []
+    /// Pinned notes, shared with the desktop (`.onyx/bookmarks.json`).
+    var bookmarks: [String] = []
 
     /// Scribe's pages by id, for `[[scribe:…]]` links: Scribe's link index,
     /// handed over by AppHost whenever Scribe reads it.
@@ -274,6 +279,7 @@ final class VaultStore {
             reindex()
         }
         loaded = true
+        loadBookmarks()
         // The open note changed on another device: show the new text unless
         // there are edits here that haven't been saved.
         // A scan that started before a save here still has the old stamp, so
@@ -307,6 +313,7 @@ final class VaultStore {
             for tag in meta.tags { counts[tag, default: 0] += 1 }
         }
         backlinkMap = links
+        openTasks = Self.findTasks(notes: notes, texts: texts)
         tagCounts = counts.map { ($0.key, $0.value) }.sorted { $0.tag.localizedCaseInsensitiveCompare($1.tag) == .orderedAscending }
     }
 

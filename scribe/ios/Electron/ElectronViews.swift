@@ -86,11 +86,12 @@ private struct ElectronMain: View {
     @State private var showingCalendar = false
     @State private var graphFocus: GraphFocus?
     @State private var picking = false
+    /// Which Library sections are folded, remembered across launches.
+    @AppStorage("libraryFolded") private var folded = "scratch"
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
             sidebar
-                .navigationTitle(store.vaultName)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) { AppSwitchButton() }
@@ -105,9 +106,6 @@ private struct ElectronMain: View {
                             Divider()
                             Button("Todos", systemImage: "checklist") { showingTodos = true }
                             Button("Tags", systemImage: "number") { showingTags = true }
-                            Divider()
-                            Button("Sync Now", systemImage: "arrow.clockwise") { store.refresh() }
-                            Button("Change Vault…", systemImage: "externaldrive") { picking = true }
                         } label: {
                             Image(systemName: "ellipsis.circle")
                         }
@@ -210,44 +208,70 @@ private struct ElectronMain: View {
                 if !store.loaded {
                     HStack { ProgressView(); Text("Reading the vault…").foregroundStyle(Color.evDim) }
                 }
-                let recent = store.recents.filter { store.files[$0] != nil }.prefix(5)
-                if !recent.isEmpty {
-                    Section("Recent") {
-                        ForEach(Array(recent), id: \.self) { rel in
-                            row(VaultNode(rel: rel, name: (rel as NSString).lastPathComponent, kind: VaultNode.kind(of: rel)), icon: "clock")
-                        }
-                    }
+                LibraryTodayRow(store: store, active: store.current == VaultStore.dailyPath(.now)) {
+                    store.openDaily()
+                    hideSidebarIfNarrow()
                 }
-                Section {
+                Section("Pinned", isExpanded: isOpen("pinned")) {
+                    LibraryPinned(store: store) { open($0) }
+                }
+                Section(isExpanded: isOpen("notes")) {
                     OutlineGroup(store.tree, children: \.children) { node in
                         row(node, icon: nil)
                     }
                 } header: {
                     HStack {
-                        Text("Files")
+                        Text("Notes")
+                        Text("\(store.notes.count)").foregroundStyle(Color.evSubtle)
                         Spacer()
-                        Text("\(store.notes.count) notes").foregroundStyle(Color.evSubtle)
+                        Button { store.newNote(in: folderForNew) } label: { Image(systemName: "square.and.pencil") }
+                        Button { ask = NameAsk(kind: .newFolder(parent: ""), text: "") } label: { Image(systemName: "folder.badge.plus") }
                     }
+                    .buttonStyle(.borderless)
+                }
+                if !store.scribePages.isEmpty {
+                    Section(isExpanded: isOpen("ink")) {
+                        LibraryInk(store: store)
+                    } header: {
+                        HStack {
+                            Text("Ink")
+                            Spacer()
+                            Text("in Scribe").foregroundStyle(Color.evSubtle)
+                        }
+                    }
+                }
+                Section("Scratch pad", isExpanded: isOpen("scratch")) {
+                    LibraryScratchPad(store: store)
                 }
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
             .background(Color.evPanel)
             .refreshable { store.refresh() }
-            .safeAreaInset(edge: .bottom) {
-                if store.pending > 0 {
-                    Label("Downloading \(store.pending) from iCloud…", systemImage: "icloud.and.arrow.down")
-                        .font(.footnote)
-                        .foregroundStyle(Color.evDim)
-                        .padding(10)
-                }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                LibraryFoot(store: store) { picking = true }
             }
         }
     }
 
+    private func isOpen(_ key: String) -> Binding<Bool> {
+        Binding(
+            get: { !folded.split(separator: ",").contains(Substring(key)) },
+            set: { open in
+                var keys = Set(folded.split(separator: ",").map(String.init))
+                if open { keys.remove(key) } else { keys.insert(key) }
+                folded = keys.sorted().joined(separator: ",")
+            }
+        )
+    }
+
     private func open(_ rel: String) {
         store.show(rel)
-        // In portrait the sidebar covers the note; get it out of the way.
+        hideSidebarIfNarrow()
+    }
+
+    /// In portrait the sidebar covers the note; get it out of the way.
+    private func hideSidebarIfNarrow() {
         if UIDevice.current.orientation.isPortrait || UIScreen.main.bounds.width < 900 { columns = .detailOnly }
     }
 
@@ -275,6 +299,11 @@ private struct ElectronMain: View {
             }
             .listRowBackground(node.rel == store.current ? Color.evBgSel : Color.clear)
             .contextMenu {
+                if node.kind == .note {
+                    Button(store.isBookmarked(node.rel) ? "Unpin" : "Pin", systemImage: store.isBookmarked(node.rel) ? "star.slash" : "star") {
+                        store.toggleBookmark(node.rel)
+                    }
+                }
                 Button("Rename…", systemImage: "pencil") { ask = NameAsk(kind: .rename(rel: node.rel), text: node.title) }
                 Divider()
                 Button("Move to Trash", systemImage: "trash", role: .destructive) { deleting = node.rel }
@@ -361,6 +390,9 @@ private struct NoteDetail: View {
                     }
                     Menu {
                         if VaultNode.kind(of: rel) == .note {
+                            Button(store.isBookmarked(rel) ? "Unpin" : "Pin", systemImage: store.isBookmarked(rel) ? "star.slash" : "star") {
+                                store.toggleBookmark(rel)
+                            }
                             Button("Local Graph", systemImage: "point.3.connected.trianglepath.dotted") { graph(rel) }
                         }
                         Button("Rename…", systemImage: "pencil") {
