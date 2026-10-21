@@ -237,7 +237,7 @@ enum Inline {
                         flush()
                         let tag = String(chars[(i + 1)..<j])
                         var s = style
-                        s.color = .evTag
+                        s.color = .evTagText
                         s.link = tagURL(tag)
                         out.append(text("#" + tag, s))
                         i = j

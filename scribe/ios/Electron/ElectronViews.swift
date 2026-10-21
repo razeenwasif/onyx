@@ -204,7 +204,7 @@ private struct ElectronMain: View {
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
-            .background(Color.evChrome)
+            .background(Color.evPanel)
         } else {
             List {
                 if !store.loaded {
@@ -232,7 +232,7 @@ private struct ElectronMain: View {
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
-            .background(Color.evChrome)
+            .background(Color.evPanel)
             .refreshable { store.refresh() }
             .safeAreaInset(edge: .bottom) {
                 if store.pending > 0 {

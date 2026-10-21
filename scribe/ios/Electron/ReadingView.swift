@@ -132,10 +132,10 @@ struct FlowTags: View {
                 Button { tap(tag) } label: {
                     Text("#" + tag)
                         .font(.system(size: 13))
-                        .foregroundStyle(Color.evTag)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.evTag.opacity(0.12), in: Capsule())
+                        .foregroundStyle(Color.evTagText)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.evTag.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
             }

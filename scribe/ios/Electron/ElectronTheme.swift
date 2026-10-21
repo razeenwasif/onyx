@@ -2,29 +2,36 @@ import SwiftUI
 import UIKit
 
 /// The desktop's "Electron Velvet" theme (desktop/src/renderer/src/themes.ts),
-/// so notes look the same on the iPad as on the Mac.
+/// in the redesign's palette: a near-black plum backdrop, the Library a step
+/// up, the note a step above that; lavender for Electron, green tags and
+/// coral for Scribe's ink.
 enum EV {
-    static let chrome = UIColor(hex: "#0F0D13")
-    static let bg = UIColor(hex: "#16131C")
-    static let bgAlt = UIColor(hex: "#1C1823")
-    static let bgSel = UIColor(hex: "#2A2433")
-    static let fg = UIColor(hex: "#EBE6F2")
-    static let fgDim = UIColor(hex: "#A49EB2")
-    static let fgSubtle = UIColor(hex: "#6C657C")
-    static let accent = UIColor(hex: "#A78BFA")
-    static let accentAlt = UIColor(hex: "#F59E0B")
-    static let link = UIColor(hex: "#7AA2F7")
-    static let wikilink = UIColor(hex: "#A78BFA")
-    static let tag = UIColor(hex: "#34D399")
-    static let code = UIColor(hex: "#F9A3B3")
-    static let heading = UIColor(hex: "#F3EEF9")
-    static let border = UIColor(hex: "#322B3D")
-    static let success = UIColor(hex: "#34D399")
-    static let warning = UIColor(hex: "#F59E0B")
+    static let chrome = UIColor(hex: "#120F17")
+    static let panel = UIColor(hex: "#18141E")
+    static let bg = UIColor(hex: "#1B1722")
+    static let bgAlt = UIColor(hex: "#1F1A26")
+    static let bgSel = UIColor(hex: "#2A2335")
+    static let fg = UIColor(hex: "#ECE7F3")
+    /// Note text: a shade softer than headings.
+    static let text = UIColor(hex: "#DDD7E6")
+    static let fgDim = UIColor(hex: "#B4ADC1")
+    static let fgSubtle = UIColor(hex: "#948CA3")
+    static let accent = UIColor(hex: "#B39DFB")
+    static let accentAlt = UIColor(hex: "#E39072")
+    static let link = UIColor(hex: "#C4B2FD")
+    static let wikilink = UIColor(hex: "#C4B2FD")
+    static let tag = UIColor(hex: "#5FD4A4")
+    static let tagText = UIColor(hex: "#7FE0B8")
+    static let ink = UIColor(hex: "#E39072")
+    static let code = UIColor(hex: "#F0AD93")
+    static let heading = UIColor(hex: "#F4F0F8")
+    static let border = UIColor(hex: "#2C2537")
+    static let success = UIColor(hex: "#5FD4A4")
+    static let warning = UIColor(hex: "#F0C27A")
     static let error = UIColor(hex: "#F7768E")
-    static let info = UIColor(hex: "#7AA2F7")
-    static let codeBg = UIColor(white: 0, alpha: 0.24)
-    static let highlight = UIColor(hex: "#F59E0B").withAlphaComponent(0.28)
+    static let info = UIColor(hex: "#8FB7F0")
+    static let codeBg = UIColor(hex: "#241F2D")
+    static let highlight = UIColor(hex: "#F0C27A").withAlphaComponent(0.28)
 }
 
 extension Color {
@@ -32,6 +39,10 @@ extension Color {
     static let evBgAlt = Color(uiColor: EV.bgAlt)
     static let evBgSel = Color(uiColor: EV.bgSel)
     static let evChrome = Color(uiColor: EV.chrome)
+    static let evPanel = Color(uiColor: EV.panel)
+    static let evText = Color(uiColor: EV.text)
+    static let evTagText = Color(uiColor: EV.tagText)
+    static let evInk = Color(uiColor: EV.ink)
     static let evFg = Color(uiColor: EV.fg)
     static let evDim = Color(uiColor: EV.fgDim)
     static let evSubtle = Color(uiColor: EV.fgSubtle)
