@@ -99,42 +99,51 @@ textarea {
   min-height: 0;
 }
 
-/* Electron and Scribe (macOS), at the left of the top bar: the current
-   app, then the one to switch to. */
+/* Electron and Scribe (macOS), at the left of the top bar, as on the iPad:
+   both marks in one capsule, the open app's lit in its colour. */
 .app-switcher {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--bg-alt);
 }
 
 .app-switch {
-  width: 30px;
+  width: 36px;
   height: 30px;
-  padding: 3px;
-  border-radius: 9px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
   display: grid;
   place-items: center;
-  opacity: 0.55;
-  transition: opacity 120ms ease, background 120ms ease;
+  background: transparent;
+  color: var(--fg-subtle);
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
+}
+
+.app-switch svg {
+  width: 17px;
+  height: 17px;
 }
 
 .app-switch:hover {
-  opacity: 1;
-  background: var(--bg-hover);
+  color: var(--fg);
 }
 
 .app-switch.is-current {
-  opacity: 1;
   cursor: default;
-  background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
-.app-switch svg,
-.app-switch img {
-  width: 100%;
-  height: 100%;
-  display: block;
+.app-switch.is-current.is-electron {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.app-switch.is-scribe:hover {
+  color: #e39072;
 }
 
 /* Sidebars ---------------------------------------------------------------- */

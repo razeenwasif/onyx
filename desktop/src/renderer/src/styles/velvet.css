@@ -38,12 +38,6 @@
   gap: var(--gap);
 }
 
-[data-style='velvet'] .app-switch {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-}
-
 /* ------------------------------------------------------------- sidebars */
 
 /* The sidebar itself goes transparent; each stacked pane becomes a card. */

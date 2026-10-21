@@ -28,21 +28,25 @@ public struct HostSwitcher: View {
     }
 
     public var body: some View {
-        let size: CGFloat = axis == .horizontal ? 22 : 30
+        // As on the iPad: both marks in one capsule, Scribe's lit.
         let layout = axis == .horizontal
-            ? AnyLayout(HStackLayout(spacing: 6))
-            : AnyLayout(VStackLayout(spacing: 8))
+            ? AnyLayout(HStackLayout(spacing: 2))
+            : AnyLayout(VStackLayout(spacing: 2))
         layout {
-            AppIcon(image: hostIcon, size: size, current: false, help: "Switch to \(hostName)", action: switchToHost)
-            AppIcon(image: scribeIcon, size: size, current: true, help: "Scribe", action: {})
+            Mark(symbol: "atom", tint: Color(red: 0xB3 / 255, green: 0x9D / 255, blue: 0xFB / 255),
+                 current: false, help: "Switch to \(hostName)", action: switchToHost)
+            Mark(symbol: "pencil.and.scribble", tint: Velvet.accent,
+                 current: true, help: "Scribe", action: {})
         }
+        .padding(2)
+        .background(Color.white.opacity(0.06), in: Capsule())
         .padding(.leading, axis == .horizontal ? 6 : 0)
     }
 }
 
-private struct AppIcon: View {
-    var image: NSImage?
-    var size: CGFloat
+private struct Mark: View {
+    var symbol: String
+    var tint: Color
     var current: Bool
     var help: String
     var action: () -> Void
@@ -51,25 +55,12 @@ private struct AppIcon: View {
 
     var body: some View {
         Button(action: action) {
-            Group {
-                if let image {
-                    Image(nsImage: image).resizable().interpolation(.high)
-                } else {
-                    RoundedRectangle(cornerRadius: size * 0.26, style: .continuous).fill(Velvet.control)
-                }
-            }
-            .frame(width: size, height: size)
-            .opacity(current || hovering ? 1 : 0.55)
-            .padding(3)
-            .background(
-                RoundedRectangle(cornerRadius: size * 0.36, style: .continuous)
-                    .fill(current ? Velvet.accentSoft : Color.clear)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: size * 0.36, style: .continuous)
-                    .strokeBorder(Velvet.accentRing, lineWidth: current ? 1 : 0)
-            )
-            .contentShape(Rectangle())
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(current ? tint : hovering ? Color.white.opacity(0.9) : Color.white.opacity(0.5))
+                .frame(width: 34, height: 28)
+                .background(current ? tint.opacity(0.18) : .clear, in: Capsule())
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
