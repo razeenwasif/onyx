@@ -4091,8 +4091,7 @@ textarea {
 .ink-card-ink img {
   display: block;
   width: 100%;
-  max-height: 380px;
-  object-fit: contain;
+  height: auto;
 }
 
 .ink-card-wait {

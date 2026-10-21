@@ -333,8 +333,14 @@ public enum PageCards {
             return file.path
         }
         let sectionPath = URL(fileURLWithPath: page).deletingLastPathComponent().path
-        guard let doc = try? Core.readPage(page),
-              let image = Thumbnails.render(doc, sectionPath: sectionPath, crop: Thumbnails.cardCrop(doc, area: area), width: pixels),
+        guard let doc = try? Core.readPage(page) else { return nil }
+        // A page on a PDF (imported slides or notes) is its PDF: the card
+        // shows the whole page rather than just the ink on it.
+        var crop = Thumbnails.cardCrop(doc, area: area)
+        if area == nil, let pdf = PDFBackground.page(for: doc.background, sectionPath: sectionPath) {
+            crop = CGRect(origin: .zero, size: PDFBackground.size(of: pdf))
+        }
+        guard let image = Thumbnails.render(doc, sectionPath: sectionPath, crop: crop, width: pixels),
               (try? fm.createDirectory(at: folder, withIntermediateDirectories: true)) != nil,
               let out = CGImageDestinationCreateWithURL(file as CFURL, UTType.png.identifier as CFString, 1, nil)
         else { return nil }
