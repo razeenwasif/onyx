@@ -76,9 +76,7 @@ private struct NameAsk: Identifiable {
 private struct ElectronMain: View {
     @Bindable var store: VaultStore
     @State private var columns: NavigationSplitViewVisibility = .automatic
-    @State private var query = ""
-    @State private var hits: [VaultStore.Hit] = []
-    @State private var searched = ""
+    @State private var commandBar = false
     @State private var ask: NameAsk?
     @State private var deleting: String?
     @State private var showingTodos = false
@@ -117,16 +115,11 @@ private struct ElectronMain: View {
                     }
                 }
         } detail: {
-            NoteDetail(store: store, ask: { ask = $0 }, delete: { deleting = $0 }, graph: { graphFocus = GraphFocus(rel: $0) })
+            NoteDetail(store: store, ask: { ask = $0 }, delete: { deleting = $0 }, graph: { graphFocus = GraphFocus(rel: $0) },
+                       search: { commandBar = true })
         }
         .navigationSplitViewStyle(.balanced)
-        .searchable(text: $query, placement: .sidebar, prompt: "Search notes")
-        .task(id: query) {
-            try? await Task.sleep(for: .milliseconds(200))
-            guard !Task.isCancelled else { return }
-            hits = await store.search(query)
-            searched = query
-        }
+        .sheet(isPresented: $commandBar) { CommandBar(store: store, commands: commands) }
         .alert(ask?.title ?? "", isPresented: Binding(get: { ask != nil }, set: { if !$0 { ask = nil } })) {
             TextField("Name", text: Binding(get: { ask?.text ?? "" }, set: { ask?.text = $0 }))
             Button("Cancel", role: .cancel) { ask = nil }
@@ -156,6 +149,7 @@ private struct ElectronMain: View {
             // Keyboard: today's note and the graph, as on the desktop.
             Button("Today") { store.showToday() }.keyboardShortcut("d", modifiers: [.command, .shift]).hidden()
             Button("Graph") { graphFocus = GraphFocus(rel: nil) }.keyboardShortcut("g", modifiers: .command).hidden()
+            Button("Command Bar") { commandBar = true }.keyboardShortcut("k", modifiers: .command).hidden()
         }
         .sheet(isPresented: $showingTags) { TagSheet(store: store, start: nil) }
         .sheet(item: Binding(get: { store.tagFilter.map(TagPick.init) }, set: { store.tagFilter = $0?.tag })) { pick in
@@ -181,31 +175,25 @@ private struct ElectronMain: View {
         store.current.map { ($0 as NSString).deletingLastPathComponent } ?? ""
     }
 
-    @ViewBuilder
     private var sidebar: some View {
-        if !query.trimmingCharacters(in: .whitespaces).isEmpty {
             List {
-                if hits.isEmpty, searched == query {
-                    Text("No notes match “\(query)”").foregroundStyle(Color.evSubtle)
-                }
-                ForEach(hits) { hit in
-                    Button { open(hit.rel) } label: {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(store.notes[hit.rel]?.name ?? hit.title).font(.body.weight(.medium)).foregroundStyle(Color.evFg)
-                            if let snippet = hit.snippet {
-                                Text(snippet).font(.footnote).foregroundStyle(Color.evDim).lineLimit(2)
-                            }
-                            Text((hit.rel as NSString).deletingLastPathComponent).font(.caption2).foregroundStyle(Color.evSubtle)
-                        }
+                Button { commandBar = true } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "magnifyingglass").foregroundStyle(Color.evAccent)
+                        Text("Search, run a command…").foregroundStyle(Color.evDim).lineLimit(1)
+                        Spacer()
+                        Text("⌘K").font(.system(size: 11, weight: .medium)).foregroundStyle(Color.evDim)
+                            .padding(.horizontal, 6).padding(.vertical, 3)
+                            .background(Color.evBgSel, in: RoundedRectangle(cornerRadius: 6))
                     }
-                    .listRowBackground(hit.rel == store.current ? Color.evBgSel : Color.clear)
+                    .padding(.horizontal, 12)
+                    .frame(height: 40)
+                    .background(Color.evBg, in: RoundedRectangle(cornerRadius: 11))
+                    .overlay(RoundedRectangle(cornerRadius: 11).stroke(Color.evBorder))
                 }
-            }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
-            .background(Color.evPanel)
-        } else {
-            List {
+                .buttonStyle(.plain)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 8, trailing: 12))
                 if !store.loaded {
                     HStack { ProgressView(); Text("Reading the vault…").foregroundStyle(Color.evDim) }
                 }
@@ -252,7 +240,39 @@ private struct ElectronMain: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 LibraryFoot(store: store) { picking = true }
             }
+    }
+
+    /// What the command bar can run.
+    private var commands: [PaletteCommand] {
+        var list = [
+            PaletteCommand(name: "Today", icon: "calendar", shortcut: "⇧⌘D") { store.showToday() },
+            PaletteCommand(name: "Create new note", icon: "square.and.pencil", shortcut: "⌘N") { store.newNote(in: folderForNew) },
+            PaletteCommand(name: "Open today's note", icon: "sun.max") { store.openDaily() },
+            PaletteCommand(name: "Open graph view", icon: "point.3.connected.trianglepath.dotted", shortcut: "⌘G") { graphFocus = GraphFocus(rel: nil) },
+            PaletteCommand(name: "Daily notes calendar", icon: "calendar.badge.clock") { showingCalendar = true },
+            PaletteCommand(name: "Show to-do list", icon: "checklist") { showingTodos = true },
+            PaletteCommand(name: "Browse tags", icon: "number") { showingTags = true },
+            PaletteCommand(name: "New folder", icon: "folder.badge.plus") { ask = NameAsk(kind: .newFolder(parent: ""), text: "") },
+            PaletteCommand(name: "Toggle Library", icon: "sidebar.left") {
+                columns = columns == .detailOnly ? .all : .detailOnly
+            },
+            PaletteCommand(name: "Sync now", icon: "arrow.clockwise") { store.refresh() },
+            PaletteCommand(name: "Open another vault", icon: "externaldrive") { picking = true },
+        ]
+        if let rel = store.current, VaultNode.kind(of: rel) == .note {
+            list.insert(contentsOf: [
+                PaletteCommand(name: store.mode == .reading ? "Edit this note" : "Read this note", icon: store.mode == .reading ? "pencil" : "book", shortcut: "⌘E") {
+                    store.flush()
+                    store.mode = store.mode == .reading ? .editing : .reading
+                },
+                PaletteCommand(name: store.isBookmarked(rel) ? "Unpin this note" : "Pin this note", icon: "star") { store.toggleBookmark(rel) },
+                PaletteCommand(name: "Show local graph", icon: "point.3.connected.trianglepath.dotted") { graphFocus = GraphFocus(rel: rel) },
+                PaletteCommand(name: "Rename this note", icon: "pencil.line") {
+                    ask = NameAsk(kind: .rename(rel: rel), text: ((rel as NSString).lastPathComponent as NSString).deletingPathExtension)
+                },
+            ], at: 1)
         }
+        return list
     }
 
     private func isOpen(_ key: String) -> Binding<Bool> {
@@ -329,6 +349,7 @@ private struct NoteDetail: View {
     let ask: (NameAsk) -> Void
     let delete: (String) -> Void
     let graph: (String) -> Void
+    let search: () -> Void
     @State private var bridge = EditorBridge()
     @State private var showingOutline = false
 
@@ -368,6 +389,7 @@ private struct NoteDetail: View {
                 Button { store.goForward() } label: { Image(systemName: "chevron.forward") }
                     .disabled(store.forward.isEmpty)
                     .keyboardShortcut("]", modifiers: .command)
+                Button(action: search) { Image(systemName: "magnifyingglass") }
             }
             if let rel = store.current {
                 ToolbarItemGroup(placement: .topBarTrailing) {

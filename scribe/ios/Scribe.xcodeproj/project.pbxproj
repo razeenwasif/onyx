@@ -18,6 +18,7 @@
 		584F21555D252EB26E2C8877 /* VaultStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7DFDBF4CEADE100F11DF80B /* VaultStore.swift */; };
 		5A9C5A62BB1B39E868FAC2A7 /* GraphSim.swift in Sources */ = {isa = PBXBuildFile; fileRef = 693BBEB08977D11534B0D382 /* GraphSim.swift */; };
 		613A1427114AF6DF93EA473F /* Markdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59DF6175F65D66837FB70317 /* Markdown.swift */; };
+		649E10D03E43B54CC0382E4C /* CommandBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 831B63AEF3435CA8039031CC /* CommandBar.swift */; };
 		731E1662D1413CD10AF0EE2A /* Inline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A2318E4D0EAAB9072D2E57F /* Inline.swift */; };
 		73EAA4B79C3F9F00519C6A2A /* ElectronViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C13920EAFF24E0A57E26E1BB /* ElectronViews.swift */; };
 		7A96DE04F655CEAF1AC10883 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F50B0C1B73148655154DC4C /* Store.swift */; };
@@ -71,6 +72,7 @@
 		6E06CAE16DB036846B944DEB /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
 		6E329633AFA168D7DC1B4E70 /* Model.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model.swift; sourceTree = "<group>"; };
 		70E3CA41C98CC4FBC7E26526 /* NotebookCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookCanvas.swift; sourceTree = "<group>"; };
+		831B63AEF3435CA8039031CC /* CommandBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandBar.swift; sourceTree = "<group>"; };
 		8650DE64B4BDACE4CDCEC84F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8930E33BFE96CC0DF6861196 /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
 		94B50B840A6F28ACEF2FC4C8 /* FolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderAccess.swift; sourceTree = "<group>"; };
@@ -217,6 +219,7 @@
 			isa = PBXGroup;
 			children = (
 				6E06CAE16DB036846B944DEB /* CalendarView.swift */,
+				831B63AEF3435CA8039031CC /* CommandBar.swift */,
 				AEB911B4EFF147E75B54578F /* EditorView.swift */,
 				9F9D7033121C64764648DE8C /* ElectronLibrary.swift */,
 				6B61DB841BDDBE4F762558DF /* ElectronTheme.swift */,
@@ -337,6 +340,7 @@
 			files = (
 				208107C86710E02C5C10FAFC /* AppSwitcher.swift in Sources */,
 				EA54154DE4F69B7068F389CB /* CalendarView.swift in Sources */,
+				649E10D03E43B54CC0382E4C /* CommandBar.swift in Sources */,
 				C0AC686D602BDD92D5E4FE0C /* Core.swift in Sources */,
 				315A05C01E7BCA99ECB13EE6 /* EditorView.swift in Sources */,
 				8468D806AB976175AB7ECBCB /* ElectronLibrary.swift in Sources */,

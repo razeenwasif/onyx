@@ -69,6 +69,13 @@ struct AppHost: View {
             withAnimation(.easeInOut(duration: 0.2)) { choice.wrappedValue = .electron }
             electron.show(rel)
         }
+        electron.searchInk = { query in
+            let root = scribe.root?.path
+            return await Task.detached(priority: .userInitiated) {
+                guard let root else { return [PageInfo]() }
+                return (try? Core.call("search", ["root": root, "query": query], as: [PageInfo].self)) ?? []
+            }.value
+        }
         scribe.notesLinking = { id in electron.notesLinking(toPage: id) }
         scribe.onLinkIndex = { pages in
             // Two files can share an id (a page copied in Files); the one

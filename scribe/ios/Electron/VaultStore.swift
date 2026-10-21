@@ -206,6 +206,8 @@ final class VaultStore {
     var scribePages: [String: LinkedPage] = [:]
     /// Opens a Scribe page, or an area of one, and shows Scribe (AppHost).
     @ObservationIgnored var openScribe: ((ScribeLink) -> Void)?
+    /// Scribe pages whose title, text or handwriting matches (AppHost).
+    @ObservationIgnored var searchInk: ((String) async -> [PageInfo])?
 
     private var lastScan: VaultScan?
     private var scanning = false
