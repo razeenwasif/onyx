@@ -12,27 +12,22 @@
   --header-h: 46px;
   --status-h: 30px;
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  --velvet: var(--grain),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0.008) 40%, rgba(0, 0, 0, 0.04)),
-    var(--bg);
-  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 18px 40px -22px rgba(0, 0, 0, 0.75);
+  /* Cards are flat colour: the note on --bg, the side panels on --bg-panel. */
+  --velvet: var(--bg);
+  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   --well: rgba(0, 0, 0, 0.22);
   --well-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(255, 255, 255, 0.03);
-  --focus-ring: 0 0 0 1.5px rgba(167, 139, 250, 0.45);
-  --glow: rgba(167, 139, 250, 0.4);
-  --primary-fill: linear-gradient(180deg, #b9a3fb, #9a7cf6);
-  --primary-ink: #17121f;
+  --focus-ring: 0 0 0 1.5px rgba(179, 157, 251, 0.5);
+  --glow: rgba(179, 157, 251, 0.4);
+  --primary-fill: var(--accent);
+  --primary-ink: #1a1424;
 }
 
 /* ----------------------------------------------------------------- shell */
 
 [data-style='velvet'] body,
 [data-style='velvet'] .app {
-  background:
-    radial-gradient(1100px 700px at 0% -10%, rgba(167, 139, 250, 0.1), transparent 60%),
-    radial-gradient(900px 600px at 105% 110%, rgba(122, 162, 247, 0.06), transparent 60%),
-    var(--grain),
-    var(--bg-chrome);
+  background: var(--bg-chrome);
 }
 
 [data-style='velvet'] .app-body {
@@ -159,8 +154,7 @@
 }
 
 [data-style='velvet'] .tree-item.is-active {
-  background: linear-gradient(90deg, rgba(167, 139, 250, 0.16), rgba(167, 139, 250, 0.06));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: var(--bg-active);
 }
 
 [data-style='velvet'] .tree-item input {
@@ -202,7 +196,7 @@
 
 /* With a split, a faint ring marks which pane has focus. */
 [data-style='velvet'] .workspace:has(.pane + .pane) .pane.is-active {
-  box-shadow: var(--card-shadow), 0 0 0 1px rgba(167, 139, 250, 0.22);
+  box-shadow: var(--card-shadow), 0 0 0 1px rgba(179, 157, 251, 0.22);
 }
 
 [data-style='velvet'] .pane.is-zen {
@@ -233,8 +227,7 @@
 }
 
 [data-style='velvet'] .tab.is-active {
-  background: rgba(255, 255, 255, 0.055);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 6px 16px -8px rgba(0, 0, 0, 0.6);
+  background: var(--bg-active);
 }
 
 [data-style='velvet'] .tab.is-active::after {
@@ -285,7 +278,9 @@
 }
 
 [data-style='velvet'] .note-tag {
-  background: rgba(167, 139, 250, 0.12);
+  border-radius: 8px;
+  background: rgba(95, 212, 164, 0.12);
+  color: #7fe0b8;
 }
 
 [data-style='velvet'] .rendered h1,
@@ -333,8 +328,8 @@
 
 [data-style='velvet'] .tag-pill,
 [data-style='velvet'] .cm-md-tag {
-  background: color-mix(in srgb, var(--tag) 11%, transparent);
-  color: color-mix(in srgb, var(--tag) 80%, white);
+  background: rgba(95, 212, 164, 0.12);
+  color: #7fe0b8;
   border-radius: 999px;
   padding: 1px 8px;
 }
@@ -445,8 +440,9 @@
 [data-style='velvet'] .properties {
   border: none;
   border-radius: var(--radius-lg);
-  background: rgba(0, 0, 0, 0.16);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+  background: var(--bg-alt);
+  box-shadow: none;
+  font-family: var(--font-ui);
   padding: 6px 4px;
 }
 
@@ -534,7 +530,7 @@
 [data-style='velvet'] .rendered li.task-list-item input[type='checkbox']:checked,
 [data-style='velvet'] .cm-md-checkbox:checked,
 [data-style='velvet'] .todo-item input[type='checkbox']:checked {
-  background-color: #a78bfa;
+  background-color: var(--accent);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2 5 8.5l4.5-5' fill='none' stroke='%2317121f' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   box-shadow: 0 0 12px -3px var(--glow);
 }
@@ -702,7 +698,7 @@
 [data-style='velvet'] .canvas-toolbar,
 [data-style='velvet'] .notice {
   border: none;
-  background: var(--grain), linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 50%), var(--bg-modal);
+  background: var(--bg-modal);
 }
 
 [data-style='velvet'] .modal {
@@ -788,7 +784,7 @@
 }
 
 [data-style='velvet'] .canvas-node.is-selected {
-  border-color: rgba(167, 139, 250, 0.6);
+  border-color: rgba(179, 157, 251, 0.6);
   box-shadow: 0 0 0 3px var(--accent-soft), 0 10px 28px -14px rgba(0, 0, 0, 0.7);
 }
 
@@ -810,7 +806,7 @@
 }
 
 [data-style='velvet'] .board-card:hover {
-  box-shadow: var(--card-shadow), 0 0 0 1px rgba(167, 139, 250, 0.35);
+  box-shadow: var(--card-shadow), 0 0 0 1px rgba(179, 157, 251, 0.35);
 }
 
 [data-style='velvet'] .db-table {
@@ -892,12 +888,12 @@
 
 [data-style='velvet'] .topbar-search {
   border: none;
-  background: var(--velvet);
-  box-shadow: var(--card-shadow), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 [data-style='velvet'] .topbar-search:hover {
-  box-shadow: var(--card-shadow), var(--focus-ring);
+  box-shadow: inset 0 0 0 1px var(--border), var(--focus-ring);
 }
 
 [data-style='velvet'] .topbar-new {
@@ -908,26 +904,26 @@
 [data-style='velvet'] .command-bar {
   border: none;
   border-radius: 20px;
-  background: var(--grain), linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 50%), var(--bg-modal);
+  background: var(--bg-modal);
 }
 
 /* The Context panel is one card, like the note beside it. */
 [data-style='velvet'] .context-panel .context-inner {
-  background: var(--velvet);
+  background: var(--bg-panel);
   border-radius: var(--radius-card);
   box-shadow: var(--card-shadow);
   margin-bottom: var(--gap);
 }
 
 [data-style='velvet'] .context-tabs {
-  background: var(--well);
-  box-shadow: var(--well-shadow);
+  background: var(--bg-chrome);
+  box-shadow: none;
 }
 
 [data-style='velvet'] .context-card,
 [data-style='velvet'] .context-ink-tile,
 [data-style='velvet'] .context-wide-btn {
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--bg-alt);
 }
 
 [data-style='velvet'] .today-card,
@@ -953,8 +949,23 @@
 
 /* The Library is one card, like the note and the Context panel. */
 [data-style='velvet'] .library .library-inner {
-  background: var(--velvet);
+  background: var(--bg-panel);
   border-radius: var(--radius-card);
   box-shadow: var(--card-shadow);
   margin: 0 0 var(--gap);
+}
+
+/* ------------------------------------------------- note text (redesign) */
+
+/* Body text a shade softer than the headings, as in the redesign. */
+[data-style='velvet'] .rendered,
+[data-style='velvet'] .markdown-view .cm-content {
+  color: var(--text-body, var(--fg));
+}
+
+[data-style='velvet'] .rendered h1,
+[data-style='velvet'] .rendered h2,
+[data-style='velvet'] .rendered h3,
+[data-style='velvet'] .cm-md-heading {
+  color: var(--heading);
 }
