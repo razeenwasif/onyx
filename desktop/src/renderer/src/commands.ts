@@ -199,10 +199,17 @@ export const COMMANDS: Command[] = [
   },
   {
     id: 'ai:open',
-    name: 'Open Electron AI assistant',
+    name: 'Open the local AI (Ollama)',
     hotkey: `${mod}+Shift+A`,
     keys: ['mod+shift+a'],
     run: () => s().openView('ai'),
+  },
+  {
+    id: 'agent:open',
+    name: 'Ask an agent (Claude Code or Antigravity)',
+    hotkey: `${mod}+Shift+J`,
+    keys: ['mod+shift+j'],
+    run: () => s().openView('agent'),
   },
   {
     id: 'ai:summarize',

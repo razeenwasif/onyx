@@ -24,6 +24,7 @@ const MORE: Array<{ command: string; icon: IconName; label: string }> = [
   { command: 'canvas:new', icon: 'canvas', label: 'New canvas' },
   { command: 'db:open', icon: 'list', label: 'Database' },
   { command: 'drive:open', icon: 'cloud', label: 'Google Drive' },
+  { command: 'ai:open', icon: 'bot', label: 'Local AI (Ollama)' },
 ]
 
 export function TopBar(): JSX.Element {
@@ -54,7 +55,7 @@ export function TopBar(): JSX.Element {
       </div>
       <div className="topbar-tools">
         <ToolButton icon="graph" title="Graph view" active={view === 'graph'} onClick={() => runCommand('graph:open')} />
-        <ToolButton icon="bot" title="Ask the vault" active={view === 'ai'} onClick={() => runCommand('ai:open')} />
+        <ToolButton icon="sparkle" title="Agent (⇧⌘J)" active={view === 'agent'} onClick={() => runCommand('agent:open')} />
         <MoreMenu />
         <span className="topbar-sep" aria-hidden="true" />
         <ToolButton icon="panelLeft" title="Library" active={leftOpen} onClick={toggleLeft} />

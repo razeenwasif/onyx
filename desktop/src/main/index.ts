@@ -28,6 +28,7 @@ import {
   ONYX_SYSTEM_PROMPT,
   type ChatMessage,
 } from './ai.js'
+import { findAgent, runAgent, stopAgent, stopAllAgents } from './agents.js'
 import * as drive from './drive.js'
 import * as google from './google.js'
 import { SCOPES } from './google.js'
@@ -50,7 +51,7 @@ import {
   windowMenu,
   type AppId,
 } from './scribe.js'
-import type { AppSettings, BacklinkRef } from '../shared/types.js'
+import type { AgentRunRequest, AppSettings, BacklinkRef } from '../shared/types.js'
 import { graphWithScribe, scribeBacklinks } from './scribe-links.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -554,6 +555,25 @@ function registerIpc(): void {
     },
   )
 
+  // ------------------------------------------------------------ agents
+
+  ipcMain.handle('agent:available', async () => ({
+    claude: Boolean(await findAgent('claude')),
+    antigravity: Boolean(await findAgent('antigravity')),
+  }))
+  ipcMain.handle('agent:run', async (_e, req: AgentRunRequest) => {
+    if (!vault) {
+      send('agent:event', req.runId, { kind: 'error', message: 'Open a vault first.' })
+      return
+    }
+    const notes = [...vault.notes.values()]
+      .filter((m) => !m.path.startsWith('.onyx/'))
+      .sort((a, b) => b.mtime - a.mtime)
+      .map((m) => m.path)
+    await runAgent(req, vault.root, notes, (event) => send('agent:event', req.runId, event))
+  })
+  ipcMain.handle('agent:stop', (_e, runId: string) => stopAgent(runId))
+
   ipcMain.handle('ai:cancel', (_e, id: string) => {
     aiStreams.get(id)?.abort()
     aiStreams.delete(id)
@@ -675,6 +695,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', async () => {
+  stopAllAgents()
   await settings.flush()
   await vault?.close()
 })

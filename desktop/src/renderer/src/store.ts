@@ -28,6 +28,7 @@ export type ViewType =
   | 'canvas'
   | 'database'
   | 'ai'
+  | 'agent'
   | 'search'
   | 'drive'
   | 'image'
@@ -433,6 +434,7 @@ export const useStore = create<State & Actions>((set, get) => ({
       if (type === 'markdown') void get().ensureDoc(path)
       set({
         activePaneId: pane.id,
+        lastNotePath: type === 'markdown' ? path : s.lastNotePath,
         panes: s.panes.map((p) => (p.id === pane.id ? { ...p, activeTabId: existing.id } : p)),
       })
       return
@@ -544,6 +546,7 @@ export const useStore = create<State & Actions>((set, get) => ({
       graph: 'Graph view',
       localgraph: 'Local graph',
       ai: 'Electron AI',
+      agent: 'Agent',
       database: 'Database',
       canvas: 'Canvas',
       empty: 'Today',

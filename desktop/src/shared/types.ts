@@ -235,6 +235,50 @@ export interface DriveFile {
   size: number | null
 }
 
+/** The coding agents Electron can run on the vault (main/agents.ts). */
+export type AgentId = 'claude' | 'antigravity'
+
+export interface AgentSettings {
+  /** The agent a new conversation starts with. */
+  default: AgentId
+  /** Model names passed to each CLI; empty for its own default. */
+  claudeModel: string
+  antigravityModel: string
+  /** Let agents edit notes (otherwise they only read and plan). */
+  allowEdits: boolean
+}
+
+/** One turn of an agent conversation, from the renderer. */
+export interface AgentRunRequest {
+  runId: string
+  agent: AgentId
+  prompt: string
+  /** The conversation to continue, or null for a new one. */
+  sessionId: string | null
+  model: string
+  /** The note open in the editor (vault-relative), as context. */
+  notePath: string | null
+  allowEdits: boolean
+}
+
+/** What a running agent reports, normalised across CLIs. */
+export type AgentEvent =
+  | { kind: 'session'; id: string; model?: string }
+  | { kind: 'text'; delta: string }
+  | { kind: 'thinking' }
+  | {
+      kind: 'tool'
+      id: string
+      name: string
+      summary: string
+      state: 'running' | 'done' | 'error'
+      detail?: string
+      /** The tool changes files. */
+      writes: boolean
+    }
+  | { kind: 'done'; sessionId?: string; costUsd?: number; error?: string; denied?: string[] }
+  | { kind: 'error'; message: string }
+
 export interface AiSettings {
   model: string
   embedModel: string
@@ -354,6 +398,7 @@ export interface AppSettings {
   graph: GraphSettings
   localGraph: LocalGraphSettings
   ai: AiSettings
+  agents: AgentSettings
   google: GoogleSettings
 }
 

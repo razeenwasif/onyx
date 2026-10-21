@@ -1,8 +1,8 @@
 /** Settings modal — Obsidian's left-nav + sections layout. */
 
 import { useEffect, useState } from 'react'
+import type { AgentId, GoogleStatus } from '@shared/types'
 import { useStore } from '../store'
-import type { GoogleStatus } from '@shared/types'
 import { THEMES } from '../themes'
 
 const SECTIONS = [
@@ -12,6 +12,7 @@ const SECTIONS = [
   'Daily notes',
   'Graph',
   'Google',
+  'Agents',
   'AI',
   'About',
 ] as const
@@ -204,6 +205,46 @@ export function Settings(): JSX.Element {
           )}
 
           {section === 'Google' && <GoogleSection />}
+
+          {section === 'Agents' && (
+            <>
+              <p style={{ color: 'var(--fg-dim)', lineHeight: 1.6, marginTop: 0 }}>
+                Claude Code and Antigravity work on the vault from the Agent pane (⇧⌘J), using your own
+                sign-in to each. They can read, search and edit notes; they can’t run commands.
+              </p>
+              <Setting name="Start with" desc="The agent a new conversation uses.">
+                <select
+                  value={settings.agents.default}
+                  onChange={(e) => void set({ agents: { ...settings.agents, default: e.target.value as AgentId } })}
+                >
+                  <option value="claude">Claude Code</option>
+                  <option value="antigravity">Antigravity</option>
+                </select>
+              </Setting>
+              <Toggle
+                name="Let agents edit notes"
+                desc="Off: they only read and suggest changes."
+                on={settings.agents.allowEdits}
+                onChange={(v) => void set({ agents: { ...settings.agents, allowEdits: v } })}
+              />
+              <Setting name="Claude Code model" desc="Blank for Claude Code’s default; or opus, sonnet, haiku, or a full model id.">
+                <input
+                  type="text"
+                  value={settings.agents.claudeModel}
+                  placeholder="default"
+                  onChange={(e) => void set({ agents: { ...settings.agents, claudeModel: e.target.value.trim() } })}
+                />
+              </Setting>
+              <Setting name="Antigravity model" desc="Blank for Antigravity’s default (see `agy models`).">
+                <input
+                  type="text"
+                  value={settings.agents.antigravityModel}
+                  placeholder="default"
+                  onChange={(e) => void set({ agents: { ...settings.agents, antigravityModel: e.target.value.trim() } })}
+                />
+              </Setting>
+            </>
+          )}
 
           {section === 'AI' && (
             <>

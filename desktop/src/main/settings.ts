@@ -94,6 +94,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
     autocomplete: true,
     host: 'http://localhost:11434',
   },
+  agents: {
+    default: 'claude',
+    claudeModel: '',
+    antigravityModel: '',
+    allowEdits: true,
+  },
 }
 
 /** Deep-merge stored settings over the defaults so new keys appear on upgrade. */

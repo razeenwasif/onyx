@@ -157,6 +157,13 @@ const P: Record<string, JSX.Element> = {
       <path d="M6.5 19a4.5 4.5 0 0 1-.6-8.96 6 6 0 0 1 11.5 1.36A3.8 3.8 0 0 1 17.5 19Z" />
     </>
   ),
+  /** Four-pointed stars: the agents. */
+  sparkle: (
+    <>
+      <path d="M12 3.5 13.7 9a2 2 0 0 0 1.3 1.3l5.5 1.7-5.5 1.7a2 2 0 0 0-1.3 1.3L12 20.5 10.3 15a2 2 0 0 0-1.3-1.3L3.5 12 9 10.3A2 2 0 0 0 10.3 9Z" />
+      <path d="M19 3v3M17.5 4.5h3" />
+    </>
+  ),
   /** A page with a folded corner: a note. */
   note: (
     <>
