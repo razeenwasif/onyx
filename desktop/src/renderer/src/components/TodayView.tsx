@@ -80,7 +80,11 @@ export function TodayView(): JSX.Element {
         </div>
 
         <div className="today-row">
-          <DailyNote path={dailyPath} date={now} />
+          {/* Today's note, and under it what to pick up again. */}
+          <div className="today-main">
+            <DailyNote path={dailyPath} date={now} />
+            <Recent />
+          </div>
           <div className="today-side">
             <Week now={now} />
             <section className="today-card today-todo" aria-label="To do">
@@ -92,8 +96,6 @@ export function TodayView(): JSX.Element {
             <Tasks />
           </div>
         </div>
-
-        <Recent />
       </div>
     </div>
   )

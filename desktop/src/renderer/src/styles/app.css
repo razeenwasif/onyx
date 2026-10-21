@@ -3586,9 +3586,12 @@ textarea {
   background: var(--bg-alt);
 }
 
-.today-note {
+.today-main {
   flex: 999 1 480px;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
 }
 
 .today-side {
@@ -3891,6 +3894,10 @@ textarea {
   font-family: ui-serif, 'New York', Georgia, serif;
   font-size: 19px;
   line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .today-tile-when {
