@@ -901,6 +901,15 @@
   background: var(--bg-modal);
 }
 
+/* The Agent pane is a card too, at the far right. */
+[data-style='velvet'] .agent-panel .agent-panel-inner {
+  background: var(--bg-panel);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-shadow);
+  margin-bottom: var(--gap);
+  overflow: hidden;
+}
+
 /* The Context panel is one card, like the note beside it. */
 [data-style='velvet'] .context-panel .context-inner {
   background: var(--bg-panel);

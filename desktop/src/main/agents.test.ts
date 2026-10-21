@@ -90,6 +90,7 @@ describe('Antigravity', () => {
 describe('tool summaries', () => {
   it('show paths relative to the vault, or the pattern or URL', () => {
     expect(toolSummary({ pattern: '**/*.md' }, ROOT)).toBe('**/*.md')
+    expect(toolSummary({ pattern: 'Exam prep', path: ROOT }, ROOT)).toBe('Exam prep')
     expect(toolSummary({ DirectoryPath: ROOT }, ROOT)).toBe('(vault)')
     expect(toolSummary({ url: 'https://example.com' }, ROOT)).toBe('https://example.com')
     expect(toolSummary(undefined, ROOT)).toBe('')

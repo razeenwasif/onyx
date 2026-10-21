@@ -3,6 +3,7 @@
  * hotkey. One place so a command's name, shortcut and behaviour can't drift.
  */
 
+import { useAgent } from './lib/agent'
 import { useStore } from './store'
 import { dailyNotePath, uniqueUntitled } from './lib/notes'
 
@@ -209,7 +210,7 @@ export const COMMANDS: Command[] = [
     name: 'Ask an agent (Claude Code or Antigravity)',
     hotkey: `${mod}+Shift+J`,
     keys: ['mod+shift+j'],
-    run: () => s().openView('agent'),
+    run: () => useAgent.getState().toggle(),
   },
   {
     id: 'ai:summarize',

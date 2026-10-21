@@ -101,9 +101,11 @@ export function agyArgs(req: AgentRunRequest, vaultRoot: string, notes: string[]
 /** What a tool step was about, in a few words: a note's path, a pattern, a URL. */
 export function toolSummary(input: Record<string, unknown> | undefined, vaultRoot: string): string {
   if (!input) return ''
+  // A file first; then what was searched for, before the folder searched in.
   const keys = [
-    'file_path', 'path', 'Path', 'TargetFile', 'AbsolutePath', 'DirectoryPath', 'notebook_path',
-    'pattern', 'Pattern', 'Query', 'query', 'url', 'Url', 'CommandLine', 'command', 'description',
+    'file_path', 'Path', 'TargetFile', 'AbsolutePath', 'notebook_path',
+    'pattern', 'Pattern', 'Query', 'query', 'url', 'Url', 'CommandLine', 'command',
+    'path', 'DirectoryPath', 'folder', 'description',
   ]
   for (const key of keys) {
     const v = input[key]

@@ -1,5 +1,6 @@
 /**
- * The Agent pane: Claude Code or Antigravity working on the vault. Ask in
+ * The Agent pane, at the far right of the window: Claude Code or
+ * Antigravity working on the vault. Ask in
  * plain words; the agent reads, searches and (when allowed) edits notes,
  * and each step it takes shows as a row: the note it read, the one it
  * changed. Notes it mentions open on click. A conversation continues until
@@ -12,6 +13,7 @@ import { useStore, type Tab } from '../store'
 import { useAgent, listenForAgents, type ReplyPart, type Turn } from '../lib/agent'
 import { renderMarkdown } from '../editor/render'
 import { Icon } from './Icon'
+import { Resizer } from './Resizer'
 
 const AGENTS: Array<{ id: AgentId; name: string }> = [
   { id: 'claude', name: 'Claude Code' },
@@ -25,7 +27,21 @@ const SUGGESTIONS = [
   'Which of my notes cover duality? List them with a line each',
 ]
 
-export function AgentView({ tab: _tab }: { tab: Tab }): JSX.Element {
+/** The pane at the far right of the window, beside the Context panel. */
+export function AgentPanel(): JSX.Element {
+  const width = useAgent((s) => s.width)
+  const setWidth = useAgent((s) => s.setWidth)
+  return (
+    <aside className="sidebar right agent-panel" style={{ width, flex: `0 0 ${width}px` }} aria-label="Agent">
+      <Resizer edge="left" value={width} onChange={setWidth} />
+      <div className="agent-panel-inner">
+        <AgentView />
+      </div>
+    </aside>
+  )
+}
+
+export function AgentView(_props: { tab?: Tab }): JSX.Element {
   const { agent, turns, runId, available, sessionId, sessionAgent, setAgent, send, stop, reset } = useAgent()
   const notePath = useStore((s) => s.lastNotePath)
   const notes = useStore((s) => s.notes)
@@ -100,17 +116,19 @@ export function AgentView({ tab: _tab }: { tab: Tab }): JSX.Element {
               title={available && !available[a.id] ? `${a.name} isn’t installed` : a.name}
             >
               <span className={`agent-dot is-${a.id}`} aria-hidden="true" />
-              {a.name}
+              {a.id === 'claude' ? 'Claude' : a.name}
             </button>
           ))}
         </div>
-        <span className="agent-meta">
-          {settings?.agents?.allowEdits === false ? 'Read only' : 'Can edit notes'}
-          {sessionId && sessionAgent === agent ? ' · continuing' : ''}
+        <span className="agent-meta" title={sessionId && sessionAgent === agent ? 'Continuing the conversation' : undefined}>
+          {settings?.agents?.allowEdits === false ? 'Read only' : ''}
         </span>
-        <button type="button" className="agent-new" onClick={reset} disabled={!turns.length}>
+        <button type="button" className="agent-new" onClick={reset} disabled={!turns.length} title="New conversation">
           <Icon name="plus" size={13} />
-          New conversation
+          New
+        </button>
+        <button type="button" className="icon-btn agent-close" title="Close (⇧⌘J)" aria-label="Close" onClick={() => useAgent.getState().toggle(false)}>
+          <Icon name="close" size={13} />
         </button>
       </header>
 

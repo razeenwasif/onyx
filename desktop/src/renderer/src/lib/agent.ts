@@ -44,11 +44,38 @@ interface AgentState {
   turns: Turn[]
   runId: string | null
   available: { claude: boolean; antigravity: boolean } | null
+  /** The pane at the far right of the window, and its width. */
+  open: boolean
+  width: number
 
+  toggle(open?: boolean): void
+  setWidth(width: number): void
   setAgent(agent: AgentId): void
   send(prompt: string, notePath: string | null): void
   stop(): void
   reset(): void
+}
+
+/** The narrowest the note should get beside the side panels. */
+const MIN_NOTE_WIDTH = 640
+/** The Agent folded the Context panel away, to bring back on close. */
+let contextFolded = false
+
+function readPane(): { open: boolean; width: number } {
+  try {
+    const saved = JSON.parse(localStorage.getItem('agentPane') ?? 'null') as { open?: boolean; width?: number } | null
+    return { open: saved?.open === true, width: saved?.width ?? 420 }
+  } catch {
+    return { open: false, width: 420 }
+  }
+}
+
+function savePane(pane: { open: boolean; width: number }): void {
+  try {
+    localStorage.setItem('agentPane', JSON.stringify(pane))
+  } catch {
+    /* a convenience only */
+  }
 }
 
 let counter = 0
@@ -61,6 +88,34 @@ export const useAgent = create<AgentState>((set, get) => ({
   turns: [],
   runId: null,
   available: null,
+  open: readPane().open,
+  width: readPane().width,
+
+  toggle(open) {
+    const next = open ?? !get().open
+    if (next === get().open) return
+    const st = useStore.getState()
+    if (next) {
+      // Not room for the note beside the Library, Context and Agent: the
+      // Context panel folds away while the Agent is open.
+      const room = window.innerWidth - (st.panelOpen('left') ? st.leftWidth : 0) - get().width - st.rightWidth
+      if (st.panelOpen('right') && room < MIN_NOTE_WIDTH) {
+        st.toggleRight()
+        contextFolded = true
+      }
+    } else if (contextFolded) {
+      contextFolded = false
+      if (!st.panelOpen('right')) st.toggleRight()
+    }
+    set({ open: next })
+    savePane({ open: next, width: get().width })
+  },
+
+  setWidth(width) {
+    const w = Math.round(Math.min(Math.max(width, 320), 760))
+    set({ width: w })
+    savePane({ open: get().open, width: w })
+  },
 
   setAgent(agent) {
     set({ agent })

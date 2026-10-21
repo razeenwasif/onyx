@@ -5,6 +5,8 @@ import { LeftSidebar, RightSidebar } from './components/Sidebars'
 import { Workspace } from './components/Workspace'
 import { StatusBar } from './components/StatusBar'
 import { TopBar } from './components/TopBar'
+import { AgentPanel } from './components/AgentView'
+import { useAgent } from './lib/agent'
 import { Modals } from './components/Modals'
 import { Icon } from './components/Icon'
 import { invalidateAsset } from './lib/assets'
@@ -15,6 +17,7 @@ export function App(): JSX.Element {
   // Re-read on any change to the panels or the open tab (Today has its own).
   const leftOpen = useStore((s) => s.panelOpen('left'))
   const rightOpen = useStore((s) => s.panelOpen('right'))
+  const agentOpen = useAgent((s) => s.open)
   const status = useStore((s) => s.status)
   const zen = useStore((s) => s.zenPaneId)
 
@@ -159,6 +162,7 @@ export function App(): JSX.Element {
           {leftOpen && !zen && <LeftSidebar />}
           <Workspace />
           {rightOpen && !zen && <RightSidebar />}
+          {agentOpen && !zen && <AgentPanel />}
         </div>
         <StatusBar />
       </div>

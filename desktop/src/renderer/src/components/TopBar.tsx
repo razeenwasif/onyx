@@ -15,6 +15,7 @@ import { useStore } from '../store'
 import { runCommand } from '../commands'
 import { Icon, type IconName } from './Icon'
 import { AppSwitcher } from './AppSwitcher'
+import { useAgent } from '../lib/agent'
 
 const isMac = navigator.platform.toLowerCase().includes('mac')
 const mod = isMac ? '⌘' : 'Ctrl+'
@@ -34,6 +35,7 @@ export function TopBar(): JSX.Element {
   const toggleLeft = useStore((s) => s.toggleLeft)
   const toggleRight = useStore((s) => s.toggleRight)
   const view = useStore((s) => s.activeTab()?.type)
+  const agentOpen = useAgent((s) => s.open)
 
   return (
     <header className={`topbar${isMac ? ' is-mac' : ''}`}>
@@ -55,7 +57,7 @@ export function TopBar(): JSX.Element {
       </div>
       <div className="topbar-tools">
         <ToolButton icon="graph" title="Graph view" active={view === 'graph'} onClick={() => runCommand('graph:open')} />
-        <ToolButton icon="sparkle" title="Agent (⇧⌘J)" active={view === 'agent'} onClick={() => runCommand('agent:open')} />
+        <ToolButton icon="sparkle" title="Agent (⇧⌘J)" active={agentOpen} onClick={() => runCommand('agent:open')} />
         <MoreMenu />
         <span className="topbar-sep" aria-hidden="true" />
         <ToolButton icon="panelLeft" title="Library" active={leftOpen} onClick={toggleLeft} />
