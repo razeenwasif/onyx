@@ -70,6 +70,8 @@ export interface CardInfo {
   title: string
   /** "Scribe · Notebook · Section", and whether it's an area of the page. */
   meta: string
+  /** A whole page (its top shown), rather than a lassoed area. */
+  page: boolean
   picture: string | null | undefined
 }
 
@@ -83,6 +85,7 @@ export function cardInfo(target: string, label?: string): CardInfo | null {
     target: target.trim(),
     title: label?.trim() || page.title || 'Scribe page',
     meta: `Scribe${where ? ` · ${where}` : ''}${link.area ? ' · a lassoed area' : ''}`,
+    page: !link.area,
     picture: cardPicture(target),
   }
 }
@@ -103,7 +106,7 @@ export function cardHtml(card: CardInfo): string {
         ? '<div class="ink-card-wait">Scribe couldn’t draw this page</div>'
         : `<img src="${escape(card.picture)}" alt="${escape(card.title)}" draggable="false" />`
   return (
-    `<figure class="ink-card">` +
+    `<figure class="ink-card${card.page ? ' is-page' : ''}">` +
     `<a class="ink-card-ink" data-href="${href}" href="#" title="Open in Scribe">${picture}</a>` +
     `<figcaption><span class="ink-card-mark" aria-hidden="true"></span>` +
     `<span class="ink-card-text"><span class="ink-card-title">${escape(card.title)}</span>` +

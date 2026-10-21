@@ -182,7 +182,7 @@ final class Thumbnails: @unchecked Sendable {
         let left = min(0, box.minX - 24)
         let width = max(size.width, box.maxX + 24) - left
         let top = max(0, box.minY - 24)
-        let height = min(box.maxY + 24 - top, width * 0.6)
+        let height = min(box.maxY + 24 - top, width * PageCards.pageAspect)
         return CGRect(x: left, y: top, width: width, height: max(height, width * 0.18))
     }
 
@@ -317,6 +317,10 @@ final class Thumbnails: @unchecked Sendable {
 /// Cards for pages linked from notes (Electron shows them inline): the
 /// linked area of a page, or what's written on it, as a cached PNG.
 public enum PageCards {
+    /// A whole page's card is at most this tall for its width: a preview of
+    /// the top of the page; the rest is a click away in Scribe.
+    static let pageAspect: CGFloat = 0.5
+
     /// The card's PNG path for page `id`, drawing it if the cached one is
     /// older than the page; nil when the page can't be found or drawn.
     public static func image(id: String, area: CGRect?, pixels: Int, root: String) -> String? {
@@ -326,7 +330,7 @@ public enum PageCards {
         let fm = FileManager.default
         let folder = URL(fileURLWithPath: root).appendingPathComponent(".scribe/thumbs.nosync", isDirectory: true)
         let part = area.map { a in [a.minX, a.minY, a.width, a.height].map { String(Int($0.rounded())) }.joined(separator: "_") } ?? "page"
-        let file = folder.appendingPathComponent("\(id)-card-\(part)-\(pixels).png")
+        let file = folder.appendingPathComponent("\(id)-card2-\(part)-\(pixels).png")
         let pageDate = (try? fm.attributesOfItem(atPath: page))?[.modificationDate] as? Date
         if let made = (try? fm.attributesOfItem(atPath: file.path))?[.modificationDate] as? Date,
            let pageDate, made >= pageDate {
@@ -335,10 +339,11 @@ public enum PageCards {
         let sectionPath = URL(fileURLWithPath: page).deletingLastPathComponent().path
         guard let doc = try? Core.readPage(page) else { return nil }
         // A page on a PDF (imported slides or notes) is its PDF: the card
-        // shows the whole page rather than just the ink on it.
+        // shows the top of the page, not just the ink on it.
         var crop = Thumbnails.cardCrop(doc, area: area)
         if area == nil, let pdf = PDFBackground.page(for: doc.background, sectionPath: sectionPath) {
-            crop = CGRect(origin: .zero, size: PDFBackground.size(of: pdf))
+            let size = PDFBackground.size(of: pdf)
+            crop = CGRect(x: 0, y: 0, width: size.width, height: min(size.height, size.width * PageCards.pageAspect))
         }
         guard let image = Thumbnails.render(doc, sectionPath: sectionPath, crop: crop, width: pixels),
               (try? fm.createDirectory(at: folder, withIntermediateDirectories: true)) != nil,

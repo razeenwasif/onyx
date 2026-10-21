@@ -367,7 +367,7 @@ export const COMMANDS: Command[] = [
     id: 'pane:toggle-quicknote',
     name: 'Show the scratch pad',
     run: () => {
-      if (!s().leftOpen) s().toggleLeft()
+      if (!s().panelOpen('left')) s().toggleLeft()
     },
   },
   { id: 'pane:toggle-todo', name: 'Show the to-do list (Today)', run: () => s().openView('empty', { title: 'Today' }) },

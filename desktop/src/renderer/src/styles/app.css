@@ -4094,6 +4094,20 @@ textarea {
   height: auto;
 }
 
+/* A whole page shows its top; the fade says there's more in Scribe. */
+.ink-card.is-page .ink-card-ink {
+  position: relative;
+}
+
+.ink-card.is-page .ink-card-ink::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 56px;
+  background: linear-gradient(transparent, rgba(28, 25, 32, 0.92));
+  pointer-events: none;
+}
+
 .ink-card-wait {
   width: 100%;
   height: 120px;

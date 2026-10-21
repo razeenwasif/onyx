@@ -12,8 +12,9 @@ import { invalidateAsset } from './lib/assets'
 export function App(): JSX.Element {
   const ready = useStore((s) => s.ready)
   const vault = useStore((s) => s.vault)
-  const leftOpen = useStore((s) => s.leftOpen)
-  const rightOpen = useStore((s) => s.rightOpen)
+  // Re-read on any change to the panels or the open tab (Today has its own).
+  const leftOpen = useStore((s) => s.panelOpen('left'))
+  const rightOpen = useStore((s) => s.panelOpen('right'))
   const status = useStore((s) => s.status)
   const zen = useStore((s) => s.zenPaneId)
 

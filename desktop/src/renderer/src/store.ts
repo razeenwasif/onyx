@@ -81,6 +81,13 @@ interface State {
   activePaneId: string
   leftOpen: boolean
   rightOpen: boolean
+  /**
+   * The side panels on Today, apart from everywhere else: Today starts with
+   * both folded away, and opening one there leaves the notes' layout alone.
+   */
+  todayPanels: { left: boolean; right: boolean }
+  /** Whether a side panel shows now (Today keeps its own; see todayPanels). */
+  panelOpen(side: 'left' | 'right'): boolean
   /** Which view the right-hand Context panel shows. */
   contextTab: ContextTab
   leftWidth: number
@@ -216,6 +223,29 @@ function viewTypeFor(path: string): ViewType {
 
 export type ContextTab = 'linked' | 'outline' | 'graph' | 'calendar'
 
+function readTodayPanels(): { left: boolean; right: boolean } {
+  try {
+    const saved = JSON.parse(localStorage.getItem('todayPanels') ?? 'null') as { left?: boolean; right?: boolean } | null
+    return { left: saved?.left === true, right: saved?.right === true }
+  } catch {
+    return { left: false, right: false }
+  }
+}
+
+/** On Today, a panel toggle flips Today's own state; true when it did. */
+function toggleOnToday(side: 'left' | 'right'): boolean {
+  const st = useStore.getState()
+  if (st.activeTab()?.type !== 'empty') return false
+  const todayPanels = { ...st.todayPanels, [side]: !st.todayPanels[side] }
+  useStore.setState({ todayPanels })
+  try {
+    localStorage.setItem('todayPanels', JSON.stringify(todayPanels))
+  } catch {
+    /* a convenience only */
+  }
+  return true
+}
+
 function readContextTab(): ContextTab {
   try {
     const saved = localStorage.getItem('contextTab')
@@ -241,6 +271,12 @@ export const useStore = create<State & Actions>((set, get) => ({
   activePaneId: 'p0',
   leftOpen: true,
   rightOpen: true,
+  todayPanels: readTodayPanels(),
+  panelOpen(side) {
+    const st = get()
+    if (st.activeTab()?.type === 'empty') return st.todayPanels[side]
+    return side === 'left' ? st.leftOpen : st.rightOpen
+  },
   contextTab: readContextTab(),
   leftWidth: 260,
   rightWidth: 300,
@@ -757,6 +793,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   // ---------------------------------------------------------------- chrome
 
   toggleLeft: () => {
+    if (toggleOnToday('left')) return
     const leftOpen = !get().leftOpen
     set({ leftOpen })
     get().persistLayout({ leftOpen })
@@ -768,10 +805,11 @@ export const useStore = create<State & Actions>((set, get) => ({
       /* a convenience only */
     }
     set({ contextTab: tab })
-    if (!get().rightOpen) get().toggleRight()
+    if (!get().panelOpen('right')) get().toggleRight()
   },
 
   toggleRight: () => {
+    if (toggleOnToday('right')) return
     const rightOpen = !get().rightOpen
     set({ rightOpen })
     get().persistLayout({ rightOpen })

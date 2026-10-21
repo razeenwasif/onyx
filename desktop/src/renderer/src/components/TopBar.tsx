@@ -28,8 +28,8 @@ const MORE: Array<{ command: string; icon: IconName; label: string }> = [
 
 export function TopBar(): JSX.Element {
   const setModal = useStore((s) => s.setModal)
-  const leftOpen = useStore((s) => s.leftOpen)
-  const rightOpen = useStore((s) => s.rightOpen)
+  const leftOpen = useStore((s) => s.panelOpen('left'))
+  const rightOpen = useStore((s) => s.panelOpen('right'))
   const toggleLeft = useStore((s) => s.toggleLeft)
   const toggleRight = useStore((s) => s.toggleRight)
   const view = useStore((s) => s.activeTab()?.type)
