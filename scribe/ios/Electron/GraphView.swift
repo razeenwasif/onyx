@@ -107,6 +107,8 @@ struct GraphScreen: View {
     let store: VaultStore
     /// Nil for the whole vault; a note for its local graph.
     let focus: String?
+    /// Inside the Context panel: no navigation bar of its own.
+    var embedded = false
     @Environment(\.dismiss) private var dismiss
     @State private var model: GraphModel?
     @State private var center = CGPoint.zero
@@ -119,57 +121,67 @@ struct GraphScreen: View {
     @State private var size = CGSize.zero
 
     var body: some View {
-        NavigationStack {
-            GeometryReader { geo in
-                ZStack {
-                    Color.evBg
-                    if let model {
-                        canvas(model, size: geo.size)
-                            .gesture(pan.simultaneously(with: zoom(geo.size)))
-                            .simultaneousGesture(SpatialTapGesture().onEnded { tap($0.location, model, geo.size) })
-                            .onChange(of: model.xs) { _, _ in if autoFit { fit(model, geo.size) } }
-                            .onAppear { size = geo.size; fit(model, geo.size) }
-                            .onChange(of: geo.size) { _, new in size = new; if autoFit { fit(model, new) } }
-                    } else {
-                        ProgressView("Laying out the graph…").tint(.evAccent).foregroundStyle(Color.evDim)
-                    }
-                }
-                .overlay(alignment: .bottom) {
-                    if let model, let selected { card(model, selected) }
-                }
-            }
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
-                if focus != nil {
-                    ToolbarItem(placement: .primaryAction) {
-                        Menu {
-                            Picker("Depth", selection: $depth) {
-                                Text("Direct links").tag(1)
-                                Text("2 links away").tag(2)
-                                Text("3 links away").tag(3)
+        Group {
+            if embedded {
+                surface
+            } else {
+                NavigationStack {
+                    surface
+                    .navigationTitle(title)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+                        if focus != nil {
+                            ToolbarItem(placement: .primaryAction) {
+                                Menu {
+                                    Picker("Depth", selection: $depth) {
+                                        Text("Direct links").tag(1)
+                                        Text("2 links away").tag(2)
+                                        Text("3 links away").tag(3)
+                                    }
+                                } label: {
+                                    Label("Depth \(depth)", systemImage: "circle.hexagongrid")
+                                }
                             }
-                        } label: {
-                            Label("Depth \(depth)", systemImage: "circle.hexagongrid")
+                        }
+                        ToolbarItem(placement: .primaryAction) {
+                            Button {
+                                autoFit = true
+                                selected = nil
+                                if let model { withAnimation(.easeInOut(duration: 0.3)) { fit(model, size) } }
+                            } label: {
+                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            }
+                            .accessibilityLabel("Fit to screen")
                         }
                     }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        autoFit = true
-                        selected = nil
-                        if let model { withAnimation(.easeInOut(duration: 0.3)) { fit(model, size) } }
-                    } label: {
-                        Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    }
-                    .accessibilityLabel("Fit to screen")
+                    .toolbarBackground(Color.evBgAlt, for: .navigationBar)
                 }
             }
-            .toolbarBackground(Color.evBgAlt, for: .navigationBar)
         }
-        .task(id: depth) { await build() }
+        .task(id: "\(depth)|\(focus ?? "")") { await build() }
         .onDisappear { model?.stop() }
+    }
+
+    private var surface: some View {
+        GeometryReader { geo in
+            ZStack {
+                Color.evBg
+                if let model {
+                    canvas(model, size: geo.size)
+                        .gesture(pan.simultaneously(with: zoom(geo.size)))
+                        .simultaneousGesture(SpatialTapGesture().onEnded { tap($0.location, model, geo.size) })
+                        .onChange(of: model.xs) { _, _ in if autoFit { fit(model, geo.size) } }
+                        .onAppear { size = geo.size; fit(model, geo.size) }
+                        .onChange(of: geo.size) { _, new in size = new; if autoFit { fit(model, new) } }
+                } else {
+                    ProgressView("Laying out the graph…").tint(.evAccent).foregroundStyle(Color.evDim)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if let model, let selected { card(model, selected) }
+            }
+        }
     }
 
     private var title: String {
@@ -192,7 +204,7 @@ struct GraphScreen: View {
         let b = model.bounds
         center = CGPoint(x: b.midX, y: b.midY)
         // A local graph's names are long; leave room for them at the sides.
-        scale = min(size.width / b.width, size.height / b.height) * (local ? 0.62 : 0.88)
+        scale = min(size.width / b.width, size.height / b.height) * (local ? (embedded ? 0.5 : 0.62) : 0.88)
     }
 
     private func screen(_ wx: Float, _ wy: Float, _ size: CGSize) -> CGPoint {
@@ -322,24 +334,24 @@ struct GraphScreen: View {
             case .note:
                 Button("Open") {
                     if let rel = node.rel { store.show(rel) }
-                    dismiss()
+                    if !embedded { dismiss() }
                 }
                 .buttonStyle(.borderedProminent)
             case .tag:
                 Button("Notes") {
                     store.tagFilter = node.tags.first
-                    dismiss()
+                    if !embedded { dismiss() }
                 }
                 .buttonStyle(.bordered)
             case .unresolved:
                 Button("Create") {
                     store.follow(node.title)
-                    dismiss()
+                    if !embedded { dismiss() }
                 }
                 .buttonStyle(.bordered)
             case .scribe:
                 Button("Open in Scribe") {
-                    dismiss()
+                    if !embedded { dismiss() }
                     store.follow(node.id)
                 }
                 .buttonStyle(.borderedProminent)

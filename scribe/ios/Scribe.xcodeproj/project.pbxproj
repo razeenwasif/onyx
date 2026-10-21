@@ -27,6 +27,7 @@
 		9991CF0E5D8130ADD7B0753B /* GraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F77458CD35B81A7CABDC943 /* GraphView.swift */; };
 		9D728A0825C40292DF904968 /* MathRender.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CA4FDBB9E32D7DCC80A445A /* MathRender.swift */; };
 		9D99DF024D967D69B0B73246 /* PageObjects.swift in Sources */ = {isa = PBXBuildFile; fileRef = 681070FF3C45F695C7DBE705 /* PageObjects.swift */; };
+		9DA4B53A41FA8E94D1182314 /* ContextPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A75D82B8080DC119AB6AB73C /* ContextPanel.swift */; };
 		A7ACA6CFC92A5C3FBDD8A401 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8650DE64B4BDACE4CDCEC84F /* Assets.xcassets */; };
 		ADACD8FF4CE1B4FE9FFAC5DF /* ElectronTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B61DB841BDDBE4F762558DF /* ElectronTheme.swift */; };
 		B223389DD6B7D6F3AF1292C6 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = 00FE534225AA4F19C132D2F0 /* SwiftMath */; };
@@ -79,6 +80,7 @@
 		9560152484C6FB9DD533F97D /* ReadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingView.swift; sourceTree = "<group>"; };
 		9F9D7033121C64764648DE8C /* ElectronLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElectronLibrary.swift; sourceTree = "<group>"; };
 		A01DAF81BFF5F19B0C8A8E66 /* PageGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageGrid.swift; sourceTree = "<group>"; };
+		A75D82B8080DC119AB6AB73C /* ContextPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextPanel.swift; sourceTree = "<group>"; };
 		AC1B97368B968B9EA7A98E4E /* ImportPopup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportPopup.swift; sourceTree = "<group>"; };
 		AEB911B4EFF147E75B54578F /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 		B0A16D8D66F6576150640937 /* PageLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageLinks.swift; sourceTree = "<group>"; };
@@ -220,6 +222,7 @@
 			children = (
 				6E06CAE16DB036846B944DEB /* CalendarView.swift */,
 				831B63AEF3435CA8039031CC /* CommandBar.swift */,
+				A75D82B8080DC119AB6AB73C /* ContextPanel.swift */,
 				AEB911B4EFF147E75B54578F /* EditorView.swift */,
 				9F9D7033121C64764648DE8C /* ElectronLibrary.swift */,
 				6B61DB841BDDBE4F762558DF /* ElectronTheme.swift */,
@@ -341,6 +344,7 @@
 				208107C86710E02C5C10FAFC /* AppSwitcher.swift in Sources */,
 				EA54154DE4F69B7068F389CB /* CalendarView.swift in Sources */,
 				649E10D03E43B54CC0382E4C /* CommandBar.swift in Sources */,
+				9DA4B53A41FA8E94D1182314 /* ContextPanel.swift in Sources */,
 				C0AC686D602BDD92D5E4FE0C /* Core.swift in Sources */,
 				315A05C01E7BCA99ECB13EE6 /* EditorView.swift in Sources */,
 				8468D806AB976175AB7ECBCB /* ElectronLibrary.swift in Sources */,

@@ -351,7 +351,8 @@ private struct NoteDetail: View {
     let graph: (String) -> Void
     let search: () -> Void
     @State private var bridge = EditorBridge()
-    @State private var showingOutline = false
+    /// The Context panel on the right, remembered across launches.
+    @AppStorage("contextOpen") private var contextOpen = false
 
     var body: some View {
         Group {
@@ -381,7 +382,16 @@ private struct NoteDetail: View {
         .background(Color.evBg)
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .inspector(isPresented: $contextOpen) {
+            ContextPanel(store: store)
+                .inspectorColumnWidth(min: 260, ideal: 320, max: 420)
+        }
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { contextOpen.toggle() } label: { Image(systemName: "sidebar.right") }
+                    .keyboardShortcut("i", modifiers: [.command, .option])
+                    .accessibilityLabel("Context")
+            }
             ToolbarItemGroup(placement: .topBarLeading) {
                 Button { store.goBack() } label: { Image(systemName: "chevron.backward") }
                     .disabled(store.back.isEmpty)
@@ -394,8 +404,6 @@ private struct NoteDetail: View {
             if let rel = store.current {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     if VaultNode.kind(of: rel) == .note {
-                        Button { showingOutline = true } label: { Image(systemName: "list.bullet.indent") }
-                            .popover(isPresented: $showingOutline) { Outline(store: store) { showingOutline = false } }
                         Button {
                             store.flush()
                             if store.mode == .editing, let line = bridge.topLine { store.anchorLine = line }
@@ -431,32 +439,6 @@ private struct NoteDetail: View {
     private var title: String {
         guard let rel = store.current else { return "Today" }
         return VaultNode.kind(of: rel) == .note ? ((rel as NSString).lastPathComponent as NSString).deletingPathExtension : (rel as NSString).lastPathComponent
-    }
-}
-
-/// The note's headings; picking one scrolls there.
-private struct Outline: View {
-    let store: VaultStore
-    let done: () -> Void
-
-    var body: some View {
-        let headings = NoteParse.headings(store.text)
-        List {
-            if headings.isEmpty { Text("No headings").foregroundStyle(Color.evSubtle) }
-            ForEach(Array(headings.enumerated()), id: \.offset) { _, h in
-                Button {
-                    store.mode = .reading
-                    store.headingTarget = Inline.plain(h.text)
-                    done()
-                } label: {
-                    Text(Inline.plain(h.text))
-                        .font(.system(size: h.level <= 2 ? 15 : 14, weight: h.level == 1 ? .semibold : .regular))
-                        .foregroundStyle(h.level <= 2 ? Color.evFg : Color.evDim)
-                        .padding(.leading, CGFloat(h.level - 1) * 12)
-                }
-            }
-        }
-        .frame(minWidth: 300, minHeight: 360)
     }
 }
 

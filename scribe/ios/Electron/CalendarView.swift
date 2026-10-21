@@ -4,6 +4,9 @@ import SwiftUI
 /// a note are marked, and picking a day opens (or starts) its note.
 struct CalendarSheet: View {
     let store: VaultStore
+    /// Inside the Context panel: the month in a row above the grid, no
+    /// navigation bar of its own.
+    var embedded = false
     @Environment(\.dismiss) private var dismiss
     @State private var month = Calendar.current.dateInterval(of: .month, for: Date())!.start
 
@@ -11,6 +14,41 @@ struct CalendarSheet: View {
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
 
     var body: some View {
+        if embedded {
+            VStack(spacing: 14) {
+                HStack {
+                    Button { shift(-1) } label: { Image(systemName: "chevron.left") }
+                    Spacer()
+                    Text(month.formatted(.dateTime.month(.wide).year())).font(.headline).foregroundStyle(Color.evFg)
+                    Spacer()
+                    Button { shift(1) } label: { Image(systemName: "chevron.right") }
+                }
+                grid
+                Button("Today's note") { store.openDaily() }.font(.footnote)
+            }
+        } else {
+            sheet
+        }
+    }
+
+    private var grid: some View {
+        VStack(spacing: 18) {
+            LazyVGrid(columns: columns, spacing: 6) {
+                ForEach(Array(weekdays.enumerated()), id: \.offset) { _, day in
+                    Text(day).font(.caption.weight(.semibold)).foregroundStyle(Color.evSubtle)
+                }
+                ForEach(Array(cells.enumerated()), id: \.offset) { _, date in
+                    if let date { dayCell(date) } else { Color.clear.frame(height: 44) }
+                }
+            }
+            let count = notesThisMonth
+            Text(count == 0 ? "No daily notes this month" : count == 1 ? "1 daily note this month" : "\(count) daily notes this month")
+                .font(.footnote)
+                .foregroundStyle(Color.evSubtle)
+        }
+    }
+
+    private var sheet: some View {
         NavigationStack {
             VStack(spacing: 18) {
                 LazyVGrid(columns: columns, spacing: 6) {
@@ -86,7 +124,7 @@ struct CalendarSheet: View {
         let open = store.current == VaultStore.dailyPath(date)
         return Button {
             store.openDaily(date)
-            dismiss()
+            if !embedded { dismiss() }
         } label: {
             VStack(spacing: 3) {
                 Text("\(calendar.component(.day, from: date))")
