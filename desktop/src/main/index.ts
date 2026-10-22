@@ -29,6 +29,7 @@ import {
   type ChatMessage,
 } from './ai.js'
 import { findAgent, runAgent, stopAgent, stopAllAgents } from './agents.js'
+import { syncAgenda } from './agenda.js'
 import * as drive from './drive.js'
 import * as google from './google.js'
 import { SCOPES } from './google.js'
@@ -488,6 +489,25 @@ function registerIpc(): void {
   const creds = (): google.GoogleCredentials =>
     google.resolveCredentials(settings.get().google)
 
+  // The iPad's Today reads the agenda the Mac writes into the vault
+  // (agenda.ts): on start, every ten minutes, and after any change here.
+  let agendaRunning = false
+  const shareAgenda = async (): Promise<void> => {
+    const g = settings.get().google
+    if (!vault || agendaRunning || (!g.syncCalendar && !g.syncTasks)) return
+    agendaRunning = true
+    try {
+      await syncAgenda(vault, creds(), { calendar: g.syncCalendar, tasks: g.syncTasks })
+    } catch {
+      /* offline, or signed out: try again next time */
+    } finally {
+      agendaRunning = false
+    }
+  }
+  const afterChange = <T>(p: Promise<T>): Promise<T> => p.then((v) => (void shareAgenda(), v))
+  setTimeout(() => void shareAgenda(), 15_000)
+  setInterval(() => void shareAgenda(), 10 * 60_000)
+
   ipcMain.handle('google:status', async () => {
     const c = creds()
     const token = await google.loadToken()
@@ -495,6 +515,7 @@ function registerIpc(): void {
   })
   ipcMain.handle('google:connect', async () => {
     await google.runConsentFlow(creds())
+    void shareAgenda()
     return { connected: true, source: creds().source, scope: SCOPES }
   })
   ipcMain.handle('google:disconnect', () => google.clearToken())
@@ -502,20 +523,20 @@ function registerIpc(): void {
     google.fetchMonth(creds(), year, month),
   )
   ipcMain.handle('google:create-event', (_e, date: string, summary: string) =>
-    google.createEvent(creds(), date, summary),
+    afterChange(google.createEvent(creds(), date, summary)),
   )
   ipcMain.handle('google:delete-event', (_e, calendarId: string, eventId: string) =>
-    google.deleteEvent(creds(), calendarId, eventId),
+    afterChange(google.deleteEvent(creds(), calendarId, eventId)),
   )
   ipcMain.handle('google:tasks', () => google.fetchTasks(creds()))
   ipcMain.handle('google:task-completed', (_e, listId: string, taskId: string, done: boolean) =>
-    google.setTaskCompleted(creds(), listId, taskId, done),
+    afterChange(google.setTaskCompleted(creds(), listId, taskId, done)),
   )
   ipcMain.handle('google:create-task', async (_e, title: string, listId?: string) =>
-    google.createTask(creds(), listId ?? (await google.defaultTaskList(creds())), title),
+    afterChange(google.createTask(creds(), listId ?? (await google.defaultTaskList(creds())), title)),
   )
   ipcMain.handle('google:delete-task', (_e, listId: string, taskId: string) =>
-    google.deleteTask(creds(), listId, taskId),
+    afterChange(google.deleteTask(creds(), listId, taskId)),
   )
 
   // ------------------------------------------------------------------ AI

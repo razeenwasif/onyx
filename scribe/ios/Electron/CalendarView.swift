@@ -31,14 +31,26 @@ struct CalendarSheet: View {
         }
     }
 
+    /// The month as plain rows: a lazy grid inside the panel's scroll view
+    /// mis-measures its height and the line below overlaps the last week.
     private var grid: some View {
         VStack(spacing: 18) {
-            LazyVGrid(columns: columns, spacing: 6) {
-                ForEach(Array(weekdays.enumerated()), id: \.offset) { _, day in
-                    Text(day).font(.caption.weight(.semibold)).foregroundStyle(Color.evSubtle)
+            VStack(spacing: 6) {
+                HStack(spacing: 6) {
+                    ForEach(Array(weekdays.enumerated()), id: \.offset) { _, day in
+                        Text(day).font(.caption.weight(.semibold)).foregroundStyle(Color.evSubtle).frame(maxWidth: .infinity)
+                    }
                 }
-                ForEach(Array(cells.enumerated()), id: \.offset) { _, date in
-                    if let date { dayCell(date) } else { Color.clear.frame(height: 44) }
+                let weeks = stride(from: 0, to: cells.count, by: 7).map { Array(cells[$0..<min($0 + 7, cells.count)]) }
+                ForEach(Array(weeks.enumerated()), id: \.offset) { _, week in
+                    HStack(spacing: 6) {
+                        ForEach(0..<7, id: \.self) { i in
+                            Group {
+                                if i < week.count, let date = week[i] { dayCell(date) } else { Color.clear.frame(height: 44) }
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
                 }
             }
             let count = notesThisMonth

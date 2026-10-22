@@ -189,12 +189,14 @@ private struct TodayNoteCard: View {
     }
 }
 
-/// The week, Monday first; a dot where there's a daily note.
+/// The week, Monday first: a lavender dot where there's a daily note, a
+/// coral one where there's an event; under it, today's events from Google
+/// Calendar, as the Mac last shared them.
 private struct TodayWeekCard: View {
     let store: VaultStore
 
     var body: some View {
-        TodayCard(title: "This week", height: 178) {
+        TodayCard(title: "This week", height: 178, trailing: AnyView(syncNote)) {
             HStack(spacing: 4) {
                 ForEach(days, id: \.self) { day in
                     let today = Calendar.current.isDateInToday(day)
@@ -206,9 +208,14 @@ private struct TodayWeekCard: View {
                             Text(day.formatted(.dateTime.day()))
                                 .font(.system(size: 15, weight: .semibold))
                                 .foregroundStyle(Color.evFg)
-                            Circle()
-                                .fill(store.files[VaultStore.dailyPath(day)] != nil ? Color.evAccent : Color.clear)
-                                .frame(width: 5, height: 5)
+                            HStack(spacing: 3) {
+                                Circle()
+                                    .fill(store.files[VaultStore.dailyPath(day)] != nil ? Color.evAccent : Color.clear)
+                                    .frame(width: 5, height: 5)
+                                if store.agenda?.events(on: day).isEmpty == false {
+                                    Circle().fill(Color.evInk).frame(width: 5, height: 5)
+                                }
+                            }
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
@@ -217,6 +224,33 @@ private struct TodayWeekCard: View {
                     .buttonStyle(.plain)
                 }
             }
+            let todays = store.agenda?.events(on: .now) ?? []
+            if !todays.isEmpty {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(todays, id: \.self) { event in
+                            HStack(spacing: 10) {
+                                Text(event.allDay ? "All day" : event.timeLabel)
+                                    .font(.system(size: 13).monospacedDigit())
+                                    .foregroundStyle(Color.evSubtle)
+                                    .frame(width: 56, alignment: .leading)
+                                Text(event.summary).font(.system(size: 13)).foregroundStyle(Color.evFg).lineLimit(1)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// How fresh the Mac's agenda is, or nothing before it has shared one.
+    @ViewBuilder
+    private var syncNote: some View {
+        if let when = store.agenda?.updatedDate {
+            Text("Mac synced \(when.formatted(.relative(presentation: .named)))")
+                .font(.footnote)
+                .foregroundStyle(Color.evSubtle)
+                .lineLimit(1)
         }
     }
 
@@ -269,6 +303,29 @@ private struct TodayTodoCard: View {
                             .font(.system(size: 15))
                         }
                         .buttonStyle(.plain)
+                    }
+                    let google = (store.agenda?.tasks ?? []).filter { !store.tickedGoogle.contains($0.id) }
+                    if !google.isEmpty {
+                        Text("Google Tasks")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Color.evSubtle)
+                            .padding(.top, 6)
+                        ForEach(google) { task in
+                            Button { store.completeGoogleTask(task) } label: {
+                                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                    Image(systemName: "square").foregroundStyle(Color.evDim)
+                                    Text(task.title).foregroundStyle(Color.evFg).multilineTextAlignment(.leading)
+                                    Spacer(minLength: 0)
+                                    if let due = task.due?.prefix(10), let date = VaultStore.dayFormatter.date(from: String(due)) {
+                                        Text(date.formatted(.dateTime.day().month(.abbreviated)))
+                                            .font(.footnote)
+                                            .foregroundStyle(Color.evSubtle)
+                                    }
+                                }
+                                .font(.system(size: 15))
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
             }
