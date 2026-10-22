@@ -4,6 +4,31 @@ Running list of work to do. Newest items at the top of "Open". Move items to "Do
 
 ## Open
 
+### Loose ends after the October 2026 redesign
+
+Small things left after the desktop and iPad redesign, the Agent pane and the
+Scribe ⇄ Electron work (see § Done, 2026-10). None blocks daily use.
+
+- **Antigravity search on the real vault.** agy's search tools run through its
+  bundled `neutron` MCP server, allowed in `~/.gemini/antigravity-cli/settings.json`
+  (`mcp(neutron/neutron_search_contents)`, `mcp(neutron/neutron_fuzzy_find)`;
+  the Mac-wide `neutron_find_files` deliberately not). Tested only on a scratch
+  vault in `/tmp`, which Spotlight doesn't index, so search came back empty there.
+  Check one search on `OnyxVault`.
+- **Agent pane on the iPad.** Claude Code and agy are Mac CLIs. An iPad version
+  would hand the request to the Mac (a queue file in the vault, as the agenda
+  does) and show the result when it lands.
+- **agy and the user's own MCP servers.** Headless agy refuses MCP calls and has
+  no flag to hide them, so the context prompt tells it to use file tools only.
+  Revisit if agy gains `--strict-mcp-config` or an allow-list flag.
+- **Tidy-ups.** `HostSwitcher` (Scribe) still takes `hostIcon`/`scribeIcon` it no
+  longer draws; the old `agent` tab type can still come back from a saved session
+  (it shows the same pane).
+- **Version history.** Notes have atomic saves and a conflict guard but no history
+  of their own; worth it only if Time Machine or similar isn't covering the vault.
+
+---
+
 ### ⭐ EPIC: Notion + Obsidian hybrid (+ migrate the user's Notion) — ✅ COMPLETE (2026-06-14)
 
 **Direction (2026-06-11).** Evolve Electron from a pure-Obsidian markdown vault into a
@@ -177,6 +202,53 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 ---
 
 ## Done
+
+### Google Calendar and Tasks on the iPad, through the Mac  (2026-10-22)
+
+The iPad can't use the Mac's Google sign-in, so Electron on the Mac writes the
+agenda (events a week back to three weeks ahead, open Google Tasks) to
+`.onyx/agenda.json` on start, every ten minutes and after any change, rewriting it
+only when it changed. The iPad's Today marks event days, lists today's events and
+when the Mac last synced, and shows Google Tasks in To do; ticking one queues it in
+`.onyx/agenda-actions.json` for the Mac to carry out.
+
+### Agent pane: Claude Code and Antigravity  (2026-10-21)
+
+A panel at the far right (⇧⌘J) runs `claude` or `agy` headless in the vault, with
+the user's own sign-in. Steps (read, searched, edited) show as rows with notes as
+links; the reply streams; the turn ends with the notes changed and, for Claude
+Code, the cost. Agents may read, search and edit notes but not run commands:
+Claude Code gets only file and web tools and no MCP servers; agy runs sandboxed.
+Both are told the open note and the vault's note list. `main/agents.ts` parses
+both CLIs' stream-json into one event stream (tested against real output).
+
+### Desktop and iPad redesign  (2026-10-20 → 21)
+
+From the design artifact (Main, Today, Command): the Velvet palette
+(`#120f17` backdrop, `#18141e` panels, `#1b1722` note); a top bar with the
+Electron/Scribe switch, Today, the ⌘K command bar (notes, text, handwriting,
+commands, tags, ask), Graph, Agent and a ⋯ menu; the Library sidebar (Today,
+Pinned, Notes, Ink, Scratch pad, vault foot); one Context panel (Linked, Outline,
+Graph, Calendar); Today as the home view with fixed-height cards; a centred serif
+reading column with folder path, title and tag chips; ink cards for
+`[[scribe:…]]` links on their own line; full tab titles with a +N overflow menu.
+The iPad got the same six steps natively (palette, Library, Today, reading column
+and ink cards, command bar, Context inspector).
+
+### Scribe ⇄ Electron links, and Scribe ink work  (2026-10-18 → 20)
+
+`[[scribe:<page id>|Title]]` and `[[scribe:<id>#x,y,w,h|Title]]` link notes to
+pages and lassoed areas; Scribe pages appear in the graph and backlinks, and a
+page lists the notes linking to it. Scribe: white ink, ink no longer reshapes on
+lift, lasso copy/cut/paste and cross-page drag on iPad, inserting text, tables,
+equations and photos on iPad, adding pages in bulk, pull-to-add always adds.
+
+### Fixes along the way  (2026-10)
+
+Google sign-in never finished (the loopback port was read after the listener
+closed) and the month's first hours east of UTC were dropped; restored tabs opened
+empty and could autosave over the note; re-opening a tab didn't update the last
+note read.
 
 ### Desktop: test suite + session restore  (2026-08-10)
 
