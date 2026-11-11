@@ -22,6 +22,7 @@
 		731E1662D1413CD10AF0EE2A /* Inline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A2318E4D0EAAB9072D2E57F /* Inline.swift */; };
 		73EAA4B79C3F9F00519C6A2A /* ElectronViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C13920EAFF24E0A57E26E1BB /* ElectronViews.swift */; };
 		7A96DE04F655CEAF1AC10883 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F50B0C1B73148655154DC4C /* Store.swift */; };
+		7B934FA5CCED1738C934E3EC /* AgentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E9460BD6BEE0D836E42537F /* AgentView.swift */; };
 		83E8088CA8239F35669B8A17 /* NotebookCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E3CA41C98CC4FBC7E26526 /* NotebookCanvas.swift */; };
 		8468D806AB976175AB7ECBCB /* ElectronLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F9D7033121C64764648DE8C /* ElectronLibrary.swift */; };
 		9991CF0E5D8130ADD7B0753B /* GraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F77458CD35B81A7CABDC943 /* GraphView.swift */; };
@@ -38,6 +39,7 @@
 		C2DFAA61D3C90D098EDCA7F5 /* PenInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ECB559B954847D3FD91E918 /* PenInput.swift */; };
 		C4457AFB46EBCC8F7A30D469 /* ScribeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 572ACD849DC28AE0C35FCA9B /* ScribeApp.swift */; };
 		C8712F20BA50F0F8C32EDEC1 /* VaultStore+Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04A9E1457DF77208E4E635B7 /* VaultStore+Library.swift */; };
+		D2205543F73A80CC6A5EE8D1 /* AgentLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC33BF6562C84D4D5BF6E7AB /* AgentLink.swift */; };
 		D4A6DD7A8D98E8CB3119B1F8 /* PDFBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9017CAEE01B5AC8085F73E9 /* PDFBackground.swift */; };
 		DE1FECFCBE5F19EBAA62AC7E /* PageGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = A01DAF81BFF5F19B0C8A8E66 /* PageGrid.swift */; };
 		E05B9C001E4E76D6CF053D77 /* PageCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E90B89CCA9C197405CACDA /* PageCanvas.swift */; };
@@ -78,6 +80,7 @@
 		8930E33BFE96CC0DF6861196 /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
 		94B50B840A6F28ACEF2FC4C8 /* FolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderAccess.swift; sourceTree = "<group>"; };
 		9560152484C6FB9DD533F97D /* ReadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingView.swift; sourceTree = "<group>"; };
+		9E9460BD6BEE0D836E42537F /* AgentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentView.swift; sourceTree = "<group>"; };
 		9F9D7033121C64764648DE8C /* ElectronLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElectronLibrary.swift; sourceTree = "<group>"; };
 		A01DAF81BFF5F19B0C8A8E66 /* PageGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageGrid.swift; sourceTree = "<group>"; };
 		A75D82B8080DC119AB6AB73C /* ContextPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextPanel.swift; sourceTree = "<group>"; };
@@ -92,6 +95,7 @@
 		CB33200061EAB3BA677755CF /* NoteParse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteParse.swift; sourceTree = "<group>"; };
 		D7DFDBF4CEADE100F11DF80B /* VaultStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultStore.swift; sourceTree = "<group>"; };
 		E9017CAEE01B5AC8085F73E9 /* PDFBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFBackground.swift; sourceTree = "<group>"; };
+		EC33BF6562C84D4D5BF6E7AB /* AgentLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentLink.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -220,6 +224,8 @@
 		ED9162FCB1E62E8334F7F70A /* Electron */ = {
 			isa = PBXGroup;
 			children = (
+				EC33BF6562C84D4D5BF6E7AB /* AgentLink.swift */,
+				9E9460BD6BEE0D836E42537F /* AgentView.swift */,
 				6E06CAE16DB036846B944DEB /* CalendarView.swift */,
 				831B63AEF3435CA8039031CC /* CommandBar.swift */,
 				A75D82B8080DC119AB6AB73C /* ContextPanel.swift */,
@@ -341,6 +347,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D2205543F73A80CC6A5EE8D1 /* AgentLink.swift in Sources */,
+				7B934FA5CCED1738C934E3EC /* AgentView.swift in Sources */,
 				208107C86710E02C5C10FAFC /* AppSwitcher.swift in Sources */,
 				EA54154DE4F69B7068F389CB /* CalendarView.swift in Sources */,
 				649E10D03E43B54CC0382E4C /* CommandBar.swift in Sources */,
@@ -395,10 +403,13 @@
 				DEVELOPMENT_TEAM = C63K728GC6;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Scribe;
+				INFOPLIST_KEY_NSCameraUsageDescription = "The camera reads the pairing code your Mac shows, so the Agent can reach it.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -411,7 +422,7 @@
 				PRODUCT_NAME = Scribe;
 				SDKROOT = iphoneos;
 				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/../macos/CScribeCore";
-				TARGETED_DEVICE_FAMILY = 2;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
@@ -547,10 +558,13 @@
 				DEVELOPMENT_TEAM = C63K728GC6;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Scribe;
+				INFOPLIST_KEY_NSCameraUsageDescription = "The camera reads the pairing code your Mac shows, so the Agent can reach it.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -563,7 +577,7 @@
 				PRODUCT_NAME = Scribe;
 				SDKROOT = iphoneos;
 				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/../macos/CScribeCore";
-				TARGETED_DEVICE_FAMILY = 2;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};

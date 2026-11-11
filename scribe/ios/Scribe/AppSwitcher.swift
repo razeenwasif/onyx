@@ -38,6 +38,10 @@ struct AppHost: View {
         .animation(.easeInOut(duration: 0.2), value: app)
         .environment(\.appChoice, $app)
         .onAppear { connectLinks() }
+        // A pairing code scanned with the camera opens the Agent in Electron.
+        .onOpenURL { url in
+            if AgentLink.shared.handle(url) { app = .electron }
+        }
         // Whatever was typed or drawn is saved before the other app shows.
         .onChange(of: app) { _, _ in
             scribe.flush()

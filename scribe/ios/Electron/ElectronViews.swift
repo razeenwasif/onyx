@@ -116,10 +116,13 @@ private struct ElectronMain: View {
                 }
         } detail: {
             NoteDetail(store: store, ask: { ask = $0 }, delete: { deleting = $0 }, graph: { graphFocus = GraphFocus(rel: $0) },
-                       search: { commandBar = true })
+                       search: { commandBar = true }, agent: { AgentLink.shared.showing = true })
         }
         .navigationSplitViewStyle(.balanced)
         .sheet(isPresented: $commandBar) { CommandBar(store: store, commands: commands) }
+        .sheet(isPresented: Binding(get: { AgentLink.shared.showing }, set: { AgentLink.shared.showing = $0 })) {
+            AgentSheet(store: store, link: AgentLink.shared)
+        }
         .alert(ask?.title ?? "", isPresented: Binding(get: { ask != nil }, set: { if !$0 { ask = nil } })) {
             TextField("Name", text: Binding(get: { ask?.text ?? "" }, set: { ask?.text = $0 }))
             Button("Cancel", role: .cancel) { ask = nil }
@@ -350,6 +353,7 @@ private struct NoteDetail: View {
     let delete: (String) -> Void
     let graph: (String) -> Void
     let search: () -> Void
+    let agent: () -> Void
     @State private var bridge = EditorBridge()
     /// The Context panel on the right, remembered across launches.
     @AppStorage("contextOpen") private var contextOpen = false
@@ -400,6 +404,9 @@ private struct NoteDetail: View {
                     .disabled(store.forward.isEmpty)
                     .keyboardShortcut("]", modifiers: .command)
                 Button(action: search) { Image(systemName: "magnifyingglass") }
+                Button(action: agent) { Image(systemName: "sparkles") }
+                    .keyboardShortcut("j", modifiers: [.command, .shift])
+                    .accessibilityLabel("Agent")
             }
             if let rel = store.current {
                 ToolbarItemGroup(placement: .topBarTrailing) {
