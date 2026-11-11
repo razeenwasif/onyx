@@ -7,13 +7,13 @@
  * path outside the open vault.
  */
 
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, screen, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, safeStorage, screen, shell } from 'electron'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promises as fs } from 'node:fs'
 
 import { Vault, defaultVaultPath, isMarkdown } from './vault.js'
-import { SettingsStore } from './settings.js'
+import { SettingsStore, configDir } from './settings.js'
 import { linkedMentions, openTasks, search, unlinkedMentions } from './search.js'
 import {
   RagIndex,
@@ -29,6 +29,7 @@ import {
   type ChatMessage,
 } from './ai.js'
 import { findAgent, runAgent, stopAgent, stopAllAgents } from './agents.js'
+import { PhoneLink } from './phone-link.js'
 import { syncAgenda } from './agenda.js'
 import * as drive from './drive.js'
 import * as google from './google.js'
@@ -52,7 +53,7 @@ import {
   windowMenu,
   type AppId,
 } from './scribe.js'
-import type { AgentRunRequest, AppSettings, BacklinkRef } from '../shared/types.js'
+import type { AgentId, AgentRunRequest, AppSettings, BacklinkRef } from '../shared/types.js'
 import { graphWithScribe, scribeBacklinks } from './scribe-links.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -578,23 +579,21 @@ function registerIpc(): void {
 
   // ------------------------------------------------------------ agents
 
-  ipcMain.handle('agent:available', async () => ({
-    claude: Boolean(await findAgent('claude')),
-    antigravity: Boolean(await findAgent('antigravity')),
-    fairy: Boolean(await findAgent('fairy')),
-  }))
+  ipcMain.handle('agent:available', () => agentsAvailable())
   ipcMain.handle('agent:run', async (_e, req: AgentRunRequest) => {
     if (!vault) {
       send('agent:event', req.runId, { kind: 'error', message: 'Open a vault first.' })
       return
     }
-    const notes = [...vault.notes.values()]
-      .filter((m) => !m.path.startsWith('.onyx/'))
-      .sort((a, b) => b.mtime - a.mtime)
-      .map((m) => m.path)
-    await runAgent(req, vault.root, notes, (event) => send('agent:event', req.runId, event))
+    await runAgent(req, vault.root, recentNotes(), (event) => send('agent:event', req.runId, event))
   })
   ipcMain.handle('agent:stop', (_e, runId: string) => stopAgent(runId))
+
+  // The iPad and iPhone's way to the Agent, over Tailscale (phone-link.ts).
+  ipcMain.handle('link:state', () => link?.state() ?? null)
+  ipcMain.handle('link:enable', (_e, on: boolean) => link?.setEnabled(on === true))
+  ipcMain.handle('link:pair', () => link?.pair())
+  ipcMain.handle('link:forget', (_e, id: string) => link?.forget(String(id)))
 
   ipcMain.handle('ai:cancel', (_e, id: string) => {
     aiStreams.get(id)?.abort()
@@ -683,9 +682,68 @@ function registerIpc(): void {
 
 // ------------------------------------------------------------------ boot
 
+/** Which agents can run now. */
+async function agentsAvailable(): Promise<Record<AgentId, boolean>> {
+  return {
+    claude: Boolean(await findAgent('claude')),
+    antigravity: Boolean(await findAgent('antigravity')),
+    fairy: Boolean(await findAgent('fairy')),
+  }
+}
+
+/** The vault's notes, most recently edited first, for the agents' context. */
+function recentNotes(): string[] {
+  if (!vault) return []
+  return [...vault.notes.values()]
+    .filter((m) => !m.path.startsWith('.onyx/'))
+    .sort((a, b) => b.mtime - a.mtime)
+    .map((m) => m.path)
+}
+
+let link: PhoneLink | null = null
+
+/** The device link's certificate key, sealed by the Keychain where it can be. */
+const SEALED = 'safe:'
+const seal = (text: string): string =>
+  safeStorage.isEncryptionAvailable() ? SEALED + safeStorage.encryptString(text).toString('base64') : text
+const unseal = (text: string): string =>
+  text.startsWith(SEALED) ? safeStorage.decryptString(Buffer.from(text.slice(SEALED.length), 'base64')) : text
+
+function startLink(): void {
+  link = new PhoneLink({
+    file: path.join(configDir(), 'device-link.json'),
+    seal,
+    unseal,
+    // A device's request runs with this Mac's own Agent settings.
+    runAgent: async (req, emit) => {
+      if (!vault) {
+        emit({ kind: 'error', message: 'Electron on the Mac has no vault open.' })
+        return
+      }
+      const agents = settings.get().agents
+      const model = req.agent === 'claude' ? agents.claudeModel : req.agent === 'antigravity' ? agents.antigravityModel : ''
+      await runAgent({ ...req, model, allowEdits: agents.allowEdits }, vault.root, recentNotes(), emit)
+    },
+    stopAgent,
+    about: async () => {
+      const agents = settings.get().agents
+      return {
+        name: 'Electron',
+        vault: vault ? path.basename(vault.root) : '',
+        agents: await agentsAvailable(),
+        defaultAgent: agents.default,
+        allowEdits: agents.allowEdits,
+      }
+    },
+    onChange: () => send('link:changed', link?.state()),
+  })
+  void link.start()
+}
+
 void app.whenReady().then(async () => {
   await settings.load()
   registerIpc()
+  startLink()
   const scribeProblem = initScribe({
     electronMenu,
     onChange: (id) => {
@@ -718,6 +776,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', async () => {
   stopAllAgents()
+  void link?.stop()
   await settings.flush()
   await vault?.close()
 })

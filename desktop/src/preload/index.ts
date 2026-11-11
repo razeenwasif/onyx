@@ -7,6 +7,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AgentEvent,
   AgentId,
+  DeviceLinkState,
   AgentRunRequest,
   AppSettings,
   Backlink,
@@ -162,6 +163,14 @@ export const api = {
     run: (req: AgentRunRequest): Promise<void> => ipcRenderer.invoke('agent:run', req),
     stop: (runId: string): Promise<void> => ipcRenderer.invoke('agent:stop', runId),
     onEvent: (fn: (runId: string, event: AgentEvent) => void): Unsubscribe => on('agent:event', fn),
+  },
+  /** The iPad and iPhone's way to the Agent over Tailscale (main/phone-link.ts). */
+  link: {
+    state: (): Promise<DeviceLinkState | null> => ipcRenderer.invoke('link:state'),
+    enable: (on: boolean): Promise<DeviceLinkState> => ipcRenderer.invoke('link:enable', on),
+    pair: (): Promise<{ url: string; minutes: number }> => ipcRenderer.invoke('link:pair'),
+    forget: (id: string): Promise<DeviceLinkState> => ipcRenderer.invoke('link:forget', id),
+    onChange: (fn: (state: DeviceLinkState) => void): Unsubscribe => on('link:changed', fn),
   },
   ai: {
     models: (): Promise<string[]> => ipcRenderer.invoke('ai:models'),

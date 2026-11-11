@@ -248,6 +248,18 @@ export interface AgentSettings {
   allowEdits: boolean
 }
 
+/** The iPad and iPhone's link to the Agent over Tailscale (main/phone-link.ts). */
+export interface DeviceLinkState {
+  enabled: boolean
+  listening: boolean
+  /** This Mac's Tailscale name, while listening. */
+  name: string
+  tailscale: boolean
+  problem: string
+  pairing: boolean
+  devices: Array<{ id: string; name: string; paired: string; lastSeen: string }>
+}
+
 /** One turn of an agent conversation, from the renderer. */
 export interface AgentRunRequest {
   runId: string

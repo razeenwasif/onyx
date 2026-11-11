@@ -1,7 +1,8 @@
 /** Settings modal — Obsidian's left-nav + sections layout. */
 
-import { useEffect, useState } from 'react'
-import type { AgentId, GoogleStatus } from '@shared/types'
+import { useEffect, useMemo, useState } from 'react'
+import qrcode from 'qrcode-generator'
+import type { AgentId, DeviceLinkState, GoogleStatus } from '@shared/types'
 import { useStore } from '../store'
 import { THEMES } from '../themes'
 
@@ -13,6 +14,7 @@ const SECTIONS = [
   'Graph',
   'Google',
   'Agents',
+  'iPad & iPhone',
   'AI',
   'About',
 ] as const
@@ -205,6 +207,8 @@ export function Settings(): JSX.Element {
           )}
 
           {section === 'Google' && <GoogleSection />}
+
+          {section === 'iPad & iPhone' && <DevicesSection />}
 
           {section === 'Agents' && (
             <>
@@ -452,6 +456,132 @@ function ModelSelect({
         </option>
       ))}
     </select>
+  )
+}
+
+/** Dark squares on white with a clear edge, which is what cameras need whatever the theme. */
+function QrCode({ text }: { text: string }): JSX.Element {
+  const { size, squares } = useMemo(() => {
+    const code = qrcode(0, 'M')
+    code.addData(text, 'Byte')
+    code.make()
+    const n = code.getModuleCount()
+    let d = ''
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (code.isDark(y, x)) d += `M${x + 4} ${y + 4}h1v1h-1z`
+    return { size: n + 8, squares: d }
+  }, [text])
+  return (
+    <svg className="pair-code" viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Code to scan with your iPad or iPhone">
+      <rect width={size} height={size} fill="#fff" />
+      <path d={squares} fill="#000" />
+    </svg>
+  )
+}
+
+/**
+ * Electron on the iPad and iPhone sends Agent requests here, over Tailscale
+ * (main/phone-link.ts). Turn it on, pair each device once by scanning a code.
+ */
+function DevicesSection(): JSX.Element {
+  const [state, setState] = useState<DeviceLinkState | null>(null)
+  const [pairing, setPairing] = useState<{ url: string; until: number } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [now, setNow] = useState(Date.now())
+
+  useEffect(() => {
+    void window.onyx.link.state().then(setState)
+    return window.onyx.link.onChange(setState)
+  }, [])
+  useEffect(() => {
+    if (!pairing) return
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [pairing])
+  // A device that just paired, or a code that ran out, puts the code away.
+  const devices = state?.devices.length ?? 0
+  useEffect(() => setPairing(null), [devices])
+  const left = pairing ? Math.max(0, Math.ceil((pairing.until - now) / 1000)) : 0
+  useEffect(() => {
+    if (pairing && left === 0) setPairing(null)
+  }, [pairing, left])
+
+  const guard = async <T,>(work: () => Promise<T>): Promise<T | undefined> => {
+    setError(null)
+    try {
+      return await work()
+    } catch (e) {
+      setError(String((e as Error).message).replace(/^Error invoking remote method '[^']+': (?:Error: )?/, ''))
+      return undefined
+    }
+  }
+
+  const status = !state
+    ? 'Starting…'
+    : !state.enabled
+      ? 'Off'
+      : state.problem
+        ? state.problem
+        : state.listening
+          ? `On · ${state.name}`
+          : state.tailscale
+            ? 'Starting…'
+            : 'Waiting for Tailscale on this Mac'
+
+  return (
+    <>
+      <p style={{ color: 'var(--fg-dim)', lineHeight: 1.6, marginTop: 0 }}>
+        Electron on your iPad and iPhone can ask the Agent to work on the vault. The request comes to this Mac over
+        Tailscale and runs here, with the settings under Agents, so the Mac needs Electron open. Only devices on your
+        Tailscale network that you pair here can reach it.
+      </p>
+      <Toggle
+        name="Let my iPad and iPhone use the Agent"
+        desc={status}
+        on={state?.enabled ?? false}
+        onChange={(v) => void guard(async () => setState(await window.onyx.link.enable(v)))}
+      />
+      {state?.listening && (
+        <Setting name="Pair a device" desc="In Electron on the iPad or iPhone: Agent → Pair with your Mac, then scan this code.">
+          <button
+            className="btn"
+            onClick={() =>
+              void guard(async () => {
+                const made = await window.onyx.link.pair()
+                setPairing({ url: made.url, until: Date.now() + made.minutes * 60_000 })
+              })
+            }
+          >
+            {pairing ? 'New code' : 'Show code'}
+          </button>
+        </Setting>
+      )}
+      {pairing && (
+        <div className="pair-box">
+          <QrCode text={pairing.url} />
+          <p>
+            Scan with the iPad or iPhone. The code works once, for {Math.floor(left / 60)}:
+            {String(left % 60).padStart(2, '0')} more.
+          </p>
+        </div>
+      )}
+      {error && <p className="settings-error">{error}</p>}
+      {state && state.devices.length > 0 && (
+        <>
+          <h3 className="settings-sub">Paired</h3>
+          {state.devices.map((d) => (
+            <Setting
+              key={d.id}
+              name={d.name}
+              desc={`Paired ${new Date(d.paired).toLocaleDateString()} · last used ${new Date(d.lastSeen).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`}
+            >
+              <button className="btn" onClick={() => void guard(async () => setState(await window.onyx.link.forget(d.id)))}>
+                Forget
+              </button>
+            </Setting>
+          ))}
+        </>
+      )}
+    </>
   )
 }
 
