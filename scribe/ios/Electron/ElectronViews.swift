@@ -76,6 +76,8 @@ private struct NameAsk: Identifiable {
 private struct ElectronMain: View {
     @Bindable var store: VaultStore
     @State private var columns: NavigationSplitViewVisibility = .automatic
+    /// On a phone, one column at a time: Today or the note first, the Library behind Back.
+    @State private var compactColumn: NavigationSplitViewColumn = .detail
     @State private var commandBar = false
     @State private var ask: NameAsk?
     @State private var deleting: String?
@@ -88,7 +90,7 @@ private struct ElectronMain: View {
     @AppStorage("libraryFolded") private var folded = "scratch"
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columns) {
+        NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $compactColumn) {
             sidebar
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -119,6 +121,7 @@ private struct ElectronMain: View {
                        search: { commandBar = true }, agent: { AgentLink.shared.showing = true })
         }
         .navigationSplitViewStyle(.balanced)
+        .onChange(of: store.shown) { _, _ in compactColumn = .detail }
         .sheet(isPresented: $commandBar) { CommandBar(store: store, commands: commands) }
         .sheet(isPresented: Binding(get: { AgentLink.shared.showing }, set: { AgentLink.shared.showing = $0 })) {
             AgentSheet(store: store, link: AgentLink.shared)
@@ -355,8 +358,13 @@ private struct NoteDetail: View {
     let search: () -> Void
     let agent: () -> Void
     @State private var bridge = EditorBridge()
+    /// A phone: fewer buttons, and the note's own header instead of a title.
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    private var phone: Bool { sizeClass == .compact }
     /// The Context panel on the right, remembered across launches.
     @AppStorage("contextOpen") private var contextOpen = false
+    /// On a phone it's a sheet, so it isn't remembered: it would open at launch.
+    @State private var phoneContext = false
 
     var body: some View {
         Group {
@@ -384,25 +392,29 @@ private struct NoteDetail: View {
             }
         }
         .background(Color.evBg)
-        .navigationTitle(title)
+        .navigationTitle(phone ? "" : title)
         .navigationBarTitleDisplayMode(.inline)
-        .inspector(isPresented: $contextOpen) {
+        .inspector(isPresented: phone ? $phoneContext : $contextOpen) {
             ContextPanel(store: store)
                 .inspectorColumnWidth(min: 260, ideal: 320, max: 420)
         }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { contextOpen.toggle() } label: { Image(systemName: "sidebar.right") }
-                    .keyboardShortcut("i", modifiers: [.command, .option])
-                    .accessibilityLabel("Context")
+            if !phone {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { contextOpen.toggle() } label: { Image(systemName: "sidebar.right") }
+                        .keyboardShortcut("i", modifiers: [.command, .option])
+                        .accessibilityLabel("Context")
+                }
             }
             ToolbarItemGroup(placement: .topBarLeading) {
-                Button { store.goBack() } label: { Image(systemName: "chevron.backward") }
-                    .disabled(store.back.isEmpty)
-                    .keyboardShortcut("[", modifiers: .command)
-                Button { store.goForward() } label: { Image(systemName: "chevron.forward") }
-                    .disabled(store.forward.isEmpty)
-                    .keyboardShortcut("]", modifiers: .command)
+                if !phone {
+                    Button { store.goBack() } label: { Image(systemName: "chevron.backward") }
+                        .disabled(store.back.isEmpty)
+                        .keyboardShortcut("[", modifiers: .command)
+                    Button { store.goForward() } label: { Image(systemName: "chevron.forward") }
+                        .disabled(store.forward.isEmpty)
+                        .keyboardShortcut("]", modifiers: .command)
+                }
                 Button(action: search) { Image(systemName: "magnifyingglass") }
                 Button(action: agent) { Image(systemName: "sparkles") }
                     .keyboardShortcut("j", modifiers: [.command, .shift])
@@ -421,6 +433,10 @@ private struct NoteDetail: View {
                         .keyboardShortcut("e", modifiers: .command)
                     }
                     Menu {
+                        if phone {
+                            Button("Context", systemImage: "sidebar.right") { phoneContext = true }
+                            Divider()
+                        }
                         if VaultNode.kind(of: rel) == .note {
                             Button(store.isBookmarked(rel) ? "Unpin" : "Pin", systemImage: store.isBookmarked(rel) ? "star.slash" : "star") {
                                 store.toggleBookmark(rel)

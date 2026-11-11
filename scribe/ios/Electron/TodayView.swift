@@ -3,7 +3,7 @@ import SwiftUI
 /// Today, the home view (the desktop's TodayView.tsx): shown when no note
 /// is open. A greeting, today's note to write in, the week, the to-do list,
 /// tasks across the vault, and what to pick up again. The cards keep the
-/// redesign's heights and scroll inside.
+/// redesign's heights and scroll inside; on a phone they stack in one column.
 struct TodayView: View {
     @Bindable var store: VaultStore
 
@@ -25,6 +25,12 @@ struct TodayView: View {
                             }
                             .frame(width: 320)
                         }
+                    } else if geo.size.width < 560 {
+                        TodayNoteCard(store: store, height: 300)
+                        TodayWeekCard(store: store)
+                        TodayTodoCard(store: store)
+                        TodayTasksCard(store: store)
+                        TodayRecent(store: store, stacked: true)
                     } else {
                         TodayNoteCard(store: store)
                         TodayWeekCard(store: store)
@@ -35,7 +41,7 @@ struct TodayView: View {
                         TodayRecent(store: store)
                     }
                 }
-                .padding(.horizontal, 28)
+                .padding(.horizontal, geo.size.width < 560 ? 16 : 28)
                 .padding(.top, 20)
                 .padding(.bottom, 40)
                 .frame(maxWidth: 1180)
@@ -113,6 +119,7 @@ private struct TodayHeader: View {
 /// Today's daily note, written in place, with a box to capture into it.
 private struct TodayNoteCard: View {
     let store: VaultStore
+    var height: CGFloat = 394
     @State private var text = ""
     @State private var loadedFor = ""
     @State private var capture = ""
@@ -120,7 +127,7 @@ private struct TodayNoteCard: View {
     private var rel: String { VaultStore.dailyPath(.now) }
 
     var body: some View {
-        TodayCard(title: "Today's note", height: 394, trailing: AnyView(
+        TodayCard(title: "Today's note", height: height, trailing: AnyView(
             Button((rel as NSString).lastPathComponent) { store.openDaily() }
                 .font(.footnote)
                 .foregroundStyle(Color.evAccent)
@@ -385,6 +392,8 @@ private struct TodayTasksCard: View {
 /// Notes edited and ink written lately, newest first.
 private struct TodayRecent: View {
     let store: VaultStore
+    /// The filter under the title, for a phone.
+    var stacked = false
     @AppStorage("todayRecentFilter") private var filter = "all"
 
     private enum Item: Identifiable {
@@ -408,16 +417,17 @@ private struct TodayRecent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
+            let header = stacked ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) : AnyLayout(HStackLayout())
+            header {
                 Text("Pick up where you left off").font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.evFg)
-                Spacer()
+                if !stacked { Spacer() }
                 Picker("Show", selection: $filter) {
                     Text("All").tag("all")
                     Text("Notes").tag("notes")
                     Text("Ink").tag("ink")
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 200)
+                .frame(maxWidth: stacked ? .infinity : 200)
             }
             if items.isEmpty {
                 Text("Nothing here yet.").font(.footnote).foregroundStyle(Color.evSubtle)

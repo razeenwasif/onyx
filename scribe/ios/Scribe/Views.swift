@@ -607,10 +607,12 @@ struct ToolDock: View {
 
     var body: some View {
         // Every colour when there's room; one colour button when the page
-        // column is narrow (sidebar open, or Split View).
+        // column is narrow (sidebar open, or Split View); on a phone, where a
+        // finger always draws, no finger-drawing switch either.
         ViewThatFits(in: .horizontal) {
             dock(compact: false)
             dock(compact: true)
+            dock(compact: true, phone: true)
         }
     }
 
@@ -623,8 +625,8 @@ struct ToolDock: View {
         if store.tool == .highlighter { store.highlighter.color = hex } else { store.pen.color = hex }
     }
 
-    private func dock(compact: Bool) -> some View {
-        HStack(spacing: 4) {
+    private func dock(compact: Bool, phone: Bool = false) -> some View {
+        HStack(spacing: phone ? 0 : 4) {
             tool(.pen, "pencil.tip")
             tool(.highlighter, "highlighter")
             tool(.strokeEraser, "eraser")
@@ -640,18 +642,20 @@ struct ToolDock: View {
             divider
             iconButton("arrow.uturn.backward", enabled: store.canUndo) { store.undo() }
             iconButton("arrow.uturn.forward", enabled: store.canRedo) { store.redo() }
-            divider
-            Button {
-                store.fingerDraws.toggle()
-            } label: {
-                Image(systemName: store.fingerDraws ? "hand.draw.fill" : "hand.draw")
-                    .frame(width: 34, height: 34)
-                    .foregroundStyle(store.fingerDraws ? Color.velvetAccent : Color.velvetMuted)
+            if !phone {
+                divider
+                Button {
+                    store.fingerDraws.toggle()
+                } label: {
+                    Image(systemName: store.fingerDraws ? "hand.draw.fill" : "hand.draw")
+                        .frame(width: 34, height: 34)
+                        .foregroundStyle(store.fingerDraws ? Color.velvetAccent : Color.velvetMuted)
+                }
+                .accessibilityLabel(store.fingerDraws ? "Finger drawing on" : "Finger drawing off")
             }
-            .accessibilityLabel(store.fingerDraws ? "Finger drawing on" : "Finger drawing off")
         }
         .fixedSize()
-        .padding(.horizontal, 10)
+        .padding(.horizontal, phone ? 6 : 10)
         .padding(.vertical, 6)
         .background(.ultraThinMaterial, in: Capsule())
         .overlay(Capsule().strokeBorder(.white.opacity(0.06)))

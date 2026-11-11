@@ -172,6 +172,9 @@ final class VaultStore {
 
     // The open file.
     private(set) var current: String?
+    /// Goes up whenever a note or Today is asked for, even the one already
+    /// open, so a phone can bring the note column forward.
+    private(set) var shown = 0
     var text = ""
     private(set) var dirty = false
     var mode: Mode = Mode(rawValue: UserDefaults.standard.string(forKey: "electronMode") ?? "") ?? .reading {
@@ -398,6 +401,7 @@ final class VaultStore {
 
     /// Opens a file, keeping the page you were on for Back.
     func show(_ rel: String, heading: String? = nil, remember: Bool = true) {
+        shown += 1
         if rel == current {
             headingTarget = heading
             return
@@ -409,6 +413,7 @@ final class VaultStore {
     }
 
     private func load(_ rel: String) {
+        shown += 1
         current = rel
         dirty = false
         anchorLine = 0
@@ -469,6 +474,7 @@ final class VaultStore {
 
     /// Today, the home view: no note open. Back returns to the note left.
     func showToday() {
+        shown += 1
         guard current != nil else { return }
         flush()
         if let current { back.append(current); forward = [] }

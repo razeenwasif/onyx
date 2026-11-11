@@ -50,11 +50,12 @@ final class Store {
     var pen = Pen(color: Pen.defaultPen.color, width: 3.4, pressureSensitive: true, highlighter: false)
     var highlighter = Pen.defaultHighlighter
     /// Off once an Apple Pencil is seen: then fingers only scroll and zoom.
+    /// A phone has no Pencil, so there a finger draws and two scroll.
     var fingerDraws: Bool = {
         #if targetEnvironment(simulator)
         true
         #else
-        false
+        UIDevice.current.userInterfaceIdiom == .phone
         #endif
     }()
 

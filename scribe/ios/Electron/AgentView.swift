@@ -250,7 +250,7 @@ private struct AgentConversation: View {
                 .foregroundStyle(withNote ? Color.evText : Color(uiColor: EV.fgSubtle))
             }
             HStack(alignment: .bottom, spacing: 10) {
-                TextField("Ask \(link.agent == "fairy" ? "Fairy" : "the agent") to find, write or tidy notes…", text: $draft, axis: .vertical)
+                TextField("Find, write or tidy notes…", text: $draft, axis: .vertical)
                     .lineLimit(1...6)
                     .focused($typing)
                     .padding(10)
