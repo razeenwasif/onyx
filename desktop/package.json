@@ -158,8 +158,7 @@
           "to": "scribe",
           "filter": [
             "libScribeEmbed.dylib",
-            "scribe_bridge.node",
-            "scribe-icon.png"
+            "scribe_bridge.node"
           ]
         },
         {

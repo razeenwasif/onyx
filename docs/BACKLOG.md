@@ -4,28 +4,24 @@ Running list of work to do. Newest items at the top of "Open". Move items to "Do
 
 ## Open
 
-### Loose ends after the October 2026 redesign
+### What's left (November 2026)
 
-Small things left after the desktop and iPad redesign, the Agent pane and the
-Scribe ⇄ Electron work (see § Done, 2026-10). None blocks daily use.
+Electron and Scribe are in daily use on the Mac and iPad, and the iPad agenda
+works with the real calendar. Nothing here blocks daily use.
 
 - **Antigravity search on the real vault.** agy's search tools run through its
   bundled `neutron` MCP server, allowed in `~/.gemini/antigravity-cli/settings.json`
   (`mcp(neutron/neutron_search_contents)`, `mcp(neutron/neutron_fuzzy_find)`;
   the Mac-wide `neutron_find_files` deliberately not). Tested only on a scratch
-  vault in `/tmp`, which Spotlight doesn't index, so search came back empty there.
-  Check one search on `OnyxVault`.
-- **Agent pane on the iPad.** Claude Code and agy are Mac CLIs. An iPad version
-  would hand the request to the Mac (a queue file in the vault, as the agenda
-  does) and show the result when it lands.
+  vault in `/tmp`, which Spotlight doesn't index. Check one search on `OnyxVault`
+  (the user, once their agy usage resets).
 - **agy and the user's own MCP servers.** Headless agy refuses MCP calls and has
   no flag to hide them, so the context prompt tells it to use file tools only.
   Revisit if agy gains `--strict-mcp-config` or an allow-list flag.
-- **Tidy-ups.** `HostSwitcher` (Scribe) still takes `hostIcon`/`scribeIcon` it no
-  longer draws; the old `agent` tab type can still come back from a saved session
-  (it shows the same pane).
 - **Version history.** Notes have atomic saves and a conflict guard but no history
   of their own; worth it only if Time Machine or similar isn't covering the vault.
+- **TUI tools** (below) stay open but matter less now the desktop app exists; the
+  terminal app is kept.
 
 ---
 
@@ -202,6 +198,32 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 ---
 
 ## Done
+
+### Fairy in the Agent pane; the Agent on the iPad and iPhone; the iPhone  (2026-11-11)
+
+- **Fairy as a third agent.** The Agent pane offers Fairy (the user's own
+  assistant, `desktop-buddies/Lyra`) beside Claude Code and Antigravity. Each
+  request is a turn of one of her work sessions in the vault folder, with her
+  provider, file tools, sandbox and approvals; the chat is in her sidebar.
+  Electron talks to her over `electron.sock` in her data folder
+  (`main/fairy.ts`; her side is `desktop/electron-link.mjs`). Her approvals show
+  in the pane as waiting rows and are answered in Fairy or on her iPhone app,
+  never from Electron.
+- **The Agent on the iPad and iPhone.** Electron on the Mac has its own Tailscale
+  link (`main/phone-link.ts`, port 47620): HTTPS on the Tailscale address only, a
+  self-signed certificate pinned through the pairing code, one key per device
+  (only hashes kept), routes to run the agent with the Mac's own settings and
+  follow it as server-sent events. Settings → iPad & iPhone turns it on and shows
+  the QR code. On iOS, the sparkles button (⇧⌘J) opens the Agent
+  (`Electron/AgentLink.swift`, `AgentView.swift`); the camera or a pasted link
+  pairs. Fairy's own phone link is unchanged (phones still can't start her work).
+- **iPhone.** The app builds for iPhone: one column at a time (Today or the note,
+  the Library behind Back), a trimmed note toolbar, Today in one column, and in
+  Scribe a finger draws (no Pencil) with a dock that fits.
+- **Tidy-up.** The app switch's unused icon inputs and the old `agent` tab type
+  are gone.
+- **Signing.** The app is signed with the paid Individual team, so device builds
+  last a year.
 
 ### Google Calendar and Tasks on the iPad, through the Mac  (2026-10-22)
 
