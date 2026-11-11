@@ -209,8 +209,10 @@ export function Settings(): JSX.Element {
           {section === 'Agents' && (
             <>
               <p style={{ color: 'var(--fg-dim)', lineHeight: 1.6, marginTop: 0 }}>
-                Claude Code and Antigravity work on the vault from the Agent pane (⇧⌘J), using your own
-                sign-in to each. They can read, search and edit notes; they can’t run commands.
+                Claude Code, Antigravity and Fairy work on the vault from the Agent pane (⇧⌘J). Claude Code and
+                Antigravity use your own sign-in to each; they can read, search and edit notes, and can’t run
+                commands. Fairy runs on this Mac with her own provider, sandbox and approvals; her chats are in her
+                sidebar.
               </p>
               <Setting name="Start with" desc="The agent a new conversation uses.">
                 <select
@@ -219,6 +221,7 @@ export function Settings(): JSX.Element {
                 >
                   <option value="claude">Claude Code</option>
                   <option value="antigravity">Antigravity</option>
+                  <option value="fairy">Fairy</option>
                 </select>
               </Setting>
               <Toggle

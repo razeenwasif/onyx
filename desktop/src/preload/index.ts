@@ -6,6 +6,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AgentEvent,
+  AgentId,
   AgentRunRequest,
   AppSettings,
   Backlink,
@@ -155,9 +156,9 @@ export const api = {
       ipcRenderer.invoke('drive:import', fileId, rel),
   },
 
-  /** Claude Code and Antigravity, run on the vault (main/agents.ts). */
+  /** Claude Code, Antigravity and Fairy, working on the vault (main/agents.ts). */
   agent: {
-    available: (): Promise<{ claude: boolean; antigravity: boolean }> => ipcRenderer.invoke('agent:available'),
+    available: (): Promise<Record<AgentId, boolean>> => ipcRenderer.invoke('agent:available'),
     run: (req: AgentRunRequest): Promise<void> => ipcRenderer.invoke('agent:run', req),
     stop: (runId: string): Promise<void> => ipcRenderer.invoke('agent:stop', runId),
     onEvent: (fn: (runId: string, event: AgentEvent) => void): Unsubscribe => on('agent:event', fn),

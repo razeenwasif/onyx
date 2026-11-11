@@ -4297,13 +4297,17 @@ textarea {
   flex: none;
 }
 
-/* Claude's coral, Antigravity's blue. */
+/* Claude's coral, Antigravity's blue, Fairy's pink. */
 .agent-dot.is-claude {
   background: #d97757;
 }
 
 .agent-dot.is-antigravity {
   background: #8fb7f0;
+}
+
+.agent-dot.is-fairy {
+  background: #e8a6d9;
 }
 
 .agent-meta {
@@ -4491,6 +4495,26 @@ textarea {
 
 .agent-step-why {
   color: var(--fg-subtle);
+}
+
+.agent-waiting {
+  margin-top: 8px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  color: var(--fg);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.agent-waiting-detail {
+  display: block;
+  margin-top: 2px;
+  color: var(--fg-dim);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .agent-working {

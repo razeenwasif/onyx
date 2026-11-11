@@ -1,6 +1,6 @@
 /**
- * The Agent pane's conversation: what was asked, and what Claude Code or
- * Antigravity did and said back, built from the events main/agents.ts
+ * The Agent pane's conversation: what was asked, and what Claude Code,
+ * Antigravity or Fairy did and said back, built from the events main/agents.ts
  * sends. Kept outside the view so a turn keeps running (and is still there)
  * when the pane's tab isn't on screen.
  */
@@ -33,6 +33,8 @@ export type Turn =
       error?: string
       costUsd?: number
       denied?: string[]
+      /** Fairy's questions waiting for an answer in Fairy. */
+      waiting?: Array<{ id: string; title: string; detail?: string }>
     }
 
 interface AgentState {
@@ -43,7 +45,7 @@ interface AgentState {
   sessionAgent: AgentId | null
   turns: Turn[]
   runId: string | null
-  available: { claude: boolean; antigravity: boolean } | null
+  available: Record<AgentId, boolean> | null
   /** The pane at the far right of the window, and its width. */
   open: boolean
   width: number
@@ -137,7 +139,7 @@ export const useAgent = create<AgentState>((set, get) => ({
       agent: st.agent,
       prompt: text,
       sessionId: st.sessionAgent === st.agent ? st.sessionId : null,
-      model: (st.agent === 'claude' ? settings?.claudeModel : settings?.antigravityModel) ?? '',
+      model: (st.agent === 'claude' ? settings?.claudeModel : st.agent === 'antigravity' ? settings?.antigravityModel : '') ?? '',
       notePath,
       allowEdits: settings?.allowEdits !== false,
     })
@@ -163,9 +165,18 @@ export function applyAgentEvent(runId: string, event: AgentEvent): void {
     switch (event.kind) {
       case 'text': {
         const last = turn.parts[turn.parts.length - 1]
-        if (last?.kind === 'text') turn.parts[turn.parts.length - 1] = { kind: 'text', text: last.text + event.delta }
+        if (event.replace) {
+          // Fairy's whole reply so far: it takes the place of the text she'd written.
+          const keep = turn.parts.filter((p) => p.kind !== 'text')
+          turn.parts = [...keep, { kind: 'text', text: event.delta }]
+        } else if (last?.kind === 'text') turn.parts[turn.parts.length - 1] = { kind: 'text', text: last.text + event.delta }
         else turn.parts.push({ kind: 'text', text: event.delta })
         turn.thinking = false
+        break
+      }
+      case 'approval': {
+        const waiting = (turn.waiting ?? []).filter((w) => w.id !== event.id)
+        turn.waiting = event.closed ? waiting : [...waiting, { id: event.id, title: event.title ?? 'Fairy needs your OK', detail: event.detail }]
         break
       }
       case 'thinking':
@@ -182,6 +193,7 @@ export function applyAgentEvent(runId: string, event: AgentEvent): void {
       case 'done':
         turn.running = false
         turn.thinking = false
+        turn.waiting = undefined
         turn.error = event.error
         turn.costUsd = event.costUsd
         turn.denied = event.denied
@@ -189,6 +201,7 @@ export function applyAgentEvent(runId: string, event: AgentEvent): void {
       case 'error':
         turn.running = false
         turn.thinking = false
+        turn.waiting = undefined
         turn.error = event.message
         break
     }
@@ -220,6 +233,9 @@ export function listenForAgents(): void {
     useAgent.setState({ available })
     const preferred = useStore.getState().settings?.agents?.default
     if (preferred && available[preferred]) useAgent.setState({ agent: preferred })
-    else if (!available.claude && available.antigravity) useAgent.setState({ agent: 'antigravity' })
+    else if (!available.claude) {
+      const other = (['antigravity', 'fairy'] as AgentId[]).find((a) => available[a])
+      if (other) useAgent.setState({ agent: other })
+    }
   })
 }

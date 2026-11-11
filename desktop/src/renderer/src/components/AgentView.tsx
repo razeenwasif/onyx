@@ -1,7 +1,6 @@
 /**
- * The Agent pane, at the far right of the window: Claude Code or
- * Antigravity working on the vault. Ask in
- * plain words; the agent reads, searches and (when allowed) edits notes,
+ * The Agent pane, at the far right of the window: Claude Code, Antigravity
+ * or Fairy working on the vault. Ask in plain words; the agent reads, searches and (when allowed) edits notes,
  * and each step it takes shows as a row: the note it read, the one it
  * changed. Notes it mentions open on click. A conversation continues until
  * New conversation; switching agents starts a fresh one with the other.
@@ -18,7 +17,17 @@ import { Resizer } from './Resizer'
 const AGENTS: Array<{ id: AgentId; name: string }> = [
   { id: 'claude', name: 'Claude Code' },
   { id: 'antigravity', name: 'Antigravity' },
+  { id: 'fairy', name: 'Fairy' },
 ]
+
+const AGENT_NAME: Record<AgentId, string> = { claude: 'Claude Code', antigravity: 'Antigravity', fairy: 'Fairy' }
+
+/** What to do when an agent isn't there. */
+const MISSING: Record<AgentId, string> = {
+  claude: 'Claude Code isn’t installed: install it from claude.com/claude-code, then sign in with `claude` in a terminal.',
+  antigravity: 'Antigravity’s CLI isn’t installed: install Antigravity, then run `agy` once in a terminal to sign in.',
+  fairy: 'Fairy isn’t running on this Mac. Open Fairy, then pick her again.',
+}
 
 const SUGGESTIONS = [
   'Summarise this note and add the summary at the top',
@@ -113,7 +122,7 @@ export function AgentView(): JSX.Element {
               className={agent === a.id ? 'is-on' : ''}
               disabled={busy}
               onClick={() => pick(a.id)}
-              title={available && !available[a.id] ? `${a.name} isn’t installed` : a.name}
+              title={available && !available[a.id] ? (a.id === 'fairy' ? 'Fairy isn’t running' : `${a.name} isn’t installed`) : a.name}
             >
               <span className={`agent-dot is-${a.id}`} aria-hidden="true" />
               {a.id === 'claude' ? 'Claude' : a.name}
@@ -137,16 +146,13 @@ export function AgentView(): JSX.Element {
           <div className="agent-empty">
             <h2>What should {AGENTS.find((a) => a.id === agent)?.name} do in your vault?</h2>
             <p>
-              It reads, searches and {settings?.agents?.allowEdits === false ? 'plans changes to' : 'edits'} your notes
-              in <b>{useStore.getState().vault?.name ?? 'the vault'}</b>. It can’t run commands.
+              {agent === 'fairy' ? 'She' : 'It'} reads, searches and {settings?.agents?.allowEdits === false ? 'plans changes to' : 'edits'} your notes
+              in <b>{useStore.getState().vault?.name ?? 'the vault'}</b>.{' '}
+              {agent === 'fairy'
+                ? 'She works in her sandbox, and anything past it waits for your OK in Fairy. The chat is in her sidebar too.'
+                : 'It can’t run commands.'}
             </p>
-            {missing && (
-              <p className="agent-warn">
-                {agent === 'claude'
-                  ? 'Claude Code isn’t installed: install it from claude.com/claude-code, then sign in with `claude` in a terminal.'
-                  : 'Antigravity’s CLI isn’t installed: install Antigravity, then run `agy` once in a terminal to sign in.'}
-              </p>
-            )}
+            {missing && <p className="agent-warn">{MISSING[agent]}</p>}
             <div className="agent-suggestions">
               {SUGGESTIONS.map((s) => (
                 <button key={s} type="button" disabled={Boolean(missing)} onClick={() => submit(s)}>
@@ -177,7 +183,7 @@ export function AgentView(): JSX.Element {
             ref={inputRef}
             rows={2}
             value={draft}
-            placeholder={missing ? 'Install the agent to start' : 'Ask the agent to find, write or tidy notes…'}
+            placeholder={missing ? (agent === 'fairy' ? 'Open Fairy to start' : 'Install the agent to start') : `Ask ${agent === 'fairy' ? 'Fairy' : 'the agent'} to find, write or tidy notes…`}
             disabled={Boolean(missing)}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -228,10 +234,16 @@ function AgentTurn({
     <div className="agent-turn is-agent">
       <div className="agent-who">
         <span className={`agent-dot is-${turn.agent}`} aria-hidden="true" />
-        {turn.agent === 'claude' ? 'Claude Code' : 'Antigravity'}
+        {AGENT_NAME[turn.agent]}
       </div>
       {turn.parts.map((part, i) => (
         <Part key={i} part={part} resolve={resolve} />
+      ))}
+      {turn.waiting?.map((w) => (
+        <div key={w.id} className="agent-waiting" title={w.detail}>
+          <b>Waiting for your OK in Fairy:</b> {w.title}
+          {w.detail && <span className="agent-waiting-detail">{w.detail}</span>}
+        </div>
       ))}
       {turn.running && (
         <div className="agent-working">
@@ -265,7 +277,8 @@ function AgentTurn({
 }
 
 const TOOL_VERB: Record<string, string> = {
-  Read: 'Read', view_file: 'Read', read_file: 'Read',
+  Read: 'Read', view_file: 'Read', read_file: 'Read', read: 'Read',
+  edit: 'Edited', write: 'Wrote', search: 'Searched for', list: 'Listed', run: 'Ran', 'web-search': 'Searched the web for', 'web-read': 'Read',
   Edit: 'Edited', MultiEdit: 'Edited', edit_file: 'Edited', replace_file_content: 'Edited', multi_replace_file_content: 'Edited', sed_file: 'Edited',
   Write: 'Wrote', write_to_file: 'Wrote', create_file: 'Created',
   Glob: 'Found files', find_by_name: 'Found files', list_dir: 'Listed',

@@ -581,6 +581,7 @@ function registerIpc(): void {
   ipcMain.handle('agent:available', async () => ({
     claude: Boolean(await findAgent('claude')),
     antigravity: Boolean(await findAgent('antigravity')),
+    fairy: Boolean(await findAgent('fairy')),
   }))
   ipcMain.handle('agent:run', async (_e, req: AgentRunRequest) => {
     if (!vault) {

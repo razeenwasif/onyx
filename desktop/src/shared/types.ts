@@ -235,8 +235,8 @@ export interface DriveFile {
   size: number | null
 }
 
-/** The coding agents Electron can run on the vault (main/agents.ts). */
-export type AgentId = 'claude' | 'antigravity'
+/** The agents Electron can run on the vault (main/agents.ts, main/fairy.ts). */
+export type AgentId = 'claude' | 'antigravity' | 'fairy'
 
 export interface AgentSettings {
   /** The agent a new conversation starts with. */
@@ -264,7 +264,8 @@ export interface AgentRunRequest {
 /** What a running agent reports, normalised across CLIs. */
 export type AgentEvent =
   | { kind: 'session'; id: string; model?: string }
-  | { kind: 'text'; delta: string }
+  /** `replace`: the text so far is `delta` (Fairy rewrote what she'd said). */
+  | { kind: 'text'; delta: string; replace?: boolean }
   | { kind: 'thinking' }
   | {
       kind: 'tool'
@@ -276,6 +277,8 @@ export type AgentEvent =
       /** The tool changes files. */
       writes: boolean
     }
+  /** Fairy waits for an OK given in Fairy (or on her iPhone); `closed` when it's answered. */
+  | { kind: 'approval'; id: string; title?: string; detail?: string; closed?: boolean }
   | { kind: 'done'; sessionId?: string; costUsd?: number; error?: string; denied?: string[] }
   | { kind: 'error'; message: string }
 

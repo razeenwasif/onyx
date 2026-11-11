@@ -1,6 +1,7 @@
 /**
- * Coding agents that work on the vault: Claude Code (`claude`) and Google's
- * Antigravity (`agy`), run headless in the vault folder.
+ * Agents that work on the vault: Claude Code (`claude`) and Google's
+ * Antigravity (`agy`), run headless in the vault folder, and Fairy, the
+ * user's own assistant, reached through her socket (fairy.ts).
  *
  * Each turn spawns the CLI in print mode with streaming JSON output, and the
  * lines it prints are turned into one small event stream the Agent pane
@@ -17,16 +18,18 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 
 import type { AgentEvent, AgentId, AgentRunRequest } from '../shared/types.js'
+import { fairyAvailable, runFairy, stopFairy } from './fairy.js'
 
 // ------------------------------------------------------------ finding them
 
-const BIN: Record<AgentId, string> = { claude: 'claude', antigravity: 'agy' }
+const BIN: Record<Exclude<AgentId, 'fairy'>, string> = { claude: 'claude', antigravity: 'agy' }
 
 /**
  * Where an agent's CLI is. An app opened from Finder doesn't get the login
  * shell's PATH, so look in the usual install folders, then ask the shell.
  */
 export async function findAgent(agent: AgentId): Promise<string | null> {
+  if (agent === 'fairy') return fairyAvailable() ? 'fairy' : null
   const name = BIN[agent]
   const home = os.homedir()
   const dirs = [path.join(home, '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin', path.join(home, '.claude', 'local')]
@@ -46,9 +49,13 @@ export async function findAgent(agent: AgentId): Promise<string | null> {
 
 // ------------------------------------------------------------- arguments
 
-/** What the agent is told about where it is, on top of its own prompt. */
-export function contextPrompt(vaultRoot: string, notePath: string | null, notes: string[] = []): string {
-  const listed = notes.slice(0, NOTE_LIST_LIMIT)
+/**
+ * What the agent is told about where it is, on top of its own prompt.
+ * Fairy has her own tools and sandbox, so she isn't told to keep to file
+ * tools, and gets a shorter list: her chat is saved with every turn.
+ */
+export function contextPrompt(vaultRoot: string, notePath: string | null, notes: string[] = [], forFairy = false): string {
+  const listed = notes.slice(0, forFairy ? FAIRY_NOTE_LIST_LIMIT : NOTE_LIST_LIMIT)
   const list = listed.length
     ? `\nThe vault's notes (${notes.length}${notes.length > listed.length ? `, the ${listed.length} edited last` : ''}):\n${listed.join('\n')}`
     : ''
@@ -56,13 +63,16 @@ export function contextPrompt(vaultRoot: string, notePath: string | null, notes:
     `You are working in the user's Markdown notes vault at ${vaultRoot}, from inside Electron, their notes app.`,
     'Notes are Markdown files with Obsidian-style [[wikilinks]], #tags and YAML frontmatter; keep that style when you write.',
     'Refer to notes by their vault-relative path.',
-    'Use only your file tools (list, find, search, read, edit) on this folder: shell commands, MCP servers and the browser are not available here.',
+    forFairy
+      ? 'Work on the notes with your file tools; keep any commands to reading the vault.'
+      : 'Use only your file tools (list, find, search, read, edit) on this folder: shell commands, MCP servers and the browser are not available here.',
     notePath ? `The note open in the editor now is ${notePath}.` : 'No note is open in the editor.',
   ].join(' ') + list
 }
 
 /** How many note paths the agent is told about up front. */
 const NOTE_LIST_LIMIT = 400
+const FAIRY_NOTE_LIST_LIMIT = 150
 
 /** Claude Code's file and web tools: everything but the shell. */
 const CLAUDE_TOOLS = 'Read,Edit,Write,Glob,Grep,WebSearch,WebFetch'
@@ -251,6 +261,10 @@ export async function runAgent(
   notes: string[],
   emit: (event: AgentEvent) => void,
 ): Promise<void> {
+  if (req.agent === 'fairy') {
+    await runFairy(req, vaultRoot, contextPrompt(vaultRoot, req.notePath, notes, true), emit)
+    return
+  }
   const bin = await findAgent(req.agent)
   if (!bin) {
     emit({ kind: 'error', message: req.agent === 'claude' ? 'Claude Code (claude) isn’t installed.' : 'Antigravity’s CLI (agy) isn’t installed.' })
@@ -304,9 +318,11 @@ export async function runAgent(
 }
 
 export function stopAgent(runId: string): void {
+  if (stopFairy(runId)) return
   runs.get(runId)?.kill('SIGTERM')
 }
 
+/** On quitting. Fairy's work carries on in Fairy, where its chat is. */
 export function stopAllAgents(): void {
   for (const child of runs.values()) child.kill('SIGTERM')
   runs.clear()
