@@ -14,7 +14,7 @@
 
 #include <string>
 
-typedef void *(*CreateViewFn)(const char *, const char *, const char *);
+typedef void *(*CreateViewFn)(const char *);
 typedef void (*SetActiveFn)(bool);
 typedef bool (*PerformFn)(const char *);
 typedef const char *(*MenuJsonFn)(void);
@@ -125,14 +125,14 @@ static napi_value Load(napi_env env, napi_callback_info info) {
 }
 
 /**
- * attach(nativeWindowHandle, hostName, hostIconPath, scribeIconPath): add
+ * attach(nativeWindowHandle, hostName): add
  * Scribe's view, hidden, over the window's content. The handle is
  * `BrowserWindow.getNativeWindowHandle()`, an NSView * on macOS. Attaching to
  * a new window (macOS re-creates it after the last one closes) moves the view.
  */
 static napi_value Attach(napi_env env, napi_callback_info info) {
-  napi_value argv[4];
-  if (!Args(env, info, 4, argv)) return nullptr;
+  napi_value argv[2];
+  if (!Args(env, info, 2, argv)) return nullptr;
   if (!library) return Fail(env, "call load() first");
 
   void *data = nullptr;
@@ -145,9 +145,7 @@ static napi_value Attach(napi_env env, napi_callback_info info) {
 
   if (!scribeView) {
     std::string name = ToStdString(env, argv[1]);
-    std::string hostIcon = ToStdString(env, argv[2]);
-    std::string scribeIcon = ToStdString(env, argv[3]);
-    scribeView = (__bridge_transfer NSView *)createView(name.c_str(), hostIcon.c_str(), scribeIcon.c_str());
+    scribeView = (__bridge_transfer NSView *)createView(name.c_str());
   }
   [scribeView removeFromSuperview];
   scribeView.frame = content.bounds;

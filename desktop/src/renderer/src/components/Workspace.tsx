@@ -12,7 +12,6 @@ import { SearchPane } from './LeftSidebar'
 import { TodayView } from './TodayView'
 import { DriveView } from './DriveView'
 import { AIView } from './AIView'
-import { AgentView } from './AgentView'
 import { assetUrl } from '../lib/assets'
 import { stem } from '../lib/notes'
 
@@ -236,8 +235,6 @@ function tabIcon(tab: Tab): IconName {
       return 'canvas'
     case 'ai':
       return 'bot'
-    case 'agent':
-      return 'sparkle'
     case 'drive':
       return 'cloud'
     case 'database':
@@ -412,8 +409,6 @@ function ViewFor({ tab }: { tab: Tab }): JSX.Element {
       return <DatabaseView tab={tab} />
     case 'ai':
       return <AIView tab={tab} />
-    case 'agent':
-      return <AgentView tab={tab} />
     case 'drive':
       return <DriveView tab={tab} />
     case 'search':

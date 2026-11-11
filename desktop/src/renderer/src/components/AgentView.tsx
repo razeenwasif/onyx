@@ -9,7 +9,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentId } from '@shared/types'
-import { useStore, type Tab } from '../store'
+import { useStore } from '../store'
 import { useAgent, listenForAgents, type ReplyPart, type Turn } from '../lib/agent'
 import { renderMarkdown } from '../editor/render'
 import { Icon } from './Icon'
@@ -41,7 +41,7 @@ export function AgentPanel(): JSX.Element {
   )
 }
 
-export function AgentView(_props: { tab?: Tab }): JSX.Element {
+export function AgentView(): JSX.Element {
   const { agent, turns, runId, available, sessionId, sessionAgent, setAgent, send, stop, reset } = useAgent()
   const notePath = useStore((s) => s.lastNotePath)
   const notes = useStore((s) => s.notes)

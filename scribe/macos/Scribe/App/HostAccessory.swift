@@ -10,20 +10,16 @@ extension EnvironmentValues {
     @Entry public var hostAccessory: ((Axis) -> AnyView)? = nil
 }
 
-/// The app switcher a host shows inside Scribe: the host's icon, which
+/// The app switcher a host shows inside Scribe: the host's mark, which
 /// switches back to it, and Scribe's own, marked as the one on screen.
 public struct HostSwitcher: View {
     var axis: Axis
     var hostName: String
-    var hostIcon: NSImage?
-    var scribeIcon: NSImage?
     var switchToHost: () -> Void
 
-    public init(axis: Axis, hostName: String, hostIcon: NSImage?, scribeIcon: NSImage?, switchToHost: @escaping () -> Void) {
+    public init(axis: Axis, hostName: String, switchToHost: @escaping () -> Void) {
         self.axis = axis
         self.hostName = hostName
-        self.hostIcon = hostIcon
-        self.scribeIcon = scribeIcon
         self.switchToHost = switchToHost
     }
 

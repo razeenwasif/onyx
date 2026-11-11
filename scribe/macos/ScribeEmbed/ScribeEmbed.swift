@@ -38,22 +38,16 @@ private final class Embedded {
 /// host's own view would swallow every click meant for it. AppKit skips a
 /// hidden plain view, and everything inside it, when hit testing.
 @_cdecl("scribe_embed_create_view")
-public func scribeEmbedCreateView(
-    _ hostName: UnsafePointer<CChar>?,
-    _ hostIcon: UnsafePointer<CChar>?,
-    _ scribeIcon: UnsafePointer<CChar>?
-) -> UnsafeMutableRawPointer {
+public func scribeEmbedCreateView(_ hostName: UnsafePointer<CChar>?) -> UnsafeMutableRawPointer {
     let embedded = Embedded.shared
     if let view = embedded.view { return Unmanaged.passRetained(view).toOpaque() }
 
     Velvet.registerFonts()
     let name = hostName.map { String(cString: $0) } ?? "the host app"
-    let hostImage = hostIcon.flatMap { NSImage(contentsOfFile: String(cString: $0)) }
-    let scribeImage = scribeIcon.flatMap { NSImage(contentsOfFile: String(cString: $0)) }
 
     let root = ContentView(app: embedded.app)
         .environment(\.hostAccessory) { axis in
-            AnyView(HostSwitcher(axis: axis, hostName: name, hostIcon: hostImage, scribeIcon: scribeImage) {
+            AnyView(HostSwitcher(axis: axis, hostName: name) {
                 embedded.switchHandler?()
             })
         }

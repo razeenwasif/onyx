@@ -28,7 +28,6 @@ export type ViewType =
   | 'canvas'
   | 'database'
   | 'ai'
-  | 'agent'
   | 'search'
   | 'drive'
   | 'image'
@@ -546,7 +545,6 @@ export const useStore = create<State & Actions>((set, get) => ({
       graph: 'Graph view',
       localgraph: 'Local graph',
       ai: 'Electron AI',
-      agent: 'Agent',
       database: 'Database',
       canvas: 'Canvas',
       empty: 'Today',

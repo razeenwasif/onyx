@@ -4,7 +4,6 @@
 # Stages everything the app loads at runtime in desktop/scribe-embed/:
 #   libScribeEmbed.dylib   Scribe's interface (../scribe), with its Rust core
 #   *.bundle               its fonts and SwiftMath's maths tables
-#   scribe-icon.png        for the app switcher
 #   scribe_bridge.node     the addon that puts Scribe's view in the window
 #
 # Dev runs load from there; packaging copies it into the app (package.json).
@@ -44,7 +43,6 @@ cp "$bin/libScribeEmbed.dylib" "$out/"
 for bundle in "$bin"/*.bundle; do
   [[ -e "$bundle" ]] && cp -R "$bundle" "$out/"
 done
-cp "$scribe/docs/icon.png" "$out/scribe-icon.png"
 cp "$here/native/scribe-bridge/build/Release/scribe_bridge.node" "$out/"
 
 echo "Scribe staged."

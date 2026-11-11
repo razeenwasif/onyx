@@ -175,7 +175,7 @@ function createWindow(): void {
   }
   if (settings.get().window.maximized) win.maximize()
   trackWindowState(win)
-  attachScribe(win, iconPath())
+  attachScribe(win)
 
   win.on('ready-to-show', () => {
     win?.show()

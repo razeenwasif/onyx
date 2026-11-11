@@ -26,7 +26,7 @@ export type AppId = 'electron' | 'scribe'
 
 interface Bridge {
   load(dylib: string): void
-  attach(handle: Buffer, hostName: string, hostIcon: string, scribeIcon: string): void
+  attach(handle: Buffer, hostName: string): void
   setVisible(visible: boolean): void
   perform(action: string): boolean
   menu(): string
@@ -119,10 +119,10 @@ export function currentApp(): AppId {
  * Put Scribe's view (hidden unless it's the current app) into `window`.
  * Called for every new window: macOS re-creates it after the last one closes.
  */
-export function attachScribe(window: BrowserWindow, hostIcon: string): void {
+export function attachScribe(window: BrowserWindow): void {
   host = window
   if (!bridge) return
-  bridge.attach(window.getNativeWindowHandle(), 'Electron', hostIcon, path.join(stageDir(), 'scribe-icon.png'))
+  bridge.attach(window.getNativeWindowHandle(), 'Electron')
   // Scribe's layout needs this much room before its panels fold away.
   window.setMinimumSize(760, 560)
   if (current === 'scribe') bridge.setVisible(true)
