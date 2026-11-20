@@ -5,8 +5,9 @@
 #   * it runs when started by hand and for version tags, not on every push:
 #     host jobs need the server started with --host-executor, which is off
 #     for now. Start it with: ntr run start native -b main
-#   * atlas needs Rust and Node 22 on its PATH (it has Xcode 27.2 and cargo,
-#     not Node yet)
+#   * Node 22, as on GitHub: atlas's default Node (26) comes with an npm that
+#     skips install scripts until approved, so Electron never downloaded its
+#     binary. The Node steps put Homebrew's node@22 first on their PATH.
 #   * rust-cache is gone: host jobs start from a fresh checkout
 
 name: native
@@ -35,10 +36,13 @@ jobs:
       - name: Embed Scribe in Electron
         working-directory: desktop
         run: |
+          export PATH="/opt/homebrew/opt/node@22/bin:$PATH"
           npm ci
           npm run build:scribe
       # Real mouse events into a window set up like the app's: clicks must
       # reach Electron while Scribe is hidden, and Scribe while it shows.
       - name: Click test
         working-directory: desktop
-        run: npm run test:clicks
+        run: |
+          export PATH="/opt/homebrew/opt/node@22/bin:$PATH"
+          npm run test:clicks
