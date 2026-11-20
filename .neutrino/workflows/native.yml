@@ -1,10 +1,10 @@
 # onyx's .github/workflows/ci.yml Scribe job, on Neutrino.
 #
 # Scribe needs macOS (Swift, a real window for the click test), so it runs on
-# atlas itself (runs-on: host). Changes from the GitHub version:
-#   * it runs when started by hand and for version tags, not on every push:
-#     host jobs need the server started with --host-executor, which is off
-#     for now. Start it with: ntr run start native -b main
+# Kagutsuchi itself (runs-on: host). Changes from the GitHub version:
+#   * it runs on pushes and pull requests that touch Scribe, the Electron app
+#     it embeds into, or this file, plus version tags and by hand
+#     (ntr run start native -b main); GitHub ran it on every push
 #   * Node 22, as on GitHub: atlas's default Node (26) comes with an npm that
 #     skips install scripts until approved, so Electron never downloaded its
 #     binary. The Node steps put Homebrew's node@22 first on their PATH.
@@ -13,7 +13,11 @@
 name: native
 
 on:
-  push: { tags: ['v*'] }
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths: ["scribe/**", "desktop/**", ".neutrino/workflows/native.yml"]
+  pull_request: { paths: ["scribe/**", "desktop/**", ".neutrino/workflows/native.yml"] }
   workflow_dispatch: {}
 
 jobs:
