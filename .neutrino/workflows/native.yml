@@ -1,0 +1,44 @@
+# onyx's .github/workflows/ci.yml Scribe job, on Neutrino.
+#
+# Scribe needs macOS (Swift, a real window for the click test), so it runs on
+# atlas itself (runs-on: host). Changes from the GitHub version:
+#   * it runs when started by hand and for version tags, not on every push:
+#     host jobs need the server started with --host-executor, which is off
+#     for now. Start it with: ntr run start native -b main
+#   * atlas needs Rust and Node 22 on its PATH (it has Xcode 27.2 and cargo,
+#     not Node yet)
+#   * rust-cache is gone: host jobs start from a fresh checkout
+
+name: native
+
+on:
+  push: { tags: ['v*'] }
+  workflow_dispatch: {}
+
+jobs:
+  scribe:
+    name: Scribe (Rust, Swift, app, embed, click test)
+    runs-on: host
+    timeout-minutes: 60
+    steps:
+      - name: Rust core tests
+        working-directory: scribe
+        run: cargo test -p scribe-core
+      - name: Swift tests
+        working-directory: scribe
+        run: |
+          cargo build --release -p scribe-core
+          MACOSX_DEPLOYMENT_TARGET=15.0 swift test
+      - name: Standalone app builds
+        working-directory: scribe
+        run: ./build.sh
+      - name: Embed Scribe in Electron
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run build:scribe
+      # Real mouse events into a window set up like the app's: clicks must
+      # reach Electron while Scribe is hidden, and Scribe while it shows.
+      - name: Click test
+        working-directory: desktop
+        run: npm run test:clicks

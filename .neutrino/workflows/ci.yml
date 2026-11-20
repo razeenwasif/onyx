@@ -1,0 +1,58 @@
+# onyx's .github/workflows/ci.yml (the Linux jobs), on Neutrino.
+#
+# Changes from the GitHub version:
+#   * ubuntu-latest + setup-node / rust-toolchain  ->  node:22 and rust:1-slim
+#     containers on Graviton (arm64 Linux)
+#   * setup-node's and rust-cache's caches  ->  Neutrino caches kept in the
+#     workspace on atlas's disk; no debug info, since a container's own files
+#     live in its VM's RAM
+#   * the macOS Scribe job is in native.yml
+
+name: CI
+
+on:
+  push: {}
+  pull_request: {}
+  workflow_dispatch: {}
+
+concurrency:
+  group: ci-${{ neutrino.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    name: Electron desktop (typecheck, tests)
+    image: node:22
+    resources: { cpus: 2, memory: 4G }
+    timeout-minutes: 20
+    env:
+      npm_config_cache: /workspace/.npm
+    cache:
+      - key: npm-${{ hashFiles('desktop/package-lock.json') }}
+        path: .npm
+        restore-keys: [npm-]
+    steps:
+      - working-directory: desktop
+        run: npm ci
+      - working-directory: desktop
+        run: npm run typecheck
+      - working-directory: desktop
+        run: npm test
+
+  tui:
+    name: Terminal app (Rust tests)
+    image: rust:1-slim
+    resources: { cpus: 4, memory: 6G }
+    timeout-minutes: 30
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_PROFILE_TEST_DEBUG: 0
+      CARGO_HOME: /workspace/.cargo
+      PATH: /workspace/.cargo/bin:/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    cache:
+      - key: cargo-${{ hashFiles('Cargo.lock') }}
+        path: [.cargo, target]
+        restore-keys: [cargo-]
+    steps:
+      - run: cargo test --features full
