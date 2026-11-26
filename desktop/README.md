@@ -119,7 +119,9 @@ size, position and maximized state (checked against the displays that currently 
 window saved on a monitor you've since unplugged still opens somewhere visible).
 Plus a ribbon, editor tabs (drag to reorder or move between panes),
 horizontal splits, per-pane back/forward history, full-screen focus (`Ctrl+F`),
-status bar, and five themes ported from the TUI's `theme.rs`.
+status bar, and themes starting with **Electron Stratus** (the default pitch-black,
+zero-border skin in `styles/stratus.css`), alongside **Electron Velvet** and five
+classic palettes ported from the TUI's `theme.rs`.
 
 The sidebars follow the **TUI's layout** rather than Obsidian's: each side is a
 vertical stack of panes, not one visible tab at a time.
@@ -339,6 +341,7 @@ src/
     store.ts     workspace state (panes, tabs, buffers, sidebars)
     commands.ts  every command, its hotkey, and its behaviour
     themes.ts    palettes → CSS custom properties
+    styles/      app.css (base), velvet.css, stratus.css (default Stratus skin)
     editor/      CodeMirror live preview, completions, ghost text, HTML renderer
     graph/       WebGL renderer, physics worker, the view and its control panel
     canvas/      JSON Canvas board

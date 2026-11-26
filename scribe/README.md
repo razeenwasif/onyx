@@ -348,39 +348,57 @@ menu for 30 days, kept in the library folder's `.scribe/Recently Deleted/`. Type
 imported PDFs show as on the Mac; for now they're edited on the Mac, and formulas show
 their LaTeX source.
 
-### Electron on the iPad
+### Electron on iPad & iPhone
 
-The iPad app holds Electron too, as the desktop does: the switch at the top left of
-Scribe's library and of Electron's sidebar (or Ctrl-Cmd-1 / Ctrl-Cmd-2 on a keyboard) moves
-between them. Electron opens the Markdown vault from iCloud Drive (**OnyxVault**, picked
-once like the notebook folder) and reads and writes the same files as the desktop, checking
-for changes every few seconds. Its code is in `ios/Electron/`, written natively rather than
+The iOS/iPadOS app is named **Electron** (`app.electron.ios`, `ios/Electron.xcodeproj`) and
+holds both **Electron** and **Scribe** in one app: the switch at the top left of Scribe's
+library and of Electron's sidebar (or Ctrl-Cmd-1 / Ctrl-Cmd-2 on a keyboard) moves between
+them. Electron opens the Markdown vault from iCloud Drive (**OnyxVault**, picked once like
+the notebook folder) and reads and writes the same files as the desktop, checking for
+changes every few seconds. Its code is in `ios/Electron/`, written natively rather than
 reusing the desktop's web UI.
 
-Notes open for reading, drawn natively in the Velvet theme: headings, lists and tasks (tap a
-box to tick it), tables, code, quotes, callouts, images, `![[embeds]]` and LaTeX, drawn with
-SwiftMath (commands only KaTeX knows, such as `\implies` or `\R`, are rewritten first). The
-pencil button (⌘E) switches to the editor, which colours the Markdown as you type, carries
-lists on with Return, has formatting keys above the keyboard (⌘B, ⌘I, ⌘K) and suggests
-notes after `[[`. Either way you stay at the same place in the note. Links open their note
-(a missing one is created, as in Obsidian), and the end of each note lists its backlinks.
-The sidebar has recent notes, the file tree and search; its **⋯** menu has the desktop's
-Todo list (`.onyx/todos.md`), tags, today's note (⇧⌘D), a calendar of daily notes
-(`Daily/YYYY-MM-DD.md`, as the desktop names them) and the graph (⌘G). The graph uses the
-desktop's layout (tag nodes, pastel tag colours, tag families gathered into continents, a
-round edge): drag to move, pinch to zoom, tap a dot to see it and open it. A note's **⋯**
-menu has its local graph, one to three links deep. Renaming a note rewrites links to it,
-and deleting moves it to the vault's `.trash` folder. Links between notes and Scribe pages
-work as on the Mac (see Linking pages and notes): a link opens Scribe at the page or area,
-and a page's link button opens the notes that link to it. Canvases, the database view and AI
-are still desktop-only.
+Electron's iOS UI matches **Stratus** (`ios/Electron/ElectronTheme.swift`,
+`StratusComponents.swift`): a pure `#000000` canvas, `#030304` Library sidebar, `#060608`
+Context & Agent drawers, `#0B0B0F` Command Bar, borderless tonal surfaces (`#0B0B0E` /
+`#111114` / `#16161B`), and SF Pro + SF Mono typography with tabular digits (while
+Scribe's own Velvet dark UI remains unchanged). Notes open for reading natively: headings,
+lists and tasks (tap a box to tick it), tables, code, quotes, callouts, images,
+`![[embeds]]` and LaTeX, drawn with SwiftMath (commands only KaTeX knows, such as
+`\implies` or `\R`, are rewritten first). The pencil button (⌘E) switches to the editor,
+which colours the Markdown as you type, carries lists on with Return, has formatting keys
+above the keyboard (⌘B, ⌘I, ⌘K) and suggests notes after `[[`. Either way you stay at the
+same place in the note. Links open their note (a missing one is created, as in Obsidian),
+and the end of each note lists its backlinks. The sidebar has recent notes, the file tree
+and search; its **⋯** menu has the desktop's Todo list (`.onyx/todos.md`), tags, today's
+note (⇧⌘D), a calendar of daily notes (`Daily/YYYY-MM-DD.md`, as the desktop names them)
+and the graph (⌘G). The graph uses the desktop's layout (tag nodes, pastel tag colours, tag
+families gathered into continents, a round edge): drag to move, pinch to zoom, tap a dot
+to see it and open it. A note's **⋯** menu has its local graph, one to three links deep.
+Renaming a note rewrites links to it, and deleting moves it to the vault's `.trash` folder.
+Links between notes and Scribe pages work as on the Mac (see Linking pages and notes): a
+link opens Scribe at the page or area, and a page's link button opens the notes that link
+to it. Canvases, the database view and AI are still desktop-only.
 
-To install it for free, open `ios/Scribe.xcodeproj` in Xcode, add your Apple ID under
-Settings → Accounts, choose your team under Signing & Capabilities, plug in the iPad and
-press Run. With a free Apple ID the install lasts seven days; run it again from Xcode to
-renew. Xcode builds the Rust core for the iPad itself (`ios/build-core.sh`). After
-changing `ios/project.yml`, regenerate the project with `xcodegen` in `ios/`. The icon is
-`ios/icon.svg`.
+The iOS app also ships three Stratus-styled **WidgetKit widgets** (`ElectronWidgets`,
+`app.electron.ios.widgets` in `ios/Widgets/ElectronWidgets.swift`) backed by an App Group
+snapshot store (`group.app.electron.shared` in `ios/Shared/ElectronWidgetStore.swift`):
+
+- **Today** (Small, Medium, Large, plus Lock Screen Circular, Rectangular, and Inline):
+  open-task KPIs, today's daily note excerpt, upcoming calendar events, and quick actions.
+- **Tasks & Todos** (Small, Medium, Large): `.onyx/todos.md` checklist items and vault
+  `- [ ]` tasks across notes.
+- **Recent & Pinned** (Small, Medium, Large): pinned and recently edited notes plus a
+  quick `+ New` action.
+
+Widget taps deep-link directly into Electron via `electron://` URLs (`today`, `daily`,
+`new`, `search`, `todos`, and `note?path=...`).
+
+To build and install, open `ios/Electron.xcodeproj` in Xcode, choose your team under
+Signing & Capabilities (default `C63K728GC6`), plug in your device and press Run on the
+`Electron` scheme (which embeds `ElectronWidgets`). Xcode builds the Rust core for iOS
+itself (`ios/build-core.sh`). After changing `ios/project.yml`, regenerate the project
+with `xcodegen` in `ios/`. The iOS icon is `ios/icon.svg`.
 
 ## Layout of the source
 
@@ -402,6 +420,11 @@ changing `ios/project.yml`, regenerate the project with `xcodegen` in `ios/`. Th
 | `macos/Scribe/Core/Theme.swift` | The velvet palette, radii, surfaces and title font |
 | `macos/Scribe/Resources/Fonts/` | Fraunces (SIL Open Font License) |
 | `macos/Tests/` | Swift tests |
+| `ios/Electron/` | Stratus-styled native iOS/iPadOS Electron vault, Today, Context, Command Bar, Agent & Graph |
+| `ios/Shared/` | Shared App Group snapshot store (`ElectronWidgetStore.swift`) |
+| `ios/Widgets/` | `ElectronWidgets` WidgetKit extension (Today, Tasks & Todos, Recent & Pinned) |
+| `ios/Scribe/` | Embedded Scribe iOS/iPadOS handwriting views & `AppSwitcher` |
+| `ios/project.yml` | XcodeGen spec generating `ios/Electron.xcodeproj` |
 
 ## Known gaps
 

@@ -199,6 +199,30 @@ the title as `start–end/total`); `j/k`/arrows, `d/u`/PageUp·Dn, `g/G` scroll.
 
 ## Done
 
+### Stratus UI redesign (Mac & iOS), iOS rename to Electron, and iOS widgets  (2026-11-26)
+
+- **Mac Desktop (`desktop/`).** Added the `electron-stratus` ("Electron Stratus")
+  default theme (`themes.ts`, `styles/stratus.css`) matching Stratus's pitch-black
+  T3 palette (`#000000` canvas, `#030304` Library, `#060608` Context/Agent,
+  `#0B0B0F` modals/Command Bar, zero borders/dividers, SF Pro + SF Mono with
+  tabular digits, electric indigo `#7A89FF` + Stratus accents) and migrated
+  `SETTINGS_VERSION` to v3 (`main/settings.ts`, `settings.test.ts`). Updated
+  `assets/electron-icon.svg` and regenerated macOS/Linux/Windows icon assets.
+- **iOS Rename & Stratus Redesign (`scribe/ios/`).** Renamed the Xcode project
+  and iOS target from `Scribe` to `Electron` (`ios/project.yml`,
+  `Electron.xcodeproj`, `app.electron.ios`) with a Stratus-styled iOS icon
+  (`ios/icon.svg`). Redesigned all `ios/Electron/` views (`ElectronTheme.swift`,
+  `StratusComponents.swift`, `ElectronViews.swift`, `ElectronLibrary.swift`,
+  `TodayView.swift`, `CommandBar.swift`, `ContextPanel.swift`, `AgentView.swift`,
+  `ReadingView.swift`, `EditorView.swift`, `CalendarView.swift`, `GraphView.swift`,
+  `InkCard.swift`) to match Stratus while keeping Scribe's own Velvet UI intact.
+- **iOS Widgets (`ElectronWidgets`).** Added the `app.electron.ios.widgets`
+  WidgetKit extension (`ios/Widgets/ElectronWidgets.swift`) backed by an App
+  Group snapshot store (`group.app.electron.shared`,
+  `ios/Shared/ElectronWidgetStore.swift`) with three Stratus-styled widgets
+  (`Today` including Lock Screen accessory families, `Tasks & Todos`, and
+  `Recent & Pinned`) and `electron://` deep-link routing in `AppSwitcher.swift`.
+
 ### Fairy in the Agent pane; the Agent on the iPad and iPhone; the iPhone  (2026-11-11)
 
 - **Fairy as a third agent.** The Agent pane offers Fairy (the user's own

@@ -4,10 +4,8 @@ A modern, premium markdown notes app — an Obsidian-inspired vault that comes i
 front ends over the same folder of plain `.md` files:
 
 - **`electron`** — the terminal app (Rust + ratatui). This README.
-- **[Electron Desktop](desktop/README.md)** — a TypeScript GUI (built on the Electron framework) made to match
-  Obsidian: live-preview editor, WebGL graph view, canvas, and the Electron extras.
-- **[Scribe](scribe/README.md)** — a pen-first notebook for macOS (Rust + SwiftUI). It runs on its
-  own, and inside Electron Desktop on macOS, where an app switcher flips the window between the two.
+- **[Electron Desktop](desktop/README.md)** — a TypeScript GUI (built on the Electron framework) with the Stratus pitch-black UI: live-preview editor, WebGL graph view, canvas, and the Electron extras.
+- **[Scribe & Electron for iOS](scribe/README.md)** — a pen-first notebook for macOS and iPad/iPhone (Rust + SwiftUI). On iPad and iPhone the app is packaged as **Electron** (`app.electron.ios`) with Stratus-styled UI, embedded Scribe, and Home/Lock Screen widgets (`ElectronWidgets`), while on macOS an app switcher flips the window between Electron Desktop and Scribe.
 
 Both read and write the same vault and the same `.onyx/` sidecar files, so you can
 run them side by side.
@@ -47,7 +45,7 @@ run them side by side.
 - Crash-safe **atomic saves** and an external-change **conflict guard** (prompts before overwriting a note edited elsewhere)
 - **Live filesystem sync** — edits from Obsidian/another editor/git refresh the tree, index, and graph; a clean open note reloads automatically
 - **Fast startup** — a persistent index cache re-parses only the notes that changed since last launch (~26× faster on a 680-note vault)
-- Themes: Electron Dark · Electron Light · Dracula · Nord (plus user-defined)
+- Themes: **Electron Stratus** (default pitch-black T3 theme) · Electron Velvet · Electron Dark · Electron Light · Dracula · Nord (plus user-defined)
 - Persistent config at `~/.config/onyx/config.toml`
 
 ## Build
