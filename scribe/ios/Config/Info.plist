@@ -20,10 +20,11 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>app.scribe.ipad.pairing</string>
+			<string>app.electron.ios.pairing</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>onyx</string>
+				<string>electron</string>
 			</array>
 		</dict>
 	</array>

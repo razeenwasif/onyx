@@ -1,25 +1,22 @@
 import SwiftUI
 
-/// The Context panel (the desktop's ContextPanel.tsx), as an inspector on
-/// the right: one panel with four views of the open note.
-///
-///   Linked    notes and Scribe pages that link here
-///   Outline   the note's headings; picking one scrolls there
-///   Graph     the notes around this one
-///   Month     the month of daily notes
+/// The Context panel (the desktop's ContextPanel.tsx), styled after Stratus's
+/// `#060608` inspector drawer: borderless filter pills, tonal `#0B0B0E` cards,
+/// and zero dividers.
 struct ContextPanel: View {
     let store: VaultStore
     @AppStorage("contextTab") private var tab = "linked"
 
     var body: some View {
         VStack(spacing: 14) {
-            Picker("View", selection: $tab) {
-                Text("Linked").tag("linked")
-                Text("Outline").tag("outline")
-                Text("Graph").tag("graph")
-                Text("Month").tag("calendar")
+            HStack(spacing: 4) {
+                StratusFilterPill(title: "Linked", isSelected: tab == "linked") { tab = "linked" }
+                StratusFilterPill(title: "Outline", isSelected: tab == "outline") { tab = "outline" }
+                StratusFilterPill(title: "Graph", isSelected: tab == "graph") { tab = "graph" }
+                StratusFilterPill(title: "Month", isSelected: tab == "calendar") { tab = "calendar" }
             }
-            .pickerStyle(.segmented)
+            .padding(3)
+            .background(Color.evSurfaceSubtle, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             .padding(.horizontal, 14)
             .padding(.top, 14)
 
@@ -29,7 +26,7 @@ struct ContextPanel: View {
             case "graph":
                 if let rel = store.current, VaultNode.kind(of: rel) == .note {
                     GraphScreen(store: store, focus: rel, embedded: true)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .padding([.horizontal, .bottom], 14)
                 } else {
                     hint("Open a note to see the notes around it.")
@@ -41,7 +38,7 @@ struct ContextPanel: View {
             }
         }
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(Color.evPanel)
+        .background(Color.evInspector)
     }
 
     private func hint(_ text: String) -> some View {
@@ -58,43 +55,48 @@ private struct ContextLinked: View {
             if let rel = store.current {
                 let refs = store.backlinks(of: rel)
                 let pages = store.scribeBacklinks(of: rel)
-                HStack {
-                    Text("Linked from").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.evDim)
-                    Spacer()
-                    Text("\(refs.count + pages.count)").font(.footnote).foregroundStyle(Color.evSubtle)
-                }
+                StratusSectionHeader(title: "Linked from", trailing: "\(refs.count + pages.count)")
                 if refs.isEmpty && pages.isEmpty {
                     Text("No notes link here yet.").font(.footnote).foregroundStyle(Color.evSubtle)
                 }
                 ForEach(refs, id: \.self) { ref in
                     Button { store.show(ref) } label: {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(store.notes[ref]?.name ?? ref).font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.evFg)
+                            Text(store.notes[ref]?.name ?? ref)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.evFg)
                             if let line = mention(of: rel, in: ref) {
-                                Text(line).font(.system(size: 13)).foregroundStyle(Color.evDim).lineLimit(3)
+                                Text(line).font(.system(size: 12.5)).foregroundStyle(Color.evDim).lineLimit(3)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(12)
-                        .background(Color.evBgAlt, in: RoundedRectangle(cornerRadius: 12))
+                        .background(Color.evSurfaceSubtle, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
                 if !pages.isEmpty {
-                    Text("Ink").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.evDim).padding(.top, 6)
+                    StratusSectionHeader(title: "Ink", trailing: "\(pages.count)")
+                        .padding(.top, 8)
                     ForEach(pages) { page in
                         Button { store.openScribe?(ScribeLink(pageId: page.id)) } label: {
                             HStack(spacing: 10) {
-                                RoundedRectangle(cornerRadius: 2).fill(Color.evInk).frame(width: 9, height: 12)
+                                RoundedRectangle(cornerRadius: 2).fill(Color.evInk).frame(width: 8, height: 12)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(page.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.evFg)
-                                    Text("\(page.notebook) · \(page.section)").font(.system(size: 12)).foregroundStyle(Color.evSubtle)
+                                    Text(page.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.evFg)
+                                    Text("\(page.notebook) · \(page.section)")
+                                        .font(.system(size: 11.5, design: .monospaced))
+                                        .foregroundStyle(Color.evSubtle)
                                 }
                                 Spacer(minLength: 0)
                             }
                             .padding(12)
-                            .background(Color.evBgAlt, in: RoundedRectangle(cornerRadius: 12))
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.evInk.opacity(0.28)))
+                            .background(Color.evSurfaceSubtle, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(alignment: .leading) {
+                                UnevenRoundedRectangle(topLeadingRadius: 10, bottomLeadingRadius: 10)
+                                    .fill(Color.evInk)
+                                    .frame(width: 2.5)
+                            }
                         }
                         .buttonStyle(.plain)
                     }
@@ -130,10 +132,11 @@ private struct ContextOutline: View {
                     store.headingTarget = Inline.plain(h.text)
                 } label: {
                     Text(Inline.plain(h.text))
-                        .font(.system(size: h.level <= 2 ? 15 : 14, weight: h.level == 1 ? .semibold : .regular))
+                        .font(.system(size: h.level <= 2 ? 14 : 13, weight: h.level == 1 ? .semibold : .regular))
                         .foregroundStyle(h.level <= 2 ? Color.evFg : Color.evDim)
                         .padding(.leading, CGFloat(h.level - 1) * 12)
                         .padding(.vertical, 6)
+                        .padding(.horizontal, 8)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.plain)

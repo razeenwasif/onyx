@@ -153,7 +153,7 @@ function createWindow(): void {
     minHeight: 480,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: '#1e1e24',
+    backgroundColor: '#000000',
     // macOS: no title bar and no traffic lights — the window is moved by
     // dragging the tab bar or ribbon (`-webkit-app-region` in app.css), and
     // closed / minimized / zoomed from the menu and its shortcuts.

@@ -96,17 +96,18 @@ private struct NoteHeader: View {
         VStack(alignment: .leading, spacing: 10) {
             if !folders.isEmpty {
                 HStack(spacing: 6) {
-                    Image(systemName: "folder").font(.system(size: 11))
+                    Image(systemName: "folder").font(.system(size: 10.5))
                     Text(folders.split(separator: "/").joined(separator: "  /  ").uppercased())
-                        .font(.system(size: 11.5, weight: .semibold))
-                        .tracking(0.9)
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .tracking(0.8)
                         .lineLimit(1)
                 }
                 .foregroundStyle(Color.evSubtle)
             }
             Text(((rel as NSString).lastPathComponent as NSString).deletingPathExtension)
-                .font(.system(size: 36, weight: .semibold, design: .serif))
-                .foregroundStyle(Color(uiColor: EV.heading))
+                .font(.system(size: 32, weight: .semibold))
+                .tracking(-0.5)
+                .foregroundStyle(Color.evFg)
                 .textSelection(.enabled)
             if let tags = store.notes[rel]?.tags, !tags.isEmpty {
                 FlowTags(tags: tags) { store.tagFilter = $0 }
@@ -143,7 +144,7 @@ private struct Properties: View {
                 }
             }
             .padding(12)
-            .background(Color.evBgAlt, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(Color.evSurfaceSubtle, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .padding(.bottom, 10)
         }
     }
@@ -158,11 +159,11 @@ struct FlowTags: View {
             ForEach(tags, id: \.self) { tag in
                 Button { tap(tag) } label: {
                     Text("#" + tag)
-                        .font(.system(size: 13))
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
                         .foregroundStyle(Color.evTagText)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color.evTag.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(Color.evSurfacePill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -296,9 +297,9 @@ struct InlineText: View {
         VStack(alignment: .leading, spacing: 8) {
             if pieces.contains(where: { if case .image = $0 { false } else { true } }) {
                 Text.pieces(pieces.filter { if case .image = $0 { false } else { true } }, size: size)
-                    .font(.system(size: size, weight: weight, design: .serif))
+                    .font(.system(size: size, weight: weight))
                     .foregroundStyle(color)
-                    .lineSpacing(size * 0.32)
+                    .lineSpacing(size * 0.30)
                     .tint(Color(uiColor: EV.wikilink))
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
@@ -324,7 +325,7 @@ private struct ListRow: View {
                     } label: {
                         Image(systemName: done ? "checkmark.square.fill" : "square")
                             .font(.system(size: 17))
-                            .foregroundStyle(done ? Color.evAccent : Color.evDim)
+                            .foregroundStyle(done ? Color.evMint : Color.evSubtle)
                     }
                     .buttonStyle(.plain)
                 } else if item.ordered {
@@ -422,8 +423,7 @@ private struct CodeBlock: View {
                     .padding(14)
             }
         }
-        .background(Color.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.evBorder))
+        .background(Color.evSurfaceSubtle, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
@@ -468,11 +468,11 @@ private struct TableBlock: View {
                             cellView(cell, column: c, bold: false)
                         }
                     }
-                    .background(r % 2 == 1 ? Color.white.opacity(0.02) : Color.clear)
+                    .background(r % 2 == 1 ? Color.white.opacity(0.015) : Color.clear)
                 }
             }
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.evBorder))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .background(Color.evSurfaceSubtle)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
 
@@ -482,7 +482,6 @@ private struct TableBlock: View {
             .frame(minWidth: 60, maxWidth: 340, alignment: a == .center ? .center : a == .trailing ? .trailing : .leading)
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .overlay(alignment: .trailing) { Rectangle().fill(Color.evBorder).frame(width: 1) }
             .overlay(alignment: .bottom) { Rectangle().fill(Color.evBorder).frame(height: 1) }
     }
 }
@@ -568,7 +567,7 @@ private struct EmbedView: View {
                 // `![[scribe:…]]`: Scribe's page isn't drawn here; open it there.
                 Button { store.follow(target) } label: {
                     Label(store.scribePage(target)?.title ?? "Scribe page", systemImage: "pencil.and.scribble")
-                        .foregroundStyle(Color.velvetAccent)
+                        .foregroundStyle(Color.evInk)
                 }
                 .buttonStyle(.plain)
             } else {
@@ -609,7 +608,7 @@ private struct Backlinks: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
-                    .background(Color.evBgAlt, in: RoundedRectangle(cornerRadius: 8))
+                    .background(Color.evSurfaceSubtle, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -619,12 +618,12 @@ private struct Backlinks: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Label(page.title, systemImage: "pencil.and.scribble")
                             .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(Color.velvetAccent)
+                            .foregroundStyle(Color.evInk)
                         Text("Scribe · \(page.notebook) › \(page.section)").font(.system(size: 12)).foregroundStyle(Color.evSubtle)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
-                    .background(Color.evBgAlt, in: RoundedRectangle(cornerRadius: 8))
+                    .background(Color.evSurfaceSubtle, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }

@@ -1,0 +1,786 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		028B9863F841F6369A2AC330 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C1CD58C62C0839BEEAB18972 /* Assets.xcassets */; };
+		040199617F8E08FC52135DED /* NoteParse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 869E7DC797CD0BA65B1E4CDC /* NoteParse.swift */; };
+		06134F5E5C90A0284B26A035 /* ElectronLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB578857F4F5F023DCDB33A0 /* ElectronLibrary.swift */; };
+		0960A25D56430F1B6835ADA7 /* InkCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4CD818AFAB95EB1EB988617 /* InkCard.swift */; };
+		0AE724D9BFF0AD81A428ECCB /* Core.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00EED575D72254215F3CF54 /* Core.swift */; };
+		111BCE5CFD06A902139B5CC0 /* GraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4993F3BF03E039C6B2084869 /* GraphView.swift */; };
+		1216A3556CAB357A6607119D /* Markdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B02E40512974DAB609FF95B /* Markdown.swift */; };
+		14549355216A7FC1EAFED8F1 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCC6628229A3F65F45D03518 /* Views.swift */; };
+		18249F91EA4B6FF1435D347C /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51F4BE2F12C276E51A07BC06 /* TodayView.swift */; };
+		1B1776224668E872398441CE /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F172C70A3B05DAE987C586 /* Store.swift */; };
+		23CF4848CAC2DEC15E3F3113 /* PageLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAC8611E0DEDB73F0CD6EAFA /* PageLinks.swift */; };
+		2636AEEFEEF0C06248CF45D4 /* Velvet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E77D8FBC7C5C2B256115353 /* Velvet.swift */; };
+		3487B4BF3C0007F66AF04B57 /* VaultStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A62CF646495E8E5DAFC0DF /* VaultStore.swift */; };
+		37624692D4065A46B18CD3A8 /* PDFImportJob.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DED7E60E294D14C7AB24B4F /* PDFImportJob.swift */; };
+		3A4AEABA5DD4C27089A9FB48 /* Thumbnails.swift in Sources */ = {isa = PBXBuildFile; fileRef = D643D424D6F9D853C672C6FE /* Thumbnails.swift */; };
+		45E685B863C36FCE3AC92DD2 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EC1F2CD9736418C9004C4B6 /* EditorView.swift */; };
+		4887F1564DA8AFC4FF0CAE37 /* MathRender.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4DAC3DAA928BA01EC710E26 /* MathRender.swift */; };
+		5072F4D7FD2BFD8B25052C40 /* Inline.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03656AABBD0D909695F5AA9 /* Inline.swift */; };
+		5EACBF77517C5D49A577C77D /* AppSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE53B0B9C12099AD10F08BF /* AppSwitcher.swift */; };
+		5ED8B8B31ACE7EB61E2EDD00 /* Model.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C96CD42313926F686EF2126 /* Model.swift */; };
+		611D8EF983D8F8162EE9CF70 /* CommandBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED0867BEEEB001D68075559 /* CommandBar.swift */; };
+		64E4DDEDDD9486CE58D0AB7F /* PenInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B4BDC5900D309968AAB307 /* PenInput.swift */; };
+		7E71A2F26DE7AE8E007F426C /* ElectronWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7958AF1826C4E3E6642AACAF /* ElectronWidgets.swift */; };
+		802D42E2D88E6D57256E142A /* ScribeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5402074E35C962BA82E7B017 /* ScribeApp.swift */; };
+		837EE9346045B64000CABCAC /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = 64B20B644ABB1E5894FA2040 /* SwiftMath */; };
+		85CE5736835DA07366D19944 /* GraphSim.swift in Sources */ = {isa = PBXBuildFile; fileRef = 830825B8955F99378FA01546 /* GraphSim.swift */; };
+		8891128F645250B5CB7BC091 /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 344F07A26BEE68C151FECBC3 /* CalendarView.swift */; };
+		8A38F04AAC7B4CE10385B32A /* AgentLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DC6D082D721D1CCD1CC563F /* AgentLink.swift */; };
+		9EE2AA37077B14448DCD34AA /* StratusComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEEAC07740363D7413D405F9 /* StratusComponents.swift */; };
+		A1B84FA40502EC85BC88FF72 /* ElectronWidgetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0E0BE6B7CA606E0B4C1A2D8 /* ElectronWidgetStore.swift */; };
+		A5611FF8D400E33927FAFD3C /* ElectronTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668C430B0E8BF3B609B002C6 /* ElectronTheme.swift */; };
+		A9852A4125450130EF2C756F /* ElectronWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7858C1C56814BCF88F8EA340 /* ElectronWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B1FB3DAA3EE6F69D2A998C7F /* NotebookCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C40BE9FB020D123A932C1A8 /* NotebookCanvas.swift */; };
+		BD58AEBFDAFD563E540048FC /* Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BF8779B4F8D6A8D80CEE736 /* Library.swift */; };
+		C598AC93C7C2AC3779043BFA /* ElectronViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97EC58732F6CC4863024E8CA /* ElectronViews.swift */; };
+		C8716E3D51C51B0C7015729A /* VaultStore+Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = A033F18494FC5847A9E869D7 /* VaultStore+Library.swift */; };
+		CBA226A3DE7F4C586A84F9D2 /* AgentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8E9D61A803CC02A698A19A3 /* AgentView.swift */; };
+		D56A24342E3109CBBCFD6285 /* PageGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD021766217B10EAFF801A5F /* PageGrid.swift */; };
+		DC1B11B031973EA679205E52 /* ElectronWidgetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0E0BE6B7CA606E0B4C1A2D8 /* ElectronWidgetStore.swift */; };
+		DDE256CBA6EEB428C88EC981 /* Tools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35D60AA7C46E18C16C09E2F9 /* Tools.swift */; };
+		E2248C6FC2A0E3242B87D805 /* PDFBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69B09707C00E6BC484DF44AC /* PDFBackground.swift */; };
+		E305BFE16A4BC50145ED3C18 /* ReadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F3A6E1C407A1A83DE522CAC /* ReadingView.swift */; };
+		EC190A9F8FB764F952645E54 /* ImportPopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DCE2C57EC5FF200FFC77E29 /* ImportPopup.swift */; };
+		EC82655277037A98B5427375 /* ContextPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D59FE17146A4816C78578C16 /* ContextPanel.swift */; };
+		EDCCF06570216B3D87C762AB /* PageCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = D77FB62D60F1BED5C5A9E07D /* PageCanvas.swift */; };
+		EFDFDB90FA9984E20CEEA66E /* InkReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0882B0DCEBF02890AE7F4E4D /* InkReader.swift */; };
+		F948B0FFDEB16456E6AA016F /* FolderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67C4DB2FA74B2C67A901FFA9 /* FolderAccess.swift */; };
+		FD7EC170BC7E2C5352484E70 /* PageObjects.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2D73F43170F18E444C9519F /* PageObjects.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		5A8396711A9754AE9B8A6FFF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 033D176AA5265BF9FAD4CA8D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1D5F11FF4353CA10AE6591C8;
+			remoteInfo = ElectronWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		22C5BA4D86D7FB7D7FB036C1 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A9852A4125450130EF2C756F /* ElectronWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		0882B0DCEBF02890AE7F4E4D /* InkReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InkReader.swift; sourceTree = "<group>"; };
+		10F172C70A3B05DAE987C586 /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
+		289E458DF20FD2B200B697F1 /* ElectronWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ElectronWidgets.entitlements; sourceTree = "<group>"; };
+		2B02E40512974DAB609FF95B /* Markdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Markdown.swift; sourceTree = "<group>"; };
+		2C96CD42313926F686EF2126 /* Model.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model.swift; sourceTree = "<group>"; };
+		2DCE2C57EC5FF200FFC77E29 /* ImportPopup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportPopup.swift; sourceTree = "<group>"; };
+		2DED7E60E294D14C7AB24B4F /* PDFImportJob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFImportJob.swift; sourceTree = "<group>"; };
+		344F07A26BEE68C151FECBC3 /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
+		35D60AA7C46E18C16C09E2F9 /* Tools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tools.swift; sourceTree = "<group>"; };
+		3E77D8FBC7C5C2B256115353 /* Velvet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Velvet.swift; sourceTree = "<group>"; };
+		445714E31FA0426876BF155A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		4993F3BF03E039C6B2084869 /* GraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphView.swift; sourceTree = "<group>"; };
+		51F4BE2F12C276E51A07BC06 /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
+		5402074E35C962BA82E7B017 /* ScribeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScribeApp.swift; sourceTree = "<group>"; };
+		5BF8779B4F8D6A8D80CEE736 /* Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
+		5DC6D082D721D1CCD1CC563F /* AgentLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentLink.swift; sourceTree = "<group>"; };
+		668C430B0E8BF3B609B002C6 /* ElectronTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElectronTheme.swift; sourceTree = "<group>"; };
+		67C4DB2FA74B2C67A901FFA9 /* FolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderAccess.swift; sourceTree = "<group>"; };
+		69B09707C00E6BC484DF44AC /* PDFBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFBackground.swift; sourceTree = "<group>"; };
+		7858C1C56814BCF88F8EA340 /* ElectronWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ElectronWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		7958AF1826C4E3E6642AACAF /* ElectronWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElectronWidgets.swift; sourceTree = "<group>"; };
+		7C40BE9FB020D123A932C1A8 /* NotebookCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookCanvas.swift; sourceTree = "<group>"; };
+		7F3A6E1C407A1A83DE522CAC /* ReadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingView.swift; sourceTree = "<group>"; };
+		830825B8955F99378FA01546 /* GraphSim.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphSim.swift; sourceTree = "<group>"; };
+		869E7DC797CD0BA65B1E4CDC /* NoteParse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteParse.swift; sourceTree = "<group>"; };
+		97EC58732F6CC4863024E8CA /* ElectronViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElectronViews.swift; sourceTree = "<group>"; };
+		9EC1F2CD9736418C9004C4B6 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
+		A033F18494FC5847A9E869D7 /* VaultStore+Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VaultStore+Library.swift"; sourceTree = "<group>"; };
+		AAE53B0B9C12099AD10F08BF /* AppSwitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSwitcher.swift; sourceTree = "<group>"; };
+		AB578857F4F5F023DCDB33A0 /* ElectronLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElectronLibrary.swift; sourceTree = "<group>"; };
+		AD021766217B10EAFF801A5F /* PageGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageGrid.swift; sourceTree = "<group>"; };
+		B9A62CF646495E8E5DAFC0DF /* VaultStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultStore.swift; sourceTree = "<group>"; };
+		BED0867BEEEB001D68075559 /* CommandBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandBar.swift; sourceTree = "<group>"; };
+		C1CD58C62C0839BEEAB18972 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C4CD818AFAB95EB1EB988617 /* InkCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InkCard.swift; sourceTree = "<group>"; };
+		C4DAC3DAA928BA01EC710E26 /* MathRender.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathRender.swift; sourceTree = "<group>"; };
+		CAC8611E0DEDB73F0CD6EAFA /* PageLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageLinks.swift; sourceTree = "<group>"; };
+		D03656AABBD0D909695F5AA9 /* Inline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Inline.swift; sourceTree = "<group>"; };
+		D0B4BDC5900D309968AAB307 /* PenInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PenInput.swift; sourceTree = "<group>"; };
+		D59FE17146A4816C78578C16 /* ContextPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextPanel.swift; sourceTree = "<group>"; };
+		D643D424D6F9D853C672C6FE /* Thumbnails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Thumbnails.swift; sourceTree = "<group>"; };
+		D77FB62D60F1BED5C5A9E07D /* PageCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageCanvas.swift; sourceTree = "<group>"; };
+		DCC6628229A3F65F45D03518 /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
+		E0E0BE6B7CA606E0B4C1A2D8 /* ElectronWidgetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElectronWidgetStore.swift; sourceTree = "<group>"; };
+		E2D73F43170F18E444C9519F /* PageObjects.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageObjects.swift; sourceTree = "<group>"; };
+		E8E9D61A803CC02A698A19A3 /* AgentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentView.swift; sourceTree = "<group>"; };
+		EEEAC07740363D7413D405F9 /* StratusComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StratusComponents.swift; sourceTree = "<group>"; };
+		F00EED575D72254215F3CF54 /* Core.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core.swift; sourceTree = "<group>"; };
+		FABBDF43F3F0AE4E31AAD1D6 /* Electron.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Electron.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		FBB7D63224DA7350AEF011B9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				837EE9346045B64000CABCAC /* SwiftMath in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		23927DCA413FFEA87DA0840A /* Scribe */ = {
+			isa = PBXGroup;
+			children = (
+				AAE53B0B9C12099AD10F08BF /* AppSwitcher.swift */,
+				67C4DB2FA74B2C67A901FFA9 /* FolderAccess.swift */,
+				7C40BE9FB020D123A932C1A8 /* NotebookCanvas.swift */,
+				D77FB62D60F1BED5C5A9E07D /* PageCanvas.swift */,
+				CAC8611E0DEDB73F0CD6EAFA /* PageLinks.swift */,
+				E2D73F43170F18E444C9519F /* PageObjects.swift */,
+				D0B4BDC5900D309968AAB307 /* PenInput.swift */,
+				5402074E35C962BA82E7B017 /* ScribeApp.swift */,
+				10F172C70A3B05DAE987C586 /* Store.swift */,
+				3E77D8FBC7C5C2B256115353 /* Velvet.swift */,
+				DCC6628229A3F65F45D03518 /* Views.swift */,
+			);
+			path = Scribe;
+			sourceTree = "<group>";
+		};
+		3D0EDC0F514B00E7F138C4AC /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				C1CD58C62C0839BEEAB18972 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		587BD545E07FF3D2C9AE7BA6 /* Page */ = {
+			isa = PBXGroup;
+			children = (
+				69B09707C00E6BC484DF44AC /* PDFBackground.swift */,
+			);
+			path = Page;
+			sourceTree = "<group>";
+		};
+		632AE5CAEB81FC2CBFCDCEAE /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				2DCE2C57EC5FF200FFC77E29 /* ImportPopup.swift */,
+				5BF8779B4F8D6A8D80CEE736 /* Library.swift */,
+				AD021766217B10EAFF801A5F /* PageGrid.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		69E0BBD527EFC9FC721538AE = {
+			isa = PBXGroup;
+			children = (
+				F2E8E4F64F2B6691E5990456 /* Electron */,
+				3D0EDC0F514B00E7F138C4AC /* Resources */,
+				23927DCA413FFEA87DA0840A /* Scribe */,
+				B365C7B17A77861BCE6A0C3B /* scribe */,
+				CC737198C1CDB22D2F86C22F /* Shared */,
+				C6F806993E47E11C713FD365 /* Widgets */,
+				7E4F79197C793A00263ECC39 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		7C71A3B0EB379DA0C543C3C4 /* Scribe */ = {
+			isa = PBXGroup;
+			children = (
+				9F7578386C5529D9E8602654 /* App */,
+				E452F3B961866FD076AF2587 /* Core */,
+				587BD545E07FF3D2C9AE7BA6 /* Page */,
+				632AE5CAEB81FC2CBFCDCEAE /* Views */,
+			);
+			path = Scribe;
+			sourceTree = "<group>";
+		};
+		7E4F79197C793A00263ECC39 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				FABBDF43F3F0AE4E31AAD1D6 /* Electron.app */,
+				7858C1C56814BCF88F8EA340 /* ElectronWidgets.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		9F7578386C5529D9E8602654 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				0882B0DCEBF02890AE7F4E4D /* InkReader.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		B365C7B17A77861BCE6A0C3B /* scribe */ = {
+			isa = PBXGroup;
+			children = (
+				DDDC3F805462FD0C2C75FFC9 /* macos */,
+			);
+			name = scribe;
+			path = ..;
+			sourceTree = "<group>";
+		};
+		C6F806993E47E11C713FD365 /* Widgets */ = {
+			isa = PBXGroup;
+			children = (
+				289E458DF20FD2B200B697F1 /* ElectronWidgets.entitlements */,
+				7958AF1826C4E3E6642AACAF /* ElectronWidgets.swift */,
+				445714E31FA0426876BF155A /* Info.plist */,
+			);
+			path = Widgets;
+			sourceTree = "<group>";
+		};
+		CC737198C1CDB22D2F86C22F /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				E0E0BE6B7CA606E0B4C1A2D8 /* ElectronWidgetStore.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		DDDC3F805462FD0C2C75FFC9 /* macos */ = {
+			isa = PBXGroup;
+			children = (
+				7C71A3B0EB379DA0C543C3C4 /* Scribe */,
+			);
+			path = macos;
+			sourceTree = "<group>";
+		};
+		E452F3B961866FD076AF2587 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				F00EED575D72254215F3CF54 /* Core.swift */,
+				2C96CD42313926F686EF2126 /* Model.swift */,
+				2DED7E60E294D14C7AB24B4F /* PDFImportJob.swift */,
+				D643D424D6F9D853C672C6FE /* Thumbnails.swift */,
+				35D60AA7C46E18C16C09E2F9 /* Tools.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		F2E8E4F64F2B6691E5990456 /* Electron */ = {
+			isa = PBXGroup;
+			children = (
+				5DC6D082D721D1CCD1CC563F /* AgentLink.swift */,
+				E8E9D61A803CC02A698A19A3 /* AgentView.swift */,
+				344F07A26BEE68C151FECBC3 /* CalendarView.swift */,
+				BED0867BEEEB001D68075559 /* CommandBar.swift */,
+				D59FE17146A4816C78578C16 /* ContextPanel.swift */,
+				9EC1F2CD9736418C9004C4B6 /* EditorView.swift */,
+				AB578857F4F5F023DCDB33A0 /* ElectronLibrary.swift */,
+				668C430B0E8BF3B609B002C6 /* ElectronTheme.swift */,
+				97EC58732F6CC4863024E8CA /* ElectronViews.swift */,
+				830825B8955F99378FA01546 /* GraphSim.swift */,
+				4993F3BF03E039C6B2084869 /* GraphView.swift */,
+				C4CD818AFAB95EB1EB988617 /* InkCard.swift */,
+				D03656AABBD0D909695F5AA9 /* Inline.swift */,
+				2B02E40512974DAB609FF95B /* Markdown.swift */,
+				C4DAC3DAA928BA01EC710E26 /* MathRender.swift */,
+				869E7DC797CD0BA65B1E4CDC /* NoteParse.swift */,
+				7F3A6E1C407A1A83DE522CAC /* ReadingView.swift */,
+				EEEAC07740363D7413D405F9 /* StratusComponents.swift */,
+				51F4BE2F12C276E51A07BC06 /* TodayView.swift */,
+				B9A62CF646495E8E5DAFC0DF /* VaultStore.swift */,
+				A033F18494FC5847A9E869D7 /* VaultStore+Library.swift */,
+			);
+			path = Electron;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1D5F11FF4353CA10AE6591C8 /* ElectronWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C785F335DDFD3B10E0261333 /* Build configuration list for PBXNativeTarget "ElectronWidgets" */;
+			buildPhases = (
+				037E4ADEF9B0DBFC088B2E5F /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ElectronWidgets;
+			packageProductDependencies = (
+			);
+			productName = ElectronWidgets;
+			productReference = 7858C1C56814BCF88F8EA340 /* ElectronWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		6AD20A1C648621B6A4B324C1 /* Electron */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 99E4CCB4DE4E43425C8C3933 /* Build configuration list for PBXNativeTarget "Electron" */;
+			buildPhases = (
+				7865EAD54D2BE6AD57F215AB /* Build the Rust core */,
+				45720B28EFDB33395E05E911 /* Sources */,
+				29F51BF2376F1E60781AA27D /* Resources */,
+				FBB7D63224DA7350AEF011B9 /* Frameworks */,
+				22C5BA4D86D7FB7D7FB036C1 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				487A9A2918ED94635A47C3BB /* PBXTargetDependency */,
+			);
+			name = Electron;
+			packageProductDependencies = (
+				64B20B644ABB1E5894FA2040 /* SwiftMath */,
+			);
+			productName = Electron;
+			productReference = FABBDF43F3F0AE4E31AAD1D6 /* Electron.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		033D176AA5265BF9FAD4CA8D /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					1D5F11FF4353CA10AE6591C8 = {
+						DevelopmentTeam = C63K728GC6;
+						ProvisioningStyle = Automatic;
+					};
+					6AD20A1C648621B6A4B324C1 = {
+						DevelopmentTeam = C63K728GC6;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 245323896F9C168D3DB9CEB9 /* Build configuration list for PBXProject "Electron" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 69E0BBD527EFC9FC721538AE;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				3B416A4E08C69C0279ACDF71 /* XCRemoteSwiftPackageReference "SwiftMath" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 7E4F79197C793A00263ECC39 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				6AD20A1C648621B6A4B324C1 /* Electron */,
+				1D5F11FF4353CA10AE6591C8 /* ElectronWidgets */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		29F51BF2376F1E60781AA27D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				028B9863F841F6369A2AC330 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		7865EAD54D2BE6AD57F215AB /* Build the Rust core */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build the Rust core";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "bash \"$SRCROOT/build-core.sh\"";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		037E4ADEF9B0DBFC088B2E5F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DC1B11B031973EA679205E52 /* ElectronWidgetStore.swift in Sources */,
+				7E71A2F26DE7AE8E007F426C /* ElectronWidgets.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		45720B28EFDB33395E05E911 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8A38F04AAC7B4CE10385B32A /* AgentLink.swift in Sources */,
+				CBA226A3DE7F4C586A84F9D2 /* AgentView.swift in Sources */,
+				5EACBF77517C5D49A577C77D /* AppSwitcher.swift in Sources */,
+				8891128F645250B5CB7BC091 /* CalendarView.swift in Sources */,
+				611D8EF983D8F8162EE9CF70 /* CommandBar.swift in Sources */,
+				EC82655277037A98B5427375 /* ContextPanel.swift in Sources */,
+				0AE724D9BFF0AD81A428ECCB /* Core.swift in Sources */,
+				45E685B863C36FCE3AC92DD2 /* EditorView.swift in Sources */,
+				06134F5E5C90A0284B26A035 /* ElectronLibrary.swift in Sources */,
+				A5611FF8D400E33927FAFD3C /* ElectronTheme.swift in Sources */,
+				C598AC93C7C2AC3779043BFA /* ElectronViews.swift in Sources */,
+				A1B84FA40502EC85BC88FF72 /* ElectronWidgetStore.swift in Sources */,
+				F948B0FFDEB16456E6AA016F /* FolderAccess.swift in Sources */,
+				85CE5736835DA07366D19944 /* GraphSim.swift in Sources */,
+				111BCE5CFD06A902139B5CC0 /* GraphView.swift in Sources */,
+				EC190A9F8FB764F952645E54 /* ImportPopup.swift in Sources */,
+				0960A25D56430F1B6835ADA7 /* InkCard.swift in Sources */,
+				EFDFDB90FA9984E20CEEA66E /* InkReader.swift in Sources */,
+				5072F4D7FD2BFD8B25052C40 /* Inline.swift in Sources */,
+				BD58AEBFDAFD563E540048FC /* Library.swift in Sources */,
+				1216A3556CAB357A6607119D /* Markdown.swift in Sources */,
+				4887F1564DA8AFC4FF0CAE37 /* MathRender.swift in Sources */,
+				5ED8B8B31ACE7EB61E2EDD00 /* Model.swift in Sources */,
+				040199617F8E08FC52135DED /* NoteParse.swift in Sources */,
+				B1FB3DAA3EE6F69D2A998C7F /* NotebookCanvas.swift in Sources */,
+				E2248C6FC2A0E3242B87D805 /* PDFBackground.swift in Sources */,
+				37624692D4065A46B18CD3A8 /* PDFImportJob.swift in Sources */,
+				EDCCF06570216B3D87C762AB /* PageCanvas.swift in Sources */,
+				D56A24342E3109CBBCFD6285 /* PageGrid.swift in Sources */,
+				23CF4848CAC2DEC15E3F3113 /* PageLinks.swift in Sources */,
+				FD7EC170BC7E2C5352484E70 /* PageObjects.swift in Sources */,
+				64E4DDEDDD9486CE58D0AB7F /* PenInput.swift in Sources */,
+				E305BFE16A4BC50145ED3C18 /* ReadingView.swift in Sources */,
+				802D42E2D88E6D57256E142A /* ScribeApp.swift in Sources */,
+				1B1776224668E872398441CE /* Store.swift in Sources */,
+				9EE2AA37077B14448DCD34AA /* StratusComponents.swift in Sources */,
+				3A4AEABA5DD4C27089A9FB48 /* Thumbnails.swift in Sources */,
+				18249F91EA4B6FF1435D347C /* TodayView.swift in Sources */,
+				DDE256CBA6EEB428C88EC981 /* Tools.swift in Sources */,
+				C8716E3D51C51B0C7015729A /* VaultStore+Library.swift in Sources */,
+				3487B4BF3C0007F66AF04B57 /* VaultStore.swift in Sources */,
+				2636AEEFEEF0C06248CF45D4 /* Velvet.swift in Sources */,
+				14549355216A7FC1EAFED8F1 /* Views.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		487A9A2918ED94635A47C3BB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1D5F11FF4353CA10AE6591C8 /* ElectronWidgets */;
+			targetProxy = 5A8396711A9754AE9B8A6FFF /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		10402796BB674CCECF65634C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Config/Electron.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C63K728GC6;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Electron;
+				INFOPLIST_KEY_NSCameraUsageDescription = "The camera reads the pairing code your Mac shows, so the Agent can reach it.";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[sdk=iphoneos*]" = "$(SRCROOT)/../target/aarch64-apple-ios/release";
+				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "$(SRCROOT)/../target/aarch64-apple-ios-sim/release";
+				PRODUCT_BUNDLE_IDENTIFIER = app.electron.ios;
+				PRODUCT_NAME = Electron;
+				SDKROOT = iphoneos;
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/../macos/CScribeCore";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		1BD19E3A03C295327FD5C10A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Config/Electron.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C63K728GC6;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Electron;
+				INFOPLIST_KEY_NSCameraUsageDescription = "The camera reads the pairing code your Mac shows, so the Agent can reach it.";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[sdk=iphoneos*]" = "$(SRCROOT)/../target/aarch64-apple-ios/release";
+				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "$(SRCROOT)/../target/aarch64-apple-ios-sim/release";
+				PRODUCT_BUNDLE_IDENTIFIER = app.electron.ios;
+				PRODUCT_NAME = Electron;
+				SDKROOT = iphoneos;
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/../macos/CScribeCore";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		240719158F4F710C2CFCC67A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				CODE_SIGN_ENTITLEMENTS = Widgets/ElectronWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C63K728GC6;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Widgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Electron Widgets";
+				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.electron.ios.widgets;
+				PRODUCT_NAME = ElectronWidgets;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		2FE07D902DF52CFB5BE829D5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				CODE_SIGN_ENTITLEMENTS = Widgets/ElectronWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C63K728GC6;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Widgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Electron Widgets";
+				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.electron.ios.widgets;
+				PRODUCT_NAME = ElectronWidgets;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		90C6FB7C05F2EC8A97AAEE69 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 0.1;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		CFFCD94193D637EE16C5A3CE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 0.1;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		245323896F9C168D3DB9CEB9 /* Build configuration list for PBXProject "Electron" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CFFCD94193D637EE16C5A3CE /* Debug */,
+				90C6FB7C05F2EC8A97AAEE69 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		99E4CCB4DE4E43425C8C3933 /* Build configuration list for PBXNativeTarget "Electron" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1BD19E3A03C295327FD5C10A /* Debug */,
+				10402796BB674CCECF65634C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C785F335DDFD3B10E0261333 /* Build configuration list for PBXNativeTarget "ElectronWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				240719158F4F710C2CFCC67A /* Debug */,
+				2FE07D902DF52CFB5BE829D5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		3B416A4E08C69C0279ACDF71 /* XCRemoteSwiftPackageReference "SwiftMath" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mgriebling/SwiftMath";
+			requirement = {
+				kind = exactVersion;
+				version = 1.7.3;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		64B20B644ABB1E5894FA2040 /* SwiftMath */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3B416A4E08C69C0279ACDF71 /* XCRemoteSwiftPackageReference "SwiftMath" */;
+			productName = SwiftMath;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 033D176AA5265BF9FAD4CA8D /* Project object */;
+}

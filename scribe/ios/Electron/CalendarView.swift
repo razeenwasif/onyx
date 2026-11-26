@@ -140,15 +140,16 @@ struct CalendarSheet: View {
         } label: {
             VStack(spacing: 3) {
                 Text("\(calendar.component(.day, from: date))")
-                    .font(.body.weight(today ? .bold : .regular))
+                    .font(.system(size: 14, weight: today ? .semibold : .regular, design: .monospaced))
+                    .monospacedDigit()
                     .foregroundStyle(today ? Color.evAccent : Color.evFg)
                 Circle()
                     .fill(has ? Color.evAccent : .clear)
-                    .frame(width: 5, height: 5)
+                    .frame(width: 4.5, height: 4.5)
             }
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .background(open ? Color.evBgSel : today ? Color.evAccent.opacity(0.1) : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .frame(maxWidth: .infinity, minHeight: 42)
+            .background(open ? Color.evBgSel : today ? Color.evAccent.opacity(0.12) : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

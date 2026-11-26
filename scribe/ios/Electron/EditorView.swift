@@ -501,9 +501,8 @@ struct LinkSuggestions: View {
                     }
                 }
                 .frame(maxWidth: 520)
-                .background(Color.evBgAlt, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.evBorder))
-                .shadow(color: .black.opacity(0.4), radius: 16, y: 6)
+                .background(Color.evPalette, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .shadow(color: .black.opacity(0.65), radius: 18, y: 6)
                 .padding(12)
             }
         }

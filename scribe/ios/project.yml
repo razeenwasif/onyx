@@ -1,15 +1,11 @@
-# Scribe and Electron for iPad (optimised for iPad mini) and iPhone. Generate the Xcode project with
-#   cd scribe/ios && xcodegen
-# The generated Scribe.xcodeproj is committed, so this is only needed after
-# changing this file.
-#
-# The app shares the Rust core and the format/bridge Swift files with the Mac
-# app (../macos/Scribe/Core) and syncs through a folder in iCloud Drive that
-# you choose on first launch, so it needs no paid developer account.
+# Electron for iPad and iPhone (with Scribe embedded).
+# Generated with `xcodegen generate` — edit this file, not Electron.xcodeproj.
+# Shares the format/bridge Swift files with the Mac app (../macos/Scribe/Core)
+# and syncs through a folder in iCloud Drive that you choose on first launch.
 
-name: Scribe
+name: Electron
 options:
-  bundleIdPrefix: app.scribe
+  bundleIdPrefix: app.electron
   deploymentTarget:
     iOS: "18.0"
   createIntermediateGroups: true
@@ -27,13 +23,14 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
 
 targets:
-  Scribe:
+  Electron:
     type: application
     platform: iOS
     deploymentTarget: "18.0"
     sources:
       - path: Scribe
       - path: Electron
+      - path: Shared
       - path: Resources
         buildPhase: resources
       - path: ../macos/Scribe/Core/Core.swift
@@ -48,16 +45,16 @@ targets:
       - path: ../macos/Scribe/Views/ImportPopup.swift
     dependencies:
       - package: SwiftMath
-    # Merged with the generated Info.plist: the Agent's pairing link (onyx://pair),
-    # and the Mac's own certificate on its Tailscale name (pinned in AgentLink.swift).
+      - target: ElectronWidgets
+        embed: true
     info:
       path: Config/Info.plist
       properties:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleURLTypes:
-          - CFBundleURLName: app.scribe.ipad.pairing
-            CFBundleURLSchemes: [onyx]
+          - CFBundleURLName: app.electron.ios.pairing
+            CFBundleURLSchemes: [onyx, electron]
         NSAppTransportSecurity:
           NSExceptionDomains:
             ts.net:
@@ -69,15 +66,14 @@ targets:
         script: bash "$SRCROOT/build-core.sh"
     settings:
       base:
-        # Change to anything unique if Xcode says this ID is taken by another team.
-        PRODUCT_BUNDLE_IDENTIFIER: app.scribe.ipad
-        PRODUCT_NAME: Scribe
+        PRODUCT_BUNDLE_IDENTIFIER: app.electron.ios
+        PRODUCT_NAME: Electron
+        CODE_SIGN_ENTITLEMENTS: Config/Electron.entitlements
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_STYLE: Automatic
-        # Your Apple ID's personal team (Xcode → Settings → Accounts).
         DEVELOPMENT_TEAM: C63K728GC6
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Scribe
+        INFOPLIST_KEY_CFBundleDisplayName: Electron
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_NSCameraUsageDescription: "The camera reads the pairing code your Mac shows, so the Agent can reach it."
@@ -89,3 +85,40 @@ targets:
         SWIFT_INCLUDE_PATHS: $(SRCROOT)/../macos/CScribeCore
         "LIBRARY_SEARCH_PATHS[sdk=iphoneos*]": $(SRCROOT)/../target/aarch64-apple-ios/release
         "LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]": $(SRCROOT)/../target/aarch64-apple-ios-sim/release
+
+  ElectronWidgets:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: Widgets
+      - path: Shared
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDisplayName: Electron Widgets
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.electron.ios.widgets
+        PRODUCT_NAME: ElectronWidgets
+        CODE_SIGN_ENTITLEMENTS: Widgets/ElectronWidgets.entitlements
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: C63K728GC6
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Electron Widgets
+        INFOPLIST_KEY_UIUserInterfaceStyle: Dark
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+
+schemes:
+  Electron:
+    build:
+      targets:
+        Electron: all
+        ElectronWidgets: all
+    run:
+      config: Debug

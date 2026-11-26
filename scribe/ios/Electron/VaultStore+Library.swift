@@ -90,6 +90,7 @@ extension VaultStore {
         guard let url = url(for: Self.bookmarksPath),
               let data = try? JSONEncoder().encode(bookmarks) else { return }
         coordinatedWrite(url, data)
+        publishWidgetSnapshot()
     }
 
     /// Ticks a task off in its note.
@@ -131,7 +132,10 @@ extension VaultStore {
         }
         let hidden = tickedGoogle.union(queued).intersection(fresh.tasks.map(\.id))
         if hidden != tickedGoogle { tickedGoogle = hidden }
-        if fresh != agenda { agenda = fresh }
+        if fresh != agenda {
+            agenda = fresh
+            publishWidgetSnapshot()
+        }
     }
 
     /// Ticks a Google task: queued for the Mac, which marks it done in Google
@@ -164,5 +168,78 @@ extension VaultStore {
             try? FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? data.write(to: target, options: .atomic)
         }
+    }
+
+    // MARK: Widgets
+
+    /// Writes a lightweight snapshot into the shared App Group for `ElectronWidgets`.
+    func publishWidgetSnapshot() {
+        guard root != nil else { return }
+        let todos = loadTodos()
+        let openTodos = todos.filter { !$0.done }
+        let todayRel = Self.dailyPath(.now)
+        let todayRaw = texts[todayRel] ?? ""
+        let excerpt = NoteParse.body(todayRaw)
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { !$0.isEmpty && !$0.hasPrefix("#") } ?? ""
+
+        let widgetTodos = todos.prefix(12).enumerated().map { idx, t in
+            ElectronWidgetSnapshot.WidgetTodo(id: "\(idx):\(t.text)", text: t.text, done: t.done)
+        }
+        let widgetTasks = openTasks.prefix(12).map { t in
+            ElectronWidgetSnapshot.WidgetTask(
+                id: t.id,
+                rel: t.rel,
+                noteName: notes[t.rel]?.name ?? ((t.rel as NSString).lastPathComponent as NSString).deletingPathExtension,
+                text: t.text
+            )
+        }
+        let toWidgetNote: (String) -> ElectronWidgetSnapshot.WidgetNote? = { rel in
+            guard let meta = self.notes[rel] else { return nil }
+            let folder = (rel as NSString).deletingLastPathComponent
+            return ElectronWidgetSnapshot.WidgetNote(
+                id: rel,
+                rel: rel,
+                title: meta.name,
+                folder: folder,
+                modified: meta.modified,
+                tags: meta.tags
+            )
+        }
+        let recentNotes = notes.values
+            .sorted { $0.modified > $1.modified }
+            .prefix(8)
+            .compactMap { toWidgetNote($0.rel) }
+        let pinnedNotes = bookmarks
+            .filter { notes[$0] != nil }
+            .prefix(8)
+            .compactMap { toWidgetNote($0) }
+        let todayEvents = (agenda?.events(on: .now) ?? []).prefix(8).enumerated().map { idx, ev in
+            ElectronWidgetSnapshot.WidgetEvent(
+                id: "\(idx):\(ev.timeLabel):\(ev.summary)",
+                timeLabel: ev.timeLabel,
+                summary: ev.summary,
+                allDay: ev.allDay
+            )
+        }
+
+        let snap = ElectronWidgetSnapshot(
+            vaultName: vaultName,
+            updatedAt: Date(),
+            noteCount: notes.count,
+            openTodoCount: openTodos.count,
+            openVaultTaskCount: openTasks.count,
+            todayNoteExists: files[todayRel] != nil,
+            todayNotePath: todayRel,
+            todayNoteExcerpt: excerpt,
+            todos: widgetTodos,
+            vaultTasks: widgetTasks,
+            recentNotes: recentNotes,
+            pinnedNotes: pinnedNotes,
+            todayEvents: todayEvents
+        )
+        ElectronWidgetStore.save(snap)
+        ElectronWidgetStore.reloadWidgets()
     }
 }

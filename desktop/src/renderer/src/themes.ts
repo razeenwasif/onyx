@@ -41,17 +41,66 @@ export interface Palette {
 
   /**
    * Structural skin. `velvet` floats the sidebars and panes as rounded cards
-   * with soft depth (styles/velvet.css); unset keeps the flat Obsidian chrome.
+   * with soft depth (styles/velvet.css); `stratus` uses Stratus's pitch-black
+   * zero-border tonal hierarchy (styles/stratus.css); unset keeps flat chrome.
    */
-  style?: 'velvet'
+  style?: 'velvet' | 'stratus'
   /** Extra CSS variables, applied after the derived ones so they can override them. */
   vars?: Record<string, string>
 }
 
 /** New installs start here; `themeById` also falls back to it. */
-export const DEFAULT_THEME_ID = 'electron-velvet'
+export const DEFAULT_THEME_ID = 'electron-stratus'
 
 export const THEMES: Palette[] = [
+  {
+    id: 'electron-stratus',
+    name: 'Electron Stratus',
+    dark: true,
+    style: 'stratus',
+    // Pitch-black Stratus / T3 Code palette: zero borders, zero pane dividers,
+    // tonal surface separation (#000000 / #030304 / #060608) + electric indigo.
+    bg: '#000000',
+    bgAlt: '#0B0B0E',
+    bgSel: '#16161B',
+    fg: '#F4F4F6',
+    fgDim: '#8E8E99',
+    fgSubtle: '#585862',
+    accent: '#7A89FF',
+    accentAlt: '#E88255',
+    link: '#4BC3F7',
+    wikilink: '#7A89FF',
+    tag: '#34D399',
+    code: '#E88255',
+    heading: '#F4F4F6',
+    headingAlt: '#A78BFA',
+    success: '#34D399',
+    warning: '#FBBF24',
+    error: '#F87171',
+    info: '#4BC3F7',
+    border: '#16161B',
+    borderFocus: '#7A89FF',
+    vars: {
+      '--bg-chrome': '#000000',
+      '--bg-panel': '#030304',
+      '--bg-inspector': '#060608',
+      '--bg-sheet': '#050507',
+      '--bg-ribbon': 'transparent',
+      '--bg-hover': '#111114',
+      '--bg-active': '#16161B',
+      '--bg-pill': '#151519',
+      '--bg-code': '#0B0B0E',
+      '--bg-modal': '#0B0B0F',
+      '--fg-muted': '#6E6E77',
+      '--shadow': '0 24px 64px -16px rgba(0, 0, 0, 0.85)',
+      '--divider': 'transparent',
+      '--accent-soft': 'rgba(122, 137, 255, 0.14)',
+      '--selection': 'rgba(122, 137, 255, 0.26)',
+      '--scrollbar': 'rgba(244, 244, 246, 0.10)',
+      '--text-body': '#E2E2E8',
+      '--ink': '#E88255',
+    },
+  },
   {
     id: 'electron-velvet',
     name: 'Electron Velvet',

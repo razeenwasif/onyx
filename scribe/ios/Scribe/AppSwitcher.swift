@@ -38,9 +38,15 @@ struct AppHost: View {
         .animation(.easeInOut(duration: 0.2), value: app)
         .environment(\.appChoice, $app)
         .onAppear { connectLinks() }
-        // A pairing code scanned with the camera opens the Agent in Electron.
+        // A pairing code scanned with the camera opens the Agent in Electron,
+        // and widget deep links (`electron://…`) jump straight to the target view.
         .onOpenURL { url in
-            if AgentLink.shared.handle(url) { app = .electron }
+            if AgentLink.shared.handle(url) {
+                app = .electron
+            } else if url.scheme == "electron" {
+                app = .electron
+                handleWidgetURL(url)
+            }
         }
         // Whatever was typed or drawn is saved before the other app shows.
         .onChange(of: app) { _, _ in
@@ -56,6 +62,28 @@ struct AppHost: View {
 
     private func switchTo(_ choice: AppChoice) {
         app = choice
+    }
+
+    private func handleWidgetURL(_ url: URL) {
+        switch url.host {
+        case "today":
+            electron.showToday()
+        case "daily":
+            electron.openDaily()
+        case "new":
+            electron.newNote(in: "")
+        case "todos":
+            electron.openTodosTrigger = true
+        case "search":
+            electron.openSearchTrigger = true
+        case "note":
+            if let path = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "path" })?.value,
+               !path.isEmpty {
+                electron.show(path)
+            }
+        default:
+            break
+        }
     }
 
     /// Links between the two: a note's `[[scribe:…]]` opens Scribe at that

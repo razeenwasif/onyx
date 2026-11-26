@@ -574,7 +574,7 @@ export function GraphView({ focusPath, local, compact = false }: Props): JSX.Ele
     const nodeTag = hexToRgb(palette.tag)
     const nodeAttachment = hexToRgb(palette.accentAlt)
     // Scribe pages in Scribe's own coral, so ink reads apart from notes.
-    const nodeScribe = hexToRgb('#E39072')
+    const nodeScribe = hexToRgb(palette.accentAlt)
     const nodeFocus = hexToRgb(palette.accent)
     const linkBase = hexToRgb(palette.border)
     const labelColor = palette.fgDim

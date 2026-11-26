@@ -29,17 +29,18 @@ export function settingsPath(): string {
 }
 
 /**
- * v2: Electron Velvet became the default theme. Installs still on the old
- * default (`onyx-dark`) move to it once; anything chosen afterwards sticks.
+ * v2: Electron Velvet became the default theme.
+ * v3: Electron Stratus (pitch-black, sans-first) became the default theme.
+ * Installs still on a previous default move to it once; anything chosen afterwards sticks.
  */
-export const SETTINGS_VERSION = 2
+export const SETTINGS_VERSION = 3
 
 export const DEFAULT_SETTINGS: AppSettings = {
   settingsVersion: SETTINGS_VERSION,
   lastVault: null,
   window: { width: 1440, height: 900, maximized: false },
   recentVaults: [],
-  theme: 'electron-velvet',
+  theme: 'electron-stratus',
   activeApp: 'electron',
   layout: {
     leftOpen: true,
@@ -67,7 +68,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   vimMode: false,
   lineNumbers: false,
   readableLineLength: true,
-  serifText: true,
+  serifText: false,
   spellcheck: false,
   watchMode: 'auto',
   fontSize: 16,
@@ -122,7 +123,10 @@ export function migrate(stored: unknown): unknown {
   if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return stored
   const s = { ...(stored as Record<string, unknown>) }
   const version = typeof s.settingsVersion === 'number' ? s.settingsVersion : 1
-  if (version < 2 && s.theme === 'onyx-dark') s.theme = 'electron-velvet'
+  if (version < 3 && (s.theme === 'onyx-dark' || s.theme === 'electron-velvet')) {
+    s.theme = 'electron-stratus'
+    if (s.serifText === undefined || s.serifText === true) s.serifText = false
+  }
   s.settingsVersion = SETTINGS_VERSION
   return s
 }

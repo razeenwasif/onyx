@@ -45,22 +45,26 @@ struct InkCard: View {
                 Button { store.openScribe?(link) } label: {
                     HStack(spacing: 6) {
                         Text("Open in Scribe")
-                        Image(systemName: "arrow.up.right").font(.system(size: 12, weight: .semibold))
+                        Image(systemName: "arrow.up.right").font(.system(size: 11.5, weight: .semibold))
                     }
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color(uiColor: UIColor(hex: "#F4B8A0")))
-                    .padding(.horizontal, 13)
-                    .frame(height: 34)
-                    .background(Color.evInk.opacity(0.16), in: RoundedRectangle(cornerRadius: 10))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.evInk)
+                    .padding(.horizontal, 12)
+                    .frame(height: 32)
+                    .background(Color.evInk.opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
-        .background(Color.evBgAlt)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.evInk.opacity(0.28)))
+        .background(Color.evSurfaceSubtle)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(alignment: .leading) {
+            UnevenRoundedRectangle(topLeadingRadius: 12, bottomLeadingRadius: 12)
+                .fill(Color.evInk)
+                .frame(width: 2.5)
+        }
         .padding(.vertical, 4)
         .task(id: "\(page.id)\(page.modified)\(link.area.map { "\($0)" } ?? "")") { await load() }
     }

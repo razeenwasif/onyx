@@ -1,7 +1,8 @@
 import PDFKit
 import SwiftUI
 
-/// Electron's half of the app: the vault on the left, the note on the right.
+/// Electron's half of the app: Stratus-styled `#030304` Library sidebar on the
+/// left, `#000000` canvas on the right, and zero borders or dividers.
 struct ElectronRoot: View {
     @Bindable var store: VaultStore
 
@@ -29,28 +30,52 @@ private struct VaultWelcome: View {
     @State private var picking = false
 
     var body: some View {
-        VStack(spacing: 22) {
-            Image(systemName: "atom")
-                .font(.system(size: 56, weight: .light))
-                .foregroundStyle(Color.evAccent)
-            Text("Electron").font(.largeTitle.weight(.semibold)).foregroundStyle(Color.evFg)
-            Text("Choose your vault to start. The Mac keeps it in iCloud Drive as **OnyxVault**, so pick that folder and your notes stay in sync both ways.")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(Color.evDim)
-                .frame(maxWidth: 420)
-            Button {
-                picking = true
-            } label: {
-                Label("Choose Vault", systemImage: "folder")
+        ZStack {
+            Color.evBg.ignoresSafeArea()
+            RadialGradient(
+                colors: [Color.evAccent.opacity(0.18), .clear],
+                center: .center,
+                startRadius: 10,
+                endRadius: 260
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(Color.evSurfaceSubtle)
+                        .frame(width: 78, height: 78)
+                    Image(systemName: "atom")
+                        .font(.system(size: 38, weight: .medium))
+                        .foregroundStyle(Color.evAccent)
+                }
+                Text("Electron")
+                    .font(.system(size: 32, weight: .semibold))
+                    .tracking(-0.5)
+                    .foregroundStyle(Color.evFg)
+                Text("Choose your vault to start. The Mac keeps it in iCloud Drive as **OnyxVault**, so pick that folder and your notes stay in sync both ways.")
+                    .font(.system(size: 14.5))
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Color.evDim)
+                    .frame(maxWidth: 400)
+                Button {
+                    picking = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "folder")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("Choose Vault")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundStyle(Color.evAccent)
                     .padding(.horizontal, 22)
-                    .padding(.vertical, 6)
+                    .frame(height: 42)
+                    .background(Color.evAccent.opacity(0.16), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.capsule)
+            .padding(32)
         }
-        .padding(32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.evBg)
         .overlay(alignment: .topLeading) { AppSwitchButton().padding(20) }
         .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result { store.choose(url) }
@@ -93,6 +118,7 @@ private struct ElectronMain: View {
         NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $compactColumn) {
             sidebar
                 .navigationBarTitleDisplayMode(.inline)
+                .toolbarBackground(Color.evPanel, for: .navigationBar)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) { AppSwitchButton() }
                     ToolbarItem(placement: .topBarTrailing) {
@@ -122,6 +148,18 @@ private struct ElectronMain: View {
         }
         .navigationSplitViewStyle(.balanced)
         .onChange(of: store.shown) { _, _ in compactColumn = .detail }
+        .onChange(of: store.openTodosTrigger) { _, open in
+            if open {
+                store.openTodosTrigger = false
+                showingTodos = true
+            }
+        }
+        .onChange(of: store.openSearchTrigger) { _, open in
+            if open {
+                store.openSearchTrigger = false
+                commandBar = true
+            }
+        }
         .sheet(isPresented: $commandBar) { CommandBar(store: store, commands: commands) }
         .sheet(isPresented: Binding(get: { AgentLink.shared.showing }, set: { AgentLink.shared.showing = $0 })) {
             AgentSheet(store: store, link: AgentLink.shared)
@@ -152,7 +190,6 @@ private struct ElectronMain: View {
         .sheet(isPresented: $showingCalendar) { CalendarSheet(store: store) }
         .fullScreenCover(item: $graphFocus) { focus in GraphScreen(store: store, focus: focus.rel) }
         .background {
-            // Keyboard: today's note and the graph, as on the desktop.
             Button("Today") { store.showToday() }.keyboardShortcut("d", modifiers: [.command, .shift]).hidden()
             Button("Graph") { graphFocus = GraphFocus(rel: nil) }.keyboardShortcut("g", modifiers: .command).hidden()
             Button("Command Bar") { commandBar = true }.keyboardShortcut("k", modifiers: .command).hidden()
@@ -182,70 +219,91 @@ private struct ElectronMain: View {
     }
 
     private var sidebar: some View {
-            List {
-                Button { commandBar = true } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "magnifyingglass").foregroundStyle(Color.evAccent)
-                        Text("Search, run a command…").foregroundStyle(Color.evDim).lineLimit(1)
-                        Spacer()
-                        Text("⌘K").font(.system(size: 11, weight: .medium)).foregroundStyle(Color.evDim)
-                            .padding(.horizontal, 6).padding(.vertical, 3)
-                            .background(Color.evBgSel, in: RoundedRectangle(cornerRadius: 6))
-                    }
-                    .padding(.horizontal, 12)
-                    .frame(height: 40)
-                    .background(Color.evBg, in: RoundedRectangle(cornerRadius: 11))
-                    .overlay(RoundedRectangle(cornerRadius: 11).stroke(Color.evBorder))
+        List {
+            Button { commandBar = true } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.evSubtle)
+                    Text("Jump to note...")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.evSubtle)
+                        .lineLimit(1)
+                    Spacer()
+                    StratusTagPill(text: "⌘K", tint: .evSubtle, background: .evSurfacePill, monospaced: true)
                 }
-                .buttonStyle(.plain)
+                .padding(.horizontal, 11)
+                .frame(height: 36)
+                .background(Color.evBgAlt, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 6, leading: 10, bottom: 8, trailing: 10))
+
+            if !store.loaded {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small).tint(.evAccent)
+                    Text("Reading the vault…").font(.footnote).foregroundStyle(Color.evDim)
+                }
                 .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 8, trailing: 12))
-                if !store.loaded {
-                    HStack { ProgressView(); Text("Reading the vault…").foregroundStyle(Color.evDim) }
+                .listRowSeparator(.hidden)
+            }
+
+            LibraryTodayRow(store: store, active: store.current == nil) {
+                store.showToday()
+                hideSidebarIfNarrow()
+            }
+            .listRowSeparator(.hidden)
+
+            Section(isExpanded: isOpen("pinned")) {
+                LibraryPinned(store: store) { open($0) }
+            } header: {
+                StratusSectionHeader(title: "Pinned")
+            }
+            .listRowSeparator(.hidden)
+
+            Section(isExpanded: isOpen("notes")) {
+                OutlineGroup(store.tree, children: \.children) { node in
+                    row(node, icon: nil)
                 }
-                LibraryTodayRow(store: store, active: store.current == nil) {
-                    store.showToday()
-                    hideSidebarIfNarrow()
-                }
-                Section("Pinned", isExpanded: isOpen("pinned")) {
-                    LibraryPinned(store: store) { open($0) }
-                }
-                Section(isExpanded: isOpen("notes")) {
-                    OutlineGroup(store.tree, children: \.children) { node in
-                        row(node, icon: nil)
+            } header: {
+                HStack {
+                    StratusSectionHeader(title: "Notes", trailing: "\(store.notes.count)")
+                    Button { store.newNote(in: folderForNew) } label: {
+                        Image(systemName: "square.and.pencil").font(.system(size: 12)).foregroundStyle(Color.evDim)
                     }
+                    Button { ask = NameAsk(kind: .newFolder(parent: ""), text: "") } label: {
+                        Image(systemName: "folder.badge.plus").font(.system(size: 12)).foregroundStyle(Color.evDim)
+                    }
+                }
+                .buttonStyle(.borderless)
+            }
+            .listRowSeparator(.hidden)
+
+            if !store.scribePages.isEmpty {
+                Section(isExpanded: isOpen("ink")) {
+                    LibraryInk(store: store)
                 } header: {
-                    HStack {
-                        Text("Notes")
-                        Text("\(store.notes.count)").foregroundStyle(Color.evSubtle)
-                        Spacer()
-                        Button { store.newNote(in: folderForNew) } label: { Image(systemName: "square.and.pencil") }
-                        Button { ask = NameAsk(kind: .newFolder(parent: ""), text: "") } label: { Image(systemName: "folder.badge.plus") }
-                    }
-                    .buttonStyle(.borderless)
+                    StratusSectionHeader(title: "Ink", trailing: "Scribe")
                 }
-                if !store.scribePages.isEmpty {
-                    Section(isExpanded: isOpen("ink")) {
-                        LibraryInk(store: store)
-                    } header: {
-                        HStack {
-                            Text("Ink")
-                            Spacer()
-                            Text("in Scribe").foregroundStyle(Color.evSubtle)
-                        }
-                    }
-                }
-                Section("Scratch pad", isExpanded: isOpen("scratch")) {
-                    LibraryScratchPad(store: store)
-                }
+                .listRowSeparator(.hidden)
             }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
-            .background(Color.evPanel)
-            .refreshable { store.refresh() }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                LibraryFoot(store: store) { picking = true }
+
+            Section(isExpanded: isOpen("scratch")) {
+                LibraryScratchPad(store: store)
+            } header: {
+                StratusSectionHeader(title: "Scratch pad")
             }
+            .listRowSeparator(.hidden)
+        }
+        .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+        .background(Color.evPanel)
+        .refreshable { store.refresh() }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            LibraryFoot(store: store) { picking = true }
+        }
     }
 
     /// What the command bar can run.
@@ -297,7 +355,6 @@ private struct ElectronMain: View {
         hideSidebarIfNarrow()
     }
 
-    /// In portrait the sidebar covers the note; get it out of the way.
     private func hideSidebarIfNarrow() {
         if UIDevice.current.orientation.isPortrait || UIScreen.main.bounds.width < 900 { columns = .detailOnly }
     }
@@ -305,26 +362,44 @@ private struct ElectronMain: View {
     @ViewBuilder
     private func row(_ node: VaultNode, icon: String?) -> some View {
         if node.isFolder {
-            Label(node.name, systemImage: "folder")
-                .foregroundStyle(Color.evFg)
-                .contextMenu {
-                    Button("New Note Here", systemImage: "square.and.pencil") { store.newNote(in: node.rel) }
-                    Button("New Folder…", systemImage: "folder.badge.plus") { ask = NameAsk(kind: .newFolder(parent: node.rel), text: "") }
-                    Button("Rename…", systemImage: "pencil") { ask = NameAsk(kind: .rename(rel: node.rel), text: node.name) }
-                    Divider()
-                    Button("Move to Trash", systemImage: "trash", role: .destructive) { deleting = node.rel }
-                }
-        } else {
-            Button { open(node.rel) } label: {
-                Label {
-                    Text(node.title).lineLimit(1)
-                } icon: {
-                    Image(systemName: icon ?? Self.icon(node.kind))
-                        .foregroundStyle(node.kind == .note ? Color.evSubtle : Color.evAccent)
-                }
-                .foregroundStyle(node.rel == store.current ? Color.evAccent : Color.evFg)
+            Label {
+                Text(node.name).font(.system(size: 13.5, weight: .medium)).foregroundStyle(Color.evFg)
+            } icon: {
+                Image(systemName: "folder").font(.system(size: 12)).foregroundStyle(Color.evDim)
             }
-            .listRowBackground(node.rel == store.current ? Color.evBgSel : Color.clear)
+            .listRowBackground(Color.clear)
+            .contextMenu {
+                Button("New Note Here", systemImage: "square.and.pencil") { store.newNote(in: node.rel) }
+                Button("New Folder…", systemImage: "folder.badge.plus") { ask = NameAsk(kind: .newFolder(parent: node.rel), text: "") }
+                Button("Rename…", systemImage: "pencil") { ask = NameAsk(kind: .rename(rel: node.rel), text: node.name) }
+                Divider()
+                Button("Move to Trash", systemImage: "trash", role: .destructive) { deleting = node.rel }
+            }
+        } else {
+            let isSelected = node.rel == store.current
+            Button { open(node.rel) } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: icon ?? Self.icon(node.kind))
+                        .font(.system(size: 12))
+                        .foregroundStyle(isSelected ? Color.evAccent : (node.kind == .note ? Color.evSubtle : Color.evSky))
+                        .frame(width: 16)
+                    Text(node.title)
+                        .font(.system(size: 13.5, weight: isSelected ? .medium : .regular))
+                        .foregroundStyle(isSelected ? Color.evFg : Color.evDim)
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    if isSelected {
+                        Circle().fill(Color.evAccent).frame(width: 5, height: 5)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(isSelected ? Color.evBgSel : Color.clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 10))
             .contextMenu {
                 if node.kind == .note {
                     Button(store.isBookmarked(node.rel) ? "Unpin" : "Pin", systemImage: store.isBookmarked(node.rel) ? "star.slash" : "star") {
@@ -358,12 +433,9 @@ private struct NoteDetail: View {
     let search: () -> Void
     let agent: () -> Void
     @State private var bridge = EditorBridge()
-    /// A phone: fewer buttons, and the note's own header instead of a title.
     @Environment(\.horizontalSizeClass) private var sizeClass
     private var phone: Bool { sizeClass == .compact }
-    /// The Context panel on the right, remembered across launches.
     @AppStorage("contextOpen") private var contextOpen = false
-    /// On a phone it's a sheet, so it isn't remembered: it would open at launch.
     @State private var phoneContext = false
 
     var body: some View {
@@ -394,6 +466,7 @@ private struct NoteDetail: View {
         .background(Color.evBg)
         .navigationTitle(phone ? "" : title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Color.evBg, for: .navigationBar)
         .inspector(isPresented: phone ? $phoneContext : $contextOpen) {
             ContextPanel(store: store)
                 .inspectorColumnWidth(min: 260, ideal: 320, max: 420)
@@ -481,7 +554,7 @@ private struct PDFFileView: UIViewRepresentable {
     }
 }
 
-/// The desktop's Todo checklist.
+/// The desktop's Todo checklist, styled on pitch-black `#000000` + `#0B0B0E`.
 private struct TodoSheet: View {
     let store: VaultStore
     @Environment(\.dismiss) private var dismiss
@@ -493,13 +566,16 @@ private struct TodoSheet: View {
         NavigationStack {
             List {
                 Section {
-                    HStack {
-                        Image(systemName: "plus.circle.fill").foregroundStyle(Color.evAccent)
-                        TextField("Add a todo", text: $draft)
+                    HStack(spacing: 10) {
+                        Image(systemName: "plus").foregroundStyle(Color.evAccent)
+                        TextField("Add a todo…", text: $draft)
+                            .foregroundStyle(Color.evFg)
                             .focused($typing)
                             .submitLabel(.done)
                             .onSubmit(add)
                     }
+                    .padding(.vertical, 4)
+                    .listRowBackground(Color.evBgAlt)
                 }
                 Section {
                     ForEach($items) { $item in
@@ -509,27 +585,32 @@ private struct TodoSheet: View {
                                 item.doneOn = item.done ? VaultStore.today() : nil
                                 save()
                             } label: {
-                                Image(systemName: item.done ? "checkmark.circle.fill" : "circle")
-                                    .font(.title3)
-                                    .foregroundStyle(item.done ? Color.evAccent : Color.evDim)
+                                Image(systemName: item.done ? "checkmark.square.fill" : "square")
+                                    .font(.system(size: 17))
+                                    .foregroundStyle(item.done ? Color.evMint : Color.evSubtle)
                             }
                             .buttonStyle(.plain)
                             Text(item.text)
                                 .foregroundStyle(item.done ? Color.evSubtle : Color.evFg)
                                 .strikethrough(item.done)
                         }
+                        .listRowBackground(Color.evSurfaceSubtle)
                     }
                     .onDelete { items.remove(atOffsets: $0); save() }
                     .onMove { items.move(fromOffsets: $0, toOffset: $1); save() }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.evBg)
             .navigationTitle("Todos")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color.evSheet, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { EditButton() }
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
         }
+        .preferredColorScheme(.dark)
         .onAppear { items = store.loadTodos() }
     }
 
@@ -544,13 +625,12 @@ private struct TodoSheet: View {
     }
 
     private func save() {
-        // Open items stay above finished ones, as the file is written.
         items = items.filter { !$0.done } + items.filter(\.done)
         store.saveTodos(items)
     }
 }
 
-/// Every tag, or the notes with one.
+/// Every tag, or the notes with one, styled on pitch-black `#000000` + `#0B0B0E`.
 private struct TagSheet: View {
     let store: VaultStore
     let start: String?
@@ -562,14 +642,20 @@ private struct TagSheet: View {
             List(store.tagCounts, id: \.tag) { item in
                 NavigationLink(value: item.tag) {
                     HStack {
-                        Text("#" + item.tag).foregroundStyle(Color.evTag)
+                        Text("#" + item.tag)
+                            .font(.system(size: 14, weight: .medium, design: .monospaced))
+                            .foregroundStyle(Color.evTagText)
                         Spacer()
-                        Text("\(item.count)").foregroundStyle(Color.evSubtle).monospacedDigit()
+                        StratusTagPill(text: "\(item.count)", tint: .evSubtle, background: .evSurfacePill, monospaced: true)
                     }
                 }
+                .listRowBackground(Color.evSurfaceSubtle)
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.evBg)
             .navigationTitle("Tags")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color.evSheet, for: .navigationBar)
             .navigationDestination(for: String.self) { tag in
                 List(store.notes(tagged: tag), id: \.self) { rel in
                     Button {
@@ -578,14 +664,20 @@ private struct TagSheet: View {
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(store.notes[rel]?.name ?? rel).foregroundStyle(Color.evFg)
-                            Text((rel as NSString).deletingLastPathComponent).font(.caption).foregroundStyle(Color.evSubtle)
+                            Text((rel as NSString).deletingLastPathComponent)
+                                .font(.system(size: 11.5, design: .monospaced))
+                                .foregroundStyle(Color.evSubtle)
                         }
                     }
+                    .listRowBackground(Color.evSurfaceSubtle)
                 }
+                .scrollContentBackground(.hidden)
+                .background(Color.evBg)
                 .navigationTitle("#" + tag)
             }
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
+        .preferredColorScheme(.dark)
         .onAppear { if let start { path = [start] } }
     }
 }

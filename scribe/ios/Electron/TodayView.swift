@@ -1,9 +1,8 @@
 import SwiftUI
 
-/// Today, the home view (the desktop's TodayView.tsx): shown when no note
-/// is open. A greeting, today's note to write in, the week, the to-do list,
-/// tasks across the vault, and what to pick up again. The cards keep the
-/// redesign's heights and scroll inside; on a phone they stack in one column.
+/// Today, the home view (the desktop's TodayView.tsx), redesigned in Stratus's
+/// pitch-black T3 style: `#000000` canvas, crisp SF Pro greeting & mono KPIs,
+/// borderless `#0B0B0E` tonal cards, `#111114` input wells, and `#151519` pills.
 struct TodayView: View {
     @Bindable var store: VaultStore
 
@@ -26,7 +25,7 @@ struct TodayView: View {
                             .frame(width: 320)
                         }
                     } else if geo.size.width < 560 {
-                        TodayNoteCard(store: store, height: 300)
+                        TodayNoteCard(store: store, height: 280)
                         TodayWeekCard(store: store)
                         TodayTodoCard(store: store)
                         TodayTasksCard(store: store)
@@ -48,11 +47,11 @@ struct TodayView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .background(Color.evChrome)
+        .background(Color.evBg)
     }
 }
 
-/// A card on Today: the redesign's #1b1722 on the dark backdrop.
+/// Borderless `#0B0B0E` tonal card matching Stratus's elevated surfaces.
 private struct TodayCard<Content: View>: View {
     let title: String
     var height: CGFloat?
@@ -62,48 +61,71 @@ private struct TodayCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.evFg)
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.evFg)
                 Spacer()
                 trailing
             }
             content
         }
-        .padding(20)
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .frame(height: height, alignment: .top)
-        .background(Color.evBg, in: RoundedRectangle(cornerRadius: 18))
+        .background(Color.evSurfaceSubtle, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
 private struct TodayHeader: View {
     let store: VaultStore
 
+    private var openTodosCount: Int {
+        store.loadTodos().filter { !$0.done }.count
+    }
+
+    private var todayEventCount: Int {
+        store.agenda?.events(on: .now).count ?? 0
+    }
+
     var body: some View {
-        HStack(alignment: .bottom) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide)).uppercased())
-                    .font(.system(size: 12, weight: .semibold))
-                    .tracking(1.2)
-                    .foregroundStyle(Color.evSubtle)
-                Text(greeting)
-                    .font(.system(size: 42, weight: .medium, design: .serif))
-                    .foregroundStyle(Color(uiColor: EV.heading))
-            }
-            Spacer()
-            if let last = store.recents.first(where: { store.notes[$0] != nil }) {
-                Button { store.show(last) } label: {
-                    HStack(spacing: 8) {
-                        Text("Continue \(store.notes[last]?.name ?? last)").lineLimit(1)
-                        Image(systemName: "chevron.right").font(.footnote)
-                    }
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Color.evFg)
-                    .padding(.horizontal, 16)
-                    .frame(height: 40)
-                    .background(Color.evBg, in: RoundedRectangle(cornerRadius: 11))
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .bottom, spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide)).uppercased())
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .tracking(1.0)
+                        .foregroundStyle(Color.evSubtle)
+                    Text(greeting)
+                        .font(.system(size: 32, weight: .semibold))
+                        .tracking(-0.6)
+                        .foregroundStyle(Color.evFg)
                 }
-                .buttonStyle(.plain)
+                Spacer()
+                if let last = store.recents.first(where: { store.notes[$0] != nil }) {
+                    Button { store.show(last) } label: {
+                        HStack(spacing: 6) {
+                            Text("Continue \(store.notes[last]?.name ?? last)").lineLimit(1)
+                            Image(systemName: "chevron.right").font(.system(size: 10.5, weight: .semibold))
+                        }
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(Color.evFg)
+                        .padding(.horizontal, 12)
+                        .frame(height: 32)
+                        .background(Color.evSurfacePill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
             }
+
+            // Stratus-style compact KPI strip
+            HStack(spacing: 16) {
+                StratusMetricStat(label: "Notes", value: "\(store.notes.count)", tint: .evFg)
+                StratusMetricStat(label: "Open Tasks", value: "\(store.openTasks.count + openTodosCount)", tint: .evAccent)
+                StratusMetricStat(label: "Events", value: "\(todayEventCount)", tint: .evCoral)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color.evSurfaceSubtle, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 
@@ -116,7 +138,7 @@ private struct TodayHeader: View {
     }
 }
 
-/// Today's daily note, written in place, with a box to capture into it.
+/// Today's daily note, written in place, with a borderless capture well.
 private struct TodayNoteCard: View {
     let store: VaultStore
     var height: CGFloat = 394
@@ -129,17 +151,17 @@ private struct TodayNoteCard: View {
     var body: some View {
         TodayCard(title: "Today's note", height: height, trailing: AnyView(
             Button((rel as NSString).lastPathComponent) { store.openDaily() }
-                .font(.footnote)
+                .font(.system(size: 11.5, weight: .medium, design: .monospaced))
                 .foregroundStyle(Color.evAccent)
         )) {
             TextEditor(text: $text)
-                .font(.system(size: 18, design: .serif))
+                .font(.system(size: 15))
                 .foregroundStyle(Color.evText)
                 .scrollContentBackground(.hidden)
                 .overlay(alignment: .topLeading) {
                     if text.isEmpty {
                         Text("Write about today…")
-                            .font(.system(size: 18, design: .serif))
+                            .font(.system(size: 15))
                             .foregroundStyle(Color.evSubtle)
                             .padding(.top, 8)
                             .padding(.leading, 5)
@@ -147,20 +169,21 @@ private struct TodayNoteCard: View {
                     }
                 }
             HStack(spacing: 10) {
-                Image(systemName: "plus").foregroundStyle(Color.evSubtle)
+                Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.evSubtle)
                 TextField("Capture a thought, or [] a task…", text: $capture)
+                    .font(.system(size: 13.5))
                     .foregroundStyle(Color.evFg)
                     .submitLabel(.done)
                     .onSubmit(add)
             }
-            .padding(.horizontal, 14)
-            .frame(height: 46)
-            .background(Color.evChrome, in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.evBorder))
+            .padding(.horizontal, 12)
+            .frame(height: 40)
+            .background(Color.evBgAlt, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         }
         .onAppear(perform: load)
         .onChange(of: store.texts[rel]) { _, fresh in
-            // Written elsewhere (another device, the note itself): take it.
             if let fresh, fresh != text { text = fresh }
         }
         .task(id: text) {
@@ -196,9 +219,7 @@ private struct TodayNoteCard: View {
     }
 }
 
-/// The week, Monday first: a lavender dot where there's a daily note, a
-/// coral one where there's an event; under it, today's events from Google
-/// Calendar, as the Mac last shared them.
+/// The week, Monday first: an indigo dot for a daily note, coral for an event.
 private struct TodayWeekCard: View {
     let store: VaultStore
 
@@ -210,23 +231,24 @@ private struct TodayWeekCard: View {
                     Button { store.openDaily(day) } label: {
                         VStack(spacing: 4) {
                             Text(day.formatted(.dateTime.weekday(.abbreviated)))
-                                .font(.system(size: 11))
-                                .foregroundStyle(today ? Color(uiColor: EV.link) : Color.evSubtle)
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundStyle(today ? Color.evAccent : Color.evSubtle)
                             Text(day.formatted(.dateTime.day()))
-                                .font(.system(size: 15, weight: .semibold))
+                                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                                .monospacedDigit()
                                 .foregroundStyle(Color.evFg)
                             HStack(spacing: 3) {
                                 Circle()
                                     .fill(store.files[VaultStore.dailyPath(day)] != nil ? Color.evAccent : Color.clear)
-                                    .frame(width: 5, height: 5)
+                                    .frame(width: 4.5, height: 4.5)
                                 if store.agenda?.events(on: day).isEmpty == false {
-                                    Circle().fill(Color.evInk).frame(width: 5, height: 5)
+                                    Circle().fill(Color.evInk).frame(width: 4.5, height: 4.5)
                                 }
                             }
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(today ? Color.evBgSel : Color.clear, in: RoundedRectangle(cornerRadius: 10))
+                        .padding(.vertical, 7)
+                        .background(today ? Color.evBgSel : Color.clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -237,11 +259,12 @@ private struct TodayWeekCard: View {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(todays, id: \.self) { event in
                             HStack(spacing: 10) {
-                                Text(event.allDay ? "All day" : event.timeLabel)
-                                    .font(.system(size: 13).monospacedDigit())
+                                Text(event.allDay ? "ALL DAY" : event.timeLabel)
+                                    .font(.system(size: 11.5, design: .monospaced))
+                                    .monospacedDigit()
                                     .foregroundStyle(Color.evSubtle)
-                                    .frame(width: 56, alignment: .leading)
-                                Text(event.summary).font(.system(size: 13)).foregroundStyle(Color.evFg).lineLimit(1)
+                                    .frame(width: 58, alignment: .leading)
+                                Text(event.summary).font(.system(size: 12.5)).foregroundStyle(Color.evFg).lineLimit(1)
                             }
                         }
                     }
@@ -250,12 +273,11 @@ private struct TodayWeekCard: View {
         }
     }
 
-    /// How fresh the Mac's agenda is, or nothing before it has shared one.
     @ViewBuilder
     private var syncNote: some View {
         if let when = store.agenda?.updatedDate {
-            Text("Mac synced \(when.formatted(.relative(presentation: .named)))")
-                .font(.footnote)
+            Text(when.formatted(.relative(presentation: .named)))
+                .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(Color.evSubtle)
                 .lineLimit(1)
         }
@@ -278,15 +300,16 @@ private struct TodayTodoCard: View {
     var body: some View {
         TodayCard(title: "To do", height: 200) {
             HStack(spacing: 8) {
-                Image(systemName: "plus").foregroundStyle(Color.evSubtle)
+                Image(systemName: "plus").font(.system(size: 11.5)).foregroundStyle(Color.evSubtle)
                 TextField("Add a todo…", text: $draft)
+                    .font(.system(size: 13))
                     .foregroundStyle(Color.evFg)
                     .submitLabel(.done)
                     .onSubmit(add)
             }
-            .padding(.horizontal, 12)
-            .frame(height: 36)
-            .background(Color.evChrome, in: RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal, 10)
+            .frame(height: 34)
+            .background(Color.evBgAlt, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
                     if items.isEmpty {
@@ -300,36 +323,34 @@ private struct TodayTodoCard: View {
                         } label: {
                             HStack(alignment: .firstTextBaseline, spacing: 10) {
                                 Image(systemName: item.done ? "checkmark.square.fill" : "square")
-                                    .foregroundStyle(item.done ? Color.evAccent : Color.evDim)
+                                    .foregroundStyle(item.done ? Color.evMint : Color.evSubtle)
                                 Text(item.text)
                                     .foregroundStyle(item.done ? Color.evSubtle : Color.evFg)
                                     .strikethrough(item.done)
                                     .multilineTextAlignment(.leading)
                                 Spacer(minLength: 0)
                             }
-                            .font(.system(size: 15))
+                            .font(.system(size: 13.5))
                         }
                         .buttonStyle(.plain)
                     }
                     let google = (store.agenda?.tasks ?? []).filter { !store.tickedGoogle.contains($0.id) }
                     if !google.isEmpty {
-                        Text("Google Tasks")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Color.evSubtle)
+                        StratusSectionHeader(title: "Google Tasks")
                             .padding(.top, 6)
                         ForEach(google) { task in
                             Button { store.completeGoogleTask(task) } label: {
                                 HStack(alignment: .firstTextBaseline, spacing: 10) {
-                                    Image(systemName: "square").foregroundStyle(Color.evDim)
+                                    Image(systemName: "square").foregroundStyle(Color.evSubtle)
                                     Text(task.title).foregroundStyle(Color.evFg).multilineTextAlignment(.leading)
                                     Spacer(minLength: 0)
                                     if let due = task.due?.prefix(10), let date = VaultStore.dayFormatter.date(from: String(due)) {
                                         Text(date.formatted(.dateTime.day().month(.abbreviated)))
-                                            .font(.footnote)
+                                            .font(.system(size: 11, design: .monospaced))
                                             .foregroundStyle(Color.evSubtle)
                                     }
                                 }
-                                .font(.system(size: 15))
+                                .font(.system(size: 13.5))
                             }
                             .buttonStyle(.plain)
                         }
@@ -360,28 +381,28 @@ private struct TodayTasksCard: View {
 
     var body: some View {
         TodayCard(title: "Tasks across the vault", height: 200, trailing: AnyView(
-            Text("\(store.openTasks.count) open").font(.footnote).foregroundStyle(Color.evSubtle)
+            StratusTagPill(text: "\(store.openTasks.count) open", tint: .evDim, background: .evSurfacePill, monospaced: true)
         )) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 9) {
                     if store.openTasks.isEmpty {
                         Text("Nothing open. Add one with [] above.").font(.footnote).foregroundStyle(Color.evSubtle)
                     }
                     ForEach(store.openTasks) { task in
                         HStack(spacing: 10) {
                             Button { store.complete(task) } label: {
-                                Image(systemName: "square").foregroundStyle(Color.evDim)
+                                Image(systemName: "square").foregroundStyle(Color.evSubtle)
                             }
                             .buttonStyle(.plain)
                             Text(Inline.plain(task.text)).foregroundStyle(Color.evFg).lineLimit(1)
                             Spacer(minLength: 6)
                             Button(store.notes[task.rel]?.name ?? task.rel) { store.show(task.rel) }
-                                .font(.footnote)
+                                .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(Color.evSubtle)
                                 .lineLimit(1)
-                                .frame(maxWidth: 120, alignment: .trailing)
+                                .frame(maxWidth: 110, alignment: .trailing)
                         }
-                        .font(.system(size: 15))
+                        .font(.system(size: 13.5))
                     }
                 }
             }
@@ -392,7 +413,6 @@ private struct TodayTasksCard: View {
 /// Notes edited and ink written lately, newest first.
 private struct TodayRecent: View {
     let store: VaultStore
-    /// The filter under the title, for a phone.
     var stacked = false
     @AppStorage("todayRecentFilter") private var filter = "all"
 
@@ -419,15 +439,17 @@ private struct TodayRecent: View {
         VStack(alignment: .leading, spacing: 14) {
             let header = stacked ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) : AnyLayout(HStackLayout())
             header {
-                Text("Pick up where you left off").font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.evFg)
+                Text("Pick up where you left off")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.evFg)
                 if !stacked { Spacer() }
-                Picker("Show", selection: $filter) {
-                    Text("All").tag("all")
-                    Text("Notes").tag("notes")
-                    Text("Ink").tag("ink")
+                HStack(spacing: 4) {
+                    StratusFilterPill(title: "All", isSelected: filter == "all") { filter = "all" }
+                    StratusFilterPill(title: "Notes", isSelected: filter == "notes") { filter = "notes" }
+                    StratusFilterPill(title: "Ink", isSelected: filter == "ink") { filter = "ink" }
                 }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: stacked ? .infinity : 200)
+                .padding(3)
+                .background(Color.evSurfaceSubtle, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             }
             if items.isEmpty {
                 Text("Nothing here yet.").font(.footnote).foregroundStyle(Color.evSubtle)
@@ -453,22 +475,29 @@ private struct TodayRecent: View {
             }
         } label: {
             VStack(alignment: .leading, spacing: 8) {
-                Text(kind(item)).font(.system(size: 12)).foregroundStyle(isInk(item) ? Color.evInk : Color.evAccent).lineLimit(1)
+                Text(kind(item))
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(isInk(item) ? Color.evInk : Color.evAccent)
+                    .lineLimit(1)
                 Text(title(item))
-                    .font(.system(size: 19, design: .serif))
+                    .font(.system(size: 15.5, weight: .semibold))
                     .foregroundStyle(Color.evFg)
                     .multilineTextAlignment(.leading)
                     .lineLimit(3)
                 Spacer(minLength: 0)
                 Text("\(isInk(item) ? "Written" : "Edited") \(item.at.formatted(.relative(presentation: .named)))")
-                    .font(.system(size: 12))
+                    .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(Color.evSubtle)
             }
             .padding(16)
-            .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
-            .background(Color.evBg, in: RoundedRectangle(cornerRadius: 16))
-            .overlay {
-                if isInk(item) { RoundedRectangle(cornerRadius: 16).stroke(Color.evInk.opacity(0.28)) }
+            .frame(maxWidth: .infinity, minHeight: 118, alignment: .topLeading)
+            .background(Color.evSurfaceSubtle, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(alignment: .leading) {
+                if isInk(item) {
+                    UnevenRoundedRectangle(topLeadingRadius: 12, bottomLeadingRadius: 12)
+                        .fill(Color.evInk)
+                        .frame(width: 2.5)
+                }
             }
         }
         .buttonStyle(.plain)

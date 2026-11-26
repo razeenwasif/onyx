@@ -1,9 +1,9 @@
 import SwiftUI
 import VisionKit
 
-// The Agent on the iPad and iPhone (the desktop's AgentView.tsx): ask Claude
-// Code, Antigravity or Fairy to work on the vault. The work runs on the Mac,
-// in Electron, and the steps come back as they happen (AgentLink.swift).
+// The Agent on iPad and iPhone (the desktop's AgentView.tsx), styled after
+// Stratus's `#060608` AgentDrawerView: borderless tonal agent switcher,
+// `#0B0B0E` suggestion & step cards, `#111114` composer input, pulsing dot.
 
 struct AgentSheet: View {
     let store: VaultStore
@@ -19,8 +19,8 @@ struct AgentSheet: View {
                     AgentConversation(store: store, link: link, close: { dismiss() })
                 }
             }
-            .background(Color.evBg)
-            .toolbarBackground(Color.evChrome, for: .navigationBar)
+            .background(Color.evInspector)
+            .toolbarBackground(Color.evSheet, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
             }
@@ -42,32 +42,49 @@ private struct AgentPairView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Image(systemName: "sparkles").font(.system(size: 30)).foregroundStyle(Color(uiColor: EV.accent))
-                Text("Pair with your Mac").font(.system(size: 26, weight: .semibold, design: .serif)).foregroundStyle(Color.evText)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(Color.evAccent)
+                Text("Pair with your Mac")
+                    .font(.system(size: 24, weight: .semibold))
+                    .tracking(-0.4)
+                    .foregroundStyle(Color.evFg)
                 Text("The Agent runs in Electron on your Mac and reaches this device over Tailscale. On the Mac, open Settings → iPad & iPhone, turn it on, and choose Show code.")
-                    .foregroundStyle(Color(uiColor: EV.fgDim))
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.evDim)
                 if DataScannerViewController.isSupported {
                     Button {
                         scanning = true
                     } label: {
-                        Label("Scan the code", systemImage: "qrcode.viewfinder").frame(maxWidth: .infinity)
+                        Label("Scan the code", systemImage: "qrcode.viewfinder")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color.evAccent)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .background(Color.evAccent.opacity(0.16), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .buttonStyle(.plain)
                     .disabled(busy)
                 }
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Or paste the pairing link").font(.footnote).foregroundStyle(Color(uiColor: EV.fgSubtle))
-                    HStack {
+                    StratusSectionHeader(title: "Or paste the pairing link")
+                    HStack(spacing: 8) {
                         TextField("onyx://pair?…", text: $pasted)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
-                            .textFieldStyle(.roundedBorder)
-                        Button("Pair") { pair(pasted) }.disabled(pasted.isEmpty || busy)
+                            .font(.system(size: 13, design: .monospaced))
+                            .foregroundStyle(Color.evFg)
+                            .padding(.horizontal, 12)
+                            .frame(height: 38)
+                            .background(Color.evBgAlt, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        StratusActionPill(title: "Pair", tint: .evAccent, background: .evAccent.opacity(0.16)) {
+                            pair(pasted)
+                        }
+                        .disabled(pasted.isEmpty || busy)
                     }
                 }
-                if busy { ProgressView("Pairing…") }
-                if let error { Text(error).foregroundStyle(Color(uiColor: EV.error)) }
+                if busy { ProgressView("Pairing…").tint(.evAccent) }
+                if let error { Text(error).font(.footnote).foregroundStyle(Color.evRose) }
             }
             .padding(24)
             .frame(maxWidth: 560, alignment: .leading)
@@ -190,37 +207,73 @@ private struct AgentConversation: View {
     }
 
     private var picker: some View {
-        Picker("Agent", selection: Binding(get: { link.agent }, set: { link.pick($0) })) {
+        HStack(spacing: 4) {
             ForEach(AgentLink.agents, id: \.id) { agent in
-                Text(agent.id == "claude" ? "Claude" : agent.name).tag(agent.id)
+                let isSelected = link.agent == agent.id
+                Button {
+                    guard !link.busy else { return }
+                    link.pick(agent.id)
+                } label: {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(agentDot(agent.id))
+                            .frame(width: 6, height: 6)
+                        Text(agent.id == "claude" ? "Claude" : agent.name)
+                            .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                            .foregroundStyle(isSelected ? Color.evFg : Color.evDim)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(isSelected ? Color.evBgSel : Color.clear, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(link.busy)
             }
         }
-        .pickerStyle(.segmented)
-        .disabled(link.busy)
+        .padding(3)
+        .background(Color.evSurfaceSubtle, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(Color.evChrome)
+        .background(Color.evInspector)
+    }
+
+    private func agentDot(_ id: String) -> Color {
+        switch id {
+        case "claude": .evCoral
+        case "fairy": .evViolet
+        default: .evSky
+        }
     }
 
     private var empty: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("What should \(AgentLink.name(of: link.agent)) do in your vault?")
-                .font(.system(size: 22, weight: .semibold, design: .serif))
-                .foregroundStyle(Color.evText)
-            Text(explainer).foregroundStyle(Color(uiColor: EV.fgDim))
+                .font(.system(size: 20, weight: .semibold))
+                .tracking(-0.3)
+                .foregroundStyle(Color.evFg)
+            Text(explainer)
+                .font(.system(size: 13.5))
+                .foregroundStyle(Color.evDim)
             if let problem = link.problem {
-                Text(problem).foregroundStyle(Color(uiColor: EV.warning))
-                Button("Try again") { Task { await link.refresh() } }
+                Text(problem).font(.footnote).foregroundStyle(Color.evAmber)
+                StratusActionPill(title: "Try again", systemImage: "arrow.clockwise", tint: .evAccent) {
+                    Task { await link.refresh() }
+                }
             } else if link.about != nil && !available {
                 Text(link.agent == "fairy" ? "Fairy isn’t running on your Mac. Open her there, then try again." : "\(AgentLink.name(of: link.agent)) isn’t installed on your Mac.")
-                    .foregroundStyle(Color(uiColor: EV.warning))
+                    .font(.footnote)
+                    .foregroundStyle(Color.evAmber)
             }
             ForEach(Self.suggestions, id: \.self) { s in
                 Button {
                     submit(s)
                 } label: {
-                    Text(s).multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading).padding(12)
-                        .background(Color.evBgAlt, in: RoundedRectangle(cornerRadius: 12))
+                    Text(s)
+                        .font(.system(size: 13.5))
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(Color.evSurfaceSubtle, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(Color.evText)
@@ -241,37 +294,49 @@ private struct AgentConversation: View {
                 Button {
                     withNote.toggle()
                 } label: {
-                    Label(((rel as NSString).lastPathComponent as NSString).deletingPathExtension + (withNote ? "" : " (left out)"), systemImage: "doc.text")
-                        .font(.footnote)
-                        .padding(.horizontal, 10).padding(.vertical, 5)
-                        .background(withNote ? Color.evBgSel : Color.evBgAlt, in: Capsule())
+                    HStack(spacing: 5) {
+                        Image(systemName: "doc.text").font(.system(size: 11))
+                        Text(((rel as NSString).lastPathComponent as NSString).deletingPathExtension + (withNote ? "" : " (left out)"))
+                            .font(.system(size: 11.5, weight: .medium, design: .monospaced))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(withNote ? Color.evBgSel : Color.evSurfaceSubtle, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(withNote ? Color.evText : Color(uiColor: EV.fgSubtle))
+                .foregroundStyle(withNote ? Color.evAccent : Color.evSubtle)
             }
             HStack(alignment: .bottom, spacing: 10) {
                 TextField("Find, write or tidy notes…", text: $draft, axis: .vertical)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.evFg)
                     .lineLimit(1...6)
                     .focused($typing)
                     .padding(10)
-                    .background(Color.evBgAlt, in: RoundedRectangle(cornerRadius: 12))
+                    .background(Color.evBgAlt, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .onSubmit { submit(draft) }
                 if link.busy {
-                    Button("Stop") { link.stop() }.buttonStyle(.bordered)
+                    StratusActionPill(title: "Stop", tint: .evRose, background: .evRose.opacity(0.14)) {
+                        link.stop()
+                    }
                 } else {
                     Button {
                         submit(draft)
                     } label: {
-                        Image(systemName: "arrow.up").font(.system(size: 15, weight: .bold)).frame(width: 34, height: 34)
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Color.evBg)
+                            .frame(width: 34, height: 34)
+                            .background(Color.evAccent, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                     }
-                    .buttonStyle(.borderedProminent)
-                    .clipShape(Circle())
+                    .buttonStyle(.plain)
                     .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty || !available)
+                    .opacity(draft.trimmingCharacters(in: .whitespaces).isEmpty || !available ? 0.35 : 1)
                 }
             }
         }
         .padding(12)
-        .background(Color.evChrome)
+        .background(Color.evInspector)
     }
 
     private func submit(_ text: String) {
@@ -290,20 +355,24 @@ private struct TurnView: View {
         if turn.role == .user {
             VStack(alignment: .trailing, spacing: 4) {
                 Text(turn.text)
+                    .font(.system(size: 14.5))
                     .padding(12)
-                    .background(Color.evBgSel, in: RoundedRectangle(cornerRadius: 14))
-                    .foregroundStyle(Color.evText)
+                    .background(Color.evBgSel, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .foregroundStyle(Color.evFg)
                 if let rel = turn.notePath {
                     Text("with \(((rel as NSString).lastPathComponent as NSString).deletingPathExtension) open")
-                        .font(.caption).foregroundStyle(Color(uiColor: EV.fgSubtle))
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(Color.evSubtle)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
         } else {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
-                    Circle().fill(dot).frame(width: 8, height: 8)
-                    Text(AgentLink.name(of: turn.agent)).font(.footnote.weight(.semibold)).foregroundStyle(Color(uiColor: EV.fgDim))
+                    StratusStatusDot(color: dot, size: 6, pulse: turn.running)
+                    Text(AgentLink.name(of: turn.agent))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.evDim)
                 }
                 ForEach(Array(turn.parts.enumerated()), id: \.offset) { _, part in
                     switch part {
@@ -329,28 +398,33 @@ private struct TurnView: View {
                         .font(.footnote)
                         .padding(10)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(uiColor: EV.warning).opacity(0.14), in: RoundedRectangle(cornerRadius: 10))
+                        .background(Color.evAmber.opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
                 if turn.running {
                     HStack(spacing: 8) {
-                        ProgressView().controlSize(.small)
-                        Text(turn.parts.isEmpty ? "Starting…" : "Working…").font(.footnote).foregroundStyle(Color(uiColor: EV.fgSubtle))
+                        ProgressView().controlSize(.small).tint(.evAccent)
+                        Text(turn.parts.isEmpty ? "Starting…" : "Working…").font(.footnote).foregroundStyle(Color.evSubtle)
                     }
                 }
                 if let error = turn.error {
                     Text(error == "Stopped" ? "Stopped." : error)
                         .font(.footnote)
-                        .foregroundStyle(error == "Stopped" ? Color(uiColor: EV.fgSubtle) : Color(uiColor: EV.error))
+                        .foregroundStyle(error == "Stopped" ? Color.evSubtle : Color.evRose)
                 }
                 if !turn.running, !changed.isEmpty || turn.costUsd != nil {
                     HStack(spacing: 10) {
                         if !changed.isEmpty {
-                            Text("Changed").foregroundStyle(Color(uiColor: EV.fgSubtle))
+                            Text("Changed").foregroundStyle(Color.evSubtle)
                             ForEach(changed, id: \.self) { rel in
                                 Button((rel as NSString).deletingPathExtension) { open(rel) }
+                                    .foregroundStyle(Color.evAccent)
                             }
                         }
-                        if let cost = turn.costUsd { Text(String(format: cost < 0.1 ? "$%.3f" : "$%.2f", cost)).foregroundStyle(Color(uiColor: EV.fgSubtle)) }
+                        if let cost = turn.costUsd {
+                            Text(String(format: cost < 0.1 ? "$%.3f" : "$%.2f", cost))
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(Color.evSubtle)
+                        }
                     }
                     .font(.footnote)
                 }
@@ -360,9 +434,9 @@ private struct TurnView: View {
 
     private var dot: Color {
         switch turn.agent {
-        case "claude": Color(red: 0.85, green: 0.47, blue: 0.34)
-        case "fairy": Color(red: 0.91, green: 0.65, blue: 0.85)
-        default: Color(uiColor: EV.info)
+        case "claude": .evCoral
+        case "fairy": .evViolet
+        default: .evSky
         }
     }
 
@@ -398,18 +472,24 @@ private struct StepRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Group {
-                if step.state == "running" { ProgressView().controlSize(.mini) } else { Text(step.state == "error" ? "✕" : "✓") }
+                if step.state == "running" { ProgressView().controlSize(.mini).tint(.evAccent) } else { Text(step.state == "error" ? "✕" : "✓") }
             }
             .frame(width: 14)
-            .foregroundStyle(step.state == "error" ? Color(uiColor: EV.error) : Color(uiColor: EV.success))
-            Text(Self.verbs[step.name] ?? step.name.replacingOccurrences(of: "_", with: " ")).foregroundStyle(Color(uiColor: EV.fgDim))
+            .foregroundStyle(step.state == "error" ? Color.evRose : Color.evMint)
+            Text(Self.verbs[step.name] ?? step.name.replacingOccurrences(of: "_", with: " ")).foregroundStyle(Color.evDim)
             if let note {
                 Button((step.summary as NSString).deletingPathExtension) { open(note) }
-                    .foregroundStyle(Color(uiColor: step.writes ? EV.accent : EV.link))
+                    .foregroundStyle(step.writes ? Color.evAccent : Color.evSky)
             } else if !step.summary.isEmpty {
-                Text(step.summary).foregroundStyle(Color(uiColor: EV.fgSubtle)).lineLimit(1)
+                Text(step.summary)
+                    .font(.system(size: 11.5, design: .monospaced))
+                    .foregroundStyle(Color.evSubtle)
+                    .lineLimit(1)
             }
         }
         .font(.footnote)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.evSurfaceSubtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }

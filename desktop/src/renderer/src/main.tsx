@@ -2,6 +2,7 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles/app.css'
 import './styles/velvet.css'
+import './styles/stratus.css'
 import 'katex/dist/katex.min.css'
 import { App } from './App'
 

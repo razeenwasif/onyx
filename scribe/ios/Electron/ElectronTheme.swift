@@ -1,58 +1,84 @@
 import SwiftUI
 import UIKit
 
-/// The desktop's "Electron Velvet" theme (desktop/src/renderer/src/themes.ts),
-/// in the redesign's palette: a near-black plum backdrop, the Library a step
-/// up, the note a step above that; lavender for Electron, green tags and
-/// coral for Scribe's ink.
+/// Pitch-black Stratus / T3 Code-inspired design tokens for Electron iOS.
+/// Zero borders, zero pane dividers, pure typographic hierarchy and subtle
+/// tonal elevation (`#000000` / `#030304` / `#060608` / `#0B0B0E`).
 enum EV {
-    static let chrome = UIColor(hex: "#120F17")
-    static let panel = UIColor(hex: "#18141E")
-    static let bg = UIColor(hex: "#1B1722")
-    static let bgAlt = UIColor(hex: "#1F1A26")
-    static let bgSel = UIColor(hex: "#2A2335")
-    static let fg = UIColor(hex: "#ECE7F3")
-    /// Note text: a shade softer than headings.
-    static let text = UIColor(hex: "#DDD7E6")
-    static let fgDim = UIColor(hex: "#B4ADC1")
-    static let fgSubtle = UIColor(hex: "#948CA3")
-    static let accent = UIColor(hex: "#B39DFB")
-    static let accentAlt = UIColor(hex: "#E39072")
-    static let link = UIColor(hex: "#C4B2FD")
-    static let wikilink = UIColor(hex: "#C4B2FD")
-    static let tag = UIColor(hex: "#5FD4A4")
-    static let tagText = UIColor(hex: "#7FE0B8")
-    static let ink = UIColor(hex: "#E39072")
-    static let code = UIColor(hex: "#F0AD93")
-    static let heading = UIColor(hex: "#F4F0F8")
-    static let border = UIColor(hex: "#2C2537")
-    static let success = UIColor(hex: "#5FD4A4")
-    static let warning = UIColor(hex: "#F0C27A")
-    static let error = UIColor(hex: "#F7768E")
-    static let info = UIColor(hex: "#8FB7F0")
-    static let codeBg = UIColor(hex: "#241F2D")
-    static let highlight = UIColor(hex: "#F0C27A").withAlphaComponent(0.28)
+    // MARK: - Surfaces
+    static let chrome = UIColor(hex: "#000000")
+    static let bg = UIColor(hex: "#000000")
+    static let panel = UIColor(hex: "#030304")
+    static let inspector = UIColor(hex: "#060608")
+    static let sheet = UIColor(hex: "#050507")
+    static let palette = UIColor(hex: "#0B0B0F")
+    static let surfaceSubtle = UIColor(hex: "#0B0B0E")
+    static let bgAlt = UIColor(hex: "#111114")
+    static let bgSel = UIColor(hex: "#16161B")
+    static let surfacePill = UIColor(hex: "#151519")
+
+    // MARK: - Typography
+    static let fg = UIColor(hex: "#F4F4F6")
+    static let heading = UIColor(hex: "#F4F4F6")
+    /// Note body text: slightly softer than headings on pure black.
+    static let text = UIColor(hex: "#E2E2E8")
+    static let fgDim = UIColor(hex: "#8E8E99")
+    static let fgMuted = UIColor(hex: "#6E6E77")
+    static let fgSubtle = UIColor(hex: "#585862")
+
+    // MARK: - Accents
+    static let accent = UIColor(hex: "#7A89FF")
+    static let wikilink = UIColor(hex: "#7A89FF")
+    static let link = UIColor(hex: "#4BC3F7")
+    static let info = UIColor(hex: "#4BC3F7")
+    static let tag = UIColor(hex: "#34D399")
+    static let tagText = UIColor(hex: "#34D399")
+    static let success = UIColor(hex: "#34D399")
+    static let ink = UIColor(hex: "#E88255")
+    static let accentAlt = UIColor(hex: "#E88255")
+    static let code = UIColor(hex: "#E88255")
+    static let warning = UIColor(hex: "#FBBF24")
+    static let error = UIColor(hex: "#F87171")
+    static let violet = UIColor(hex: "#A78BFA")
+
+    static let border = UIColor(hex: "#16161B")
+    static let codeBg = UIColor(hex: "#0B0B0E")
+    static let highlight = UIColor(hex: "#FBBF24").withAlphaComponent(0.24)
 }
 
 extension Color {
     static let evBg = Color(uiColor: EV.bg)
-    static let evBgAlt = Color(uiColor: EV.bgAlt)
-    static let evBgSel = Color(uiColor: EV.bgSel)
     static let evChrome = Color(uiColor: EV.chrome)
     static let evPanel = Color(uiColor: EV.panel)
+    static let evInspector = Color(uiColor: EV.inspector)
+    static let evSheet = Color(uiColor: EV.sheet)
+    static let evPalette = Color(uiColor: EV.palette)
+    static let evSurfaceSubtle = Color(uiColor: EV.surfaceSubtle)
+    static let evBgAlt = Color(uiColor: EV.bgAlt)
+    static let evBgSel = Color(uiColor: EV.bgSel)
+    static let evSurfacePill = Color(uiColor: EV.surfacePill)
+
+    static let evFg = Color(uiColor: EV.fg)
     static let evText = Color(uiColor: EV.text)
+    static let evDim = Color(uiColor: EV.fgDim)
+    static let evMuted = Color(uiColor: EV.fgMuted)
+    static let evSubtle = Color(uiColor: EV.fgSubtle)
+
+    static let evAccent = Color(uiColor: EV.accent)
+    static let evSky = Color(uiColor: EV.link)
+    static let evMint = Color(uiColor: EV.success)
+    static let evCoral = Color(uiColor: EV.ink)
+    static let evAmber = Color(uiColor: EV.warning)
+    static let evRose = Color(uiColor: EV.error)
+    static let evViolet = Color(uiColor: EV.violet)
+    static let evTag = Color(uiColor: EV.tag)
     static let evTagText = Color(uiColor: EV.tagText)
     static let evInk = Color(uiColor: EV.ink)
-    static let evFg = Color(uiColor: EV.fg)
-    static let evDim = Color(uiColor: EV.fgDim)
-    static let evSubtle = Color(uiColor: EV.fgSubtle)
-    static let evAccent = Color(uiColor: EV.accent)
-    static let evBorder = Color(uiColor: EV.border)
-    static let evTag = Color(uiColor: EV.tag)
     static let evCode = Color(uiColor: EV.code)
+    static let evBorder = Color(uiColor: EV.border)
 }
 
-/// Callout colours and icons, as the desktop's renderer has them.
+/// Callout colours and icons, aligned with Stratus accents.
 enum Callouts {
     static func color(_ type: String) -> UIColor {
         switch type {

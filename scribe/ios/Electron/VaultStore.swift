@@ -187,6 +187,9 @@ final class VaultStore {
     var tagFilter: String?
     /// A heading to scroll to once the note shows (`[[Note#Heading]]`).
     var headingTarget: String?
+    /// Deep-link triggers from iOS Home/Lock Screen widgets.
+    var openTodosTrigger = false
+    var openSearchTrigger = false
     private(set) var back: [String] = []
     private(set) var forward: [String] = []
     private(set) var recents: [String] = UserDefaults.standard.stringArray(forKey: "electronRecents") ?? []
@@ -298,6 +301,7 @@ final class VaultStore {
             text = fresh
             openedStamp = stamp
         }
+        publishWidgetSnapshot()
     }
 
     private func reindex() {
@@ -504,6 +508,7 @@ final class VaultStore {
             dirty = false
             openedStamp = files[current]
         }
+        publishWidgetSnapshot()
     }
 
     /// Ticks or unticks the task on `line` (0-based) of the open note.
@@ -545,6 +550,7 @@ final class VaultStore {
         lastScan?.files[rel] = stamp
         lastScan?.texts[rel] = content
         lastScan?.notes[rel] = notes[rel]
+        publishWidgetSnapshot()
         return true
     }
 
@@ -803,6 +809,7 @@ final class VaultStore {
             try? FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? (lines.joined(separator: "\n") + "\n").write(to: target, atomically: true, encoding: .utf8)
         }
+        publishWidgetSnapshot()
     }
 
     static func today() -> String {

@@ -1,0 +1,1018 @@
+/* Electron Stratus — pitch-black T3 Code-inspired skin matching Stratus.
+   Zero borders, zero pane dividers, pure typographic hierarchy, tabular
+   digits, and subtle tonal elevation (#000000 / #030304 / #060608 / #0B0B0E).
+   Scoped to [data-style='stratus'] set by applyTheme() in themes.ts. */
+
+[data-style='stratus'] {
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif;
+  --font-text: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, 'JetBrains Mono', Menlo, monospace;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-card: 12px;
+  --gap: 0px;
+  --header-h: 40px;
+  --status-h: 26px;
+  --primary-fill: #7A89FF;
+  --primary-ink: #050507;
+  --focus-ring: 0 0 0 1.5px rgba(122, 137, 255, 0.45);
+}
+
+/* ----------------------------------------------------------------- shell */
+
+[data-style='stratus'] body,
+[data-style='stratus'] .app,
+[data-style='stratus'] .app-body,
+[data-style='stratus'] .app-main {
+  background: var(--bg);
+}
+
+[data-style='stratus'] .app-body {
+  padding: 0;
+}
+
+[data-style='stratus'] .app-main {
+  gap: 0;
+}
+
+/* ------------------------------------------------------------- sidebars */
+
+[data-style='stratus'] .sidebar {
+  border: none !important;
+}
+
+[data-style='stratus'] .sidebar.left,
+[data-style='stratus'] .library .library-inner {
+  background: var(--bg-panel);
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
+}
+
+[data-style='stratus'] .sidebar.right,
+[data-style='stratus'] .context-panel .context-inner,
+[data-style='stratus'] .agent-panel .agent-panel-inner {
+  background: var(--bg-inspector);
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
+}
+
+[data-style='stratus'] .resizer,
+[data-style='stratus'] .stack-resizer {
+  background: transparent;
+  width: 5px;
+}
+
+[data-style='stratus'] .resizer:hover,
+[data-style='stratus'] .resizer.dragging,
+[data-style='stratus'] .stack-resizer:hover,
+[data-style='stratus'] .stack-resizer.dragging {
+  background: rgba(122, 137, 255, 0.22);
+}
+
+[data-style='stratus'] .pane-title,
+[data-style='stratus'] .section-head,
+[data-style='stratus'] .context-label,
+[data-style='stratus'] .agenda-head,
+[data-style='stratus'] .embed-title,
+[data-style='stratus'] .lib-head-btn,
+[data-style='stratus'] .context-heading {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+/* --------------------------------------------------------------- top bar */
+
+[data-style='stratus'] .topbar {
+  height: 48px;
+  flex: 0 0 48px;
+  padding: 0 14px;
+  background: var(--bg);
+  border-bottom: none;
+  gap: 10px;
+}
+
+[data-style='stratus'] .topbar.is-mac {
+  padding-left: 72px;
+}
+
+[data-style='stratus'] .app-switcher {
+  background: var(--bg-alt);
+  border: none;
+  padding: 2px;
+}
+
+[data-style='stratus'] .app-switch.is-current.is-electron {
+  color: #7A89FF;
+  background: rgba(122, 137, 255, 0.16);
+}
+
+[data-style='stratus'] .app-switch.is-scribe:hover {
+  color: #E88255;
+}
+
+[data-style='stratus'] .topbar-today,
+[data-style='stratus'] .topbar-tool {
+  height: 30px;
+  border-radius: 7px;
+  color: var(--fg-dim);
+}
+
+[data-style='stratus'] .topbar-today:hover,
+[data-style='stratus'] .topbar-tool:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+[data-style='stratus'] .topbar-today.is-active,
+[data-style='stratus'] .topbar-tool.is-active {
+  background: var(--bg-active);
+  color: var(--fg);
+}
+
+[data-style='stratus'] .topbar-sep {
+  display: none;
+}
+
+[data-style='stratus'] .topbar-search {
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: var(--bg-hover);
+  color: var(--fg-dim);
+  padding: 0 8px 0 12px;
+  font-size: 12.5px;
+  transition: background 120ms ease;
+}
+
+[data-style='stratus'] .topbar-search:hover {
+  background: var(--bg-active);
+}
+
+[data-style='stratus'] .topbar kbd,
+[data-style='stratus'] .command-bar kbd {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--fg-subtle);
+  background: var(--bg-pill);
+  border: none;
+  border-radius: 5px;
+  padding: 2px 6px;
+}
+
+[data-style='stratus'] .topbar-new {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 7px;
+  background: rgba(122, 137, 255, 0.14);
+  color: #7A89FF;
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: background 120ms ease;
+}
+
+[data-style='stratus'] .topbar-new:hover {
+  background: rgba(122, 137, 255, 0.22);
+}
+
+/* --------------------------------------------------------------- library */
+
+[data-style='stratus'] .library .library-inner {
+  padding: 12px 10px 14px;
+  gap: 16px;
+}
+
+[data-style='stratus'] .lib-today,
+[data-style='stratus'] .lib-row,
+[data-style='stratus'] .tree-item {
+  border-radius: 8px;
+  min-height: 30px;
+  height: auto;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--fg-dim);
+  position: relative;
+  transition: background 110ms ease, color 110ms ease;
+}
+
+[data-style='stratus'] .lib-today:hover,
+[data-style='stratus'] .lib-row:hover,
+[data-style='stratus'] .tree-item:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+[data-style='stratus'] .lib-today.is-active,
+[data-style='stratus'] .lib-row.is-active,
+[data-style='stratus'] .tree-item.is-active {
+  background: var(--bg-active);
+  color: var(--fg);
+  font-weight: 500;
+}
+
+[data-style='stratus'] .lib-today.is-active::after,
+[data-style='stratus'] .lib-row.is-active::after,
+[data-style='stratus'] .tree-item.is-active::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-left: auto;
+  flex: none;
+}
+
+[data-style='stratus'] .lib-today.is-active .lib-count {
+  margin-left: 0;
+  margin-right: 8px;
+}
+
+[data-style='stratus'] .lib-count,
+[data-style='stratus'] .context-count {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-subtle);
+}
+
+[data-style='stratus'] .lib-ink-mark,
+[data-style='stratus'] .context-ink-mark,
+[data-style='stratus'] .ink-card-mark,
+[data-style='stratus'] .cb-icon-ink::before {
+  background: #E88255;
+}
+
+[data-style='stratus'] .lib-foot {
+  border-top: none;
+  margin: auto 0 0;
+  padding: 8px 0 0;
+  background: var(--bg-panel);
+  gap: 6px;
+}
+
+[data-style='stratus'] .lib-vault {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: var(--bg-alt);
+  color: var(--fg);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+[data-style='stratus'] .lib-vault:hover {
+  background: var(--bg-hover);
+}
+
+[data-style='stratus'] .library .lib-tree .tree {
+  padding: 0 0 4px;
+}
+
+/* ------------------------------------------------------- panes and tabs */
+
+[data-style='stratus'] .workspace {
+  background: var(--bg);
+  gap: 0;
+}
+
+[data-style='stratus'] .pane,
+[data-style='stratus'] .pane:first-child {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: var(--bg);
+}
+
+[data-style='stratus'] .pane.is-active {
+  border-color: transparent;
+}
+
+/* Split panes separated only by a subtle 1px pitch-black hairline gap when 2+ exist */
+[data-style='stratus'] .workspace:has(.pane + .pane) .pane + .pane {
+  box-shadow: inset 1px 0 0 #0B0B0F;
+}
+
+[data-style='stratus'] .tabbar {
+  background: var(--bg);
+  border-bottom: none;
+  align-items: center;
+  padding: 6px 10px 2px;
+  height: var(--header-h);
+}
+
+[data-style='stratus'] .tabbar-tabs {
+  gap: 4px;
+  align-items: center;
+}
+
+[data-style='stratus'] .tab {
+  height: 28px;
+  padding: 0 10px 0 12px;
+  border-right: none;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--fg-dim);
+  transition: background 110ms ease, color 110ms ease;
+}
+
+[data-style='stratus'] .tab:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+[data-style='stratus'] .tab.is-active {
+  background: var(--bg-active);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+[data-style='stratus'] .tab.is-active::after {
+  display: none;
+}
+
+[data-style='stratus'] .tab .dirty-dot {
+  width: 5px;
+  height: 5px;
+  background: var(--accent);
+}
+
+[data-style='stratus'] .icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  color: var(--fg-dim);
+}
+
+[data-style='stratus'] .icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+[data-style='stratus'] .icon-btn.is-active {
+  background: var(--bg-active);
+  color: var(--accent);
+}
+
+/* Status bar */
+[data-style='stratus'] .statusbar {
+  background: var(--bg-panel);
+  border-top: none;
+  padding: 0 14px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-subtle);
+}
+
+/* ---------------------------------------------------------------- today */
+
+[data-style='stratus'] .pane:has(> .view > .today) {
+  background: var(--bg);
+}
+
+[data-style='stratus'] .today-inner {
+  padding: 28px 34px 48px;
+  gap: 24px;
+}
+
+[data-style='stratus'] .today-date {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--fg-subtle);
+}
+
+[data-style='stratus'] .today-title {
+  font-family: var(--font-ui);
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--fg);
+  margin-top: 6px;
+}
+
+[data-style='stratus'] .today-continue {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 7px;
+  background: var(--bg-pill);
+  color: var(--fg);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+[data-style='stratus'] .today-continue:hover {
+  background: var(--bg-active);
+}
+
+[data-style='stratus'] .today-card {
+  border-radius: 12px;
+  background: var(--bg-alt);
+  border: none;
+  box-shadow: none;
+  padding: 18px 20px;
+}
+
+[data-style='stratus'] .today-card-head h2 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+[data-style='stratus'] .today-todo .todo-add-row {
+  background: var(--bg-alt);
+}
+
+[data-style='stratus'] .today-note-text {
+  font-family: var(--font-text);
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text-body);
+}
+
+[data-style='stratus'] .today-capture {
+  height: 38px;
+  border: none;
+  border-radius: 8px;
+  background: var(--bg-hover);
+  padding: 0 8px 0 12px;
+}
+
+[data-style='stratus'] .today-capture:focus-within {
+  background: var(--bg-active);
+}
+
+[data-style='stratus'] .today-capture kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: var(--bg-pill);
+  color: var(--fg-subtle);
+}
+
+[data-style='stratus'] .today-day {
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-style='stratus'] .today-day.is-today {
+  background: var(--bg-active);
+}
+
+[data-style='stratus'] .today-day-num {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+[data-style='stratus'] .mark-event {
+  background: #E88255;
+}
+
+[data-style='stratus'] .today-events span {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-style='stratus'] .today-filter {
+  background: var(--bg-alt);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+[data-style='stratus'] .today-filter button {
+  height: 26px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+[data-style='stratus'] .today-filter button.is-on {
+  background: var(--bg-active);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+[data-style='stratus'] .today-tile {
+  border-radius: 12px;
+  background: var(--bg-alt);
+  border: none;
+  box-shadow: none;
+  min-height: 118px;
+  padding: 15px 16px;
+}
+
+[data-style='stratus'] .today-tile:hover {
+  background: var(--bg-hover);
+}
+
+[data-style='stratus'] .today-tile.is-ink {
+  box-shadow: inset 2.5px 0 0 #E88255;
+}
+
+[data-style='stratus'] .today-tile.is-ink .today-tile-kind {
+  color: #E88255;
+}
+
+[data-style='stratus'] .today-tile-title {
+  font-family: var(--font-ui);
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+[data-style='stratus'] .today-tile-when {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----------------------------------------------------- markdown & editor */
+
+[data-style='stratus'] .markdown-view {
+  --line-pad: 36px;
+  background: var(--bg);
+}
+
+[data-style='stratus'] .inline-title {
+  font-family: var(--font-ui);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--heading);
+}
+
+[data-style='stratus'] .note-crumbs {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg-subtle);
+}
+
+[data-style='stratus'] .rendered,
+[data-style='stratus'] .markdown-view .cm-content {
+  color: var(--text-body);
+}
+
+[data-style='stratus'] .rendered h1,
+[data-style='stratus'] .rendered h2,
+[data-style='stratus'] .rendered h3,
+[data-style='stratus'] .rendered h4,
+[data-style='stratus'] .cm-md-heading {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--heading);
+}
+
+[data-style='stratus'] .note-tag,
+[data-style='stratus'] .tag-pill,
+[data-style='stratus'] .cm-md-tag {
+  border-radius: 6px;
+  background: var(--bg-pill);
+  color: #34D399;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 2px 8px;
+}
+
+[data-style='stratus'] .rendered code,
+[data-style='stratus'] .cm-md-code {
+  font-family: var(--font-mono);
+  background: var(--bg-alt);
+  color: #E88255;
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+
+[data-style='stratus'] .rendered pre,
+[data-style='stratus'] .cm-md-codeblock {
+  border: none;
+  border-radius: 10px;
+  background: var(--bg-alt);
+  box-shadow: none;
+}
+
+[data-style='stratus'] .rendered pre {
+  padding: 14px 16px;
+}
+
+[data-style='stratus'] .rendered pre code {
+  background: none;
+  color: var(--fg);
+  padding: 0;
+}
+
+[data-style='stratus'] .rendered blockquote {
+  border-left: 2px solid #7A89FF;
+  border-radius: 0 8px 8px 0;
+  background: var(--bg-alt);
+  padding: 10px 14px;
+}
+
+[data-style='stratus'] .callout {
+  border-left: 2px solid var(--callout-color, var(--accent));
+  border-radius: 10px;
+  background: var(--bg-alt);
+  box-shadow: none;
+  padding: 12px 16px;
+}
+
+[data-style='stratus'] .properties {
+  border: none;
+  border-radius: 10px;
+  background: var(--bg-alt);
+  box-shadow: none;
+}
+
+[data-style='stratus'] .properties-row {
+  border-bottom: none;
+}
+
+[data-style='stratus'] .prop-chip,
+[data-style='stratus'] .chip {
+  border: none;
+  border-radius: 6px;
+  background: var(--bg-pill);
+  padding: 2px 9px;
+}
+
+[data-style='stratus'] .rendered table,
+[data-style='stratus'] .cm-md-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-alt);
+  box-shadow: none;
+}
+
+[data-style='stratus'] .rendered th,
+[data-style='stratus'] .rendered td,
+[data-style='stratus'] .cm-md-table th,
+[data-style='stratus'] .cm-md-table td {
+  border: none;
+  border-bottom: 1px solid #16161B;
+}
+
+[data-style='stratus'] .rendered th {
+  background: var(--bg-hover);
+  font-weight: 600;
+}
+
+[data-style='stratus'] .rendered li.task-list-item input[type='checkbox'],
+[data-style='stratus'] .cm-md-checkbox,
+[data-style='stratus'] .todo-item input[type='checkbox'],
+[data-style='stratus'] .today-tasks input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  margin: 0 8px 0 0;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1.5px #585862;
+  background: transparent center / 11px 11px no-repeat;
+  vertical-align: -2px;
+  transition: background-color 110ms ease, box-shadow 110ms ease;
+}
+
+[data-style='stratus'] .rendered li.task-list-item input[type='checkbox']:checked,
+[data-style='stratus'] .cm-md-checkbox:checked,
+[data-style='stratus'] .todo-item input[type='checkbox']:checked,
+[data-style='stratus'] .today-tasks input[type='checkbox']:checked {
+  background-color: #34D399;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2 5 8.5l4.5-5' fill='none' stroke='%23050507' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  box-shadow: none;
+}
+
+[data-style='stratus'] .ink-card {
+  border-radius: 12px;
+  background: var(--bg-alt);
+  box-shadow: inset 2.5px 0 0 #E88255;
+}
+
+[data-style='stratus'] .ink-card-ink {
+  background: #050507;
+}
+
+[data-style='stratus'] .ink-card.is-page .ink-card-ink::after {
+  background: linear-gradient(transparent, rgba(5, 5, 7, 0.94));
+}
+
+[data-style='stratus'] .ink-card-open {
+  border-radius: 7px;
+  background: rgba(232, 130, 85, 0.14);
+  color: #E88255;
+}
+
+[data-style='stratus'] .ink-card-open:hover {
+  background: rgba(232, 130, 85, 0.22);
+}
+
+/* ----------------------------------------------- context & agent panels */
+
+[data-style='stratus'] .context-tabs,
+[data-style='stratus'] .agent-picker {
+  background: var(--bg-alt);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+[data-style='stratus'] .context-tabs button,
+[data-style='stratus'] .agent-picker button {
+  height: 28px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+[data-style='stratus'] .context-tabs button.is-on,
+[data-style='stratus'] .agent-picker button.is-on {
+  background: var(--bg-active);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+[data-style='stratus'] .context-card,
+[data-style='stratus'] .context-ink-tile,
+[data-style='stratus'] .context-wide-btn {
+  border-radius: 10px;
+  background: var(--bg-alt);
+  box-shadow: none;
+}
+
+[data-style='stratus'] .context-ink-tile {
+  box-shadow: inset 2px 0 0 #E88255;
+}
+
+[data-style='stratus'] .context-card:hover,
+[data-style='stratus'] .context-ink-tile:hover,
+[data-style='stratus'] .context-wide-btn:hover {
+  background: var(--bg-hover);
+}
+
+[data-style='stratus'] .context-graph-canvas {
+  background: var(--bg);
+  border-radius: 10px;
+}
+
+[data-style='stratus'] .agent-empty h2 {
+  font-family: var(--font-ui);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+[data-style='stratus'] .agent-suggestions button,
+[data-style='stratus'] .agent-step {
+  background: var(--bg-alt);
+  border-radius: 9px;
+}
+
+[data-style='stratus'] .agent-suggestions button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+[data-style='stratus'] .agent-bubble {
+  background: var(--bg-active);
+  border-radius: 12px 12px 4px 12px;
+}
+
+[data-style='stratus'] .agent-input {
+  border: none;
+  box-shadow: none;
+  background: var(--bg-hover);
+  border-radius: 10px;
+}
+
+[data-style='stratus'] .agent-input:focus-within {
+  background: var(--bg-active);
+}
+
+[data-style='stratus'] .agent-context {
+  background: var(--bg-pill);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+[data-style='stratus'] .agent-context.is-on {
+  background: var(--bg-active);
+  color: #7A89FF;
+}
+
+/* ------------------------------------------ command bar, modals, inputs */
+
+[data-style='stratus'] .modal-backdrop {
+  background: rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(4px);
+}
+
+[data-style='stratus'] .command-bar,
+[data-style='stratus'] .modal {
+  border: none;
+  border-radius: 14px;
+  background: var(--bg-modal);
+  box-shadow: var(--shadow);
+}
+
+[data-style='stratus'] .cb-input,
+[data-style='stratus'] .modal-input {
+  border-bottom: none;
+  background: var(--bg-hover);
+  border-radius: 10px;
+  margin: 12px 12px 4px;
+  height: 44px;
+  flex: 0 0 44px;
+  padding: 0 14px;
+  width: auto;
+}
+
+[data-style='stratus'] .cb-filters {
+  padding: 6px 12px 4px;
+}
+
+[data-style='stratus'] .cb-filters button {
+  height: 26px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+[data-style='stratus'] .cb-item,
+[data-style='stratus'] .modal-item {
+  border-radius: 8px;
+}
+
+[data-style='stratus'] .cb-item.is-selected,
+[data-style='stratus'] .modal-item.is-selected {
+  background: var(--bg-active);
+}
+
+[data-style='stratus'] .cb-footer,
+[data-style='stratus'] .modal-footer {
+  border-top: none;
+  background: var(--bg-sheet);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+[data-style='stratus'] .context-menu,
+[data-style='stratus'] .graph-controls,
+[data-style='stratus'] .canvas-toolbar,
+[data-style='stratus'] .notice {
+  border: none;
+  border-radius: 10px;
+  background: var(--bg-modal);
+  box-shadow: var(--shadow);
+}
+
+[data-style='stratus'] .context-menu button {
+  border-radius: 7px;
+}
+
+/* -------------------------------------------------------------- settings */
+
+[data-style='stratus'] .settings-modal {
+  background: var(--bg-sheet);
+}
+
+[data-style='stratus'] .settings-nav {
+  background: var(--bg-panel);
+  border-right: none;
+  padding: 12px 10px;
+}
+
+[data-style='stratus'] .settings-nav button {
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+[data-style='stratus'] .settings-nav button.is-active {
+  background: var(--bg-active);
+  color: var(--fg);
+  font-weight: 500;
+}
+
+[data-style='stratus'] .setting {
+  border-bottom: none;
+  padding: 11px 0;
+}
+
+[data-style='stratus'] .btn {
+  border: none;
+  border-radius: 7px;
+  background: var(--bg-pill);
+  color: var(--fg);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 6px 12px;
+}
+
+[data-style='stratus'] .btn:hover {
+  background: var(--bg-active);
+}
+
+[data-style='stratus'] .btn.primary {
+  background: rgba(122, 137, 255, 0.16);
+  color: #7A89FF;
+}
+
+[data-style='stratus'] .btn.primary:hover {
+  background: rgba(122, 137, 255, 0.25);
+}
+
+[data-style='stratus'] .search-input-wrap,
+[data-style='stratus'] .todo-add,
+[data-style='stratus'] .setting select,
+[data-style='stratus'] .setting input[type='text'],
+[data-style='stratus'] .setting input[type='number'],
+[data-style='stratus'] .setting input[type='password'],
+[data-style='stratus'] .db-toolbar input,
+[data-style='stratus'] .db-toolbar select {
+  border: none;
+  border-radius: 8px;
+  background: var(--bg-hover);
+  color: var(--fg);
+  padding: 6px 10px;
+}
+
+[data-style='stratus'] .toggle {
+  width: 34px;
+  height: 20px;
+  flex: 0 0 34px;
+  border-radius: 999px;
+  background: var(--bg-active);
+}
+
+[data-style='stratus'] .toggle::after {
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  background: var(--fg-dim);
+}
+
+[data-style='stratus'] .toggle.is-on {
+  background: #7A89FF;
+}
+
+[data-style='stratus'] .toggle.is-on::after {
+  transform: translateX(14px);
+  background: #F4F4F6;
+}
+
+/* -------------------------------------------- graph, canvas & database */
+
+[data-style='stratus'] .canvas-node {
+  border: none;
+  border-radius: 10px;
+  background: var(--bg-alt);
+  box-shadow: none;
+}
+
+[data-style='stratus'] .canvas-node.is-selected {
+  box-shadow: 0 0 0 1.5px #7A89FF;
+}
+
+[data-style='stratus'] .board-col {
+  border-radius: 12px;
+  background: var(--bg-panel);
+  padding: 10px;
+}
+
+[data-style='stratus'] .board-card {
+  border: none;
+  border-radius: 10px;
+  background: var(--bg-alt);
+}
+
+[data-style='stratus'] .board-card:hover {
+  background: var(--bg-hover);
+}
+
+[data-style='stratus'] .db-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-alt);
+  box-shadow: none;
+}
+
+[data-style='stratus'] .db-table th,
+[data-style='stratus'] .db-table td {
+  border: none;
+  border-bottom: 1px solid #16161B;
+}
+
+[data-style='stratus'] .db-table th {
+  background: var(--bg-hover);
+  font-weight: 600;
+}

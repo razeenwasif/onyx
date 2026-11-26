@@ -9,10 +9,9 @@ struct PaletteCommand: Identifiable {
     let run: () -> Void
 }
 
-/// The command bar (⌘K), as on the desktop (CommandBar.tsx): one search
-/// across notes, the text in them, handwriting in Scribe, commands and
-/// tags. `>` at the start lists commands only, `#` tags only. Return opens
-/// the first result.
+/// The command bar (⌘K), styled after Stratus `CommandPaletteView`:
+/// `#0B0B0F` background, borderless `#111114` search bar, borderless
+/// `StratusFilterPill` switcher, and mono badge chips.
 struct CommandBar: View {
     let store: VaultStore
     let commands: [PaletteCommand]
@@ -24,45 +23,59 @@ struct CommandBar: View {
     @FocusState private var focused: Bool
 
     enum Filter: String, CaseIterable {
-        case all = "Everything", notes = "Notes", ink = "Handwriting", commands = "Commands", tags = "Tags"
+        case all = "Everything", notes = "Notes", ink = "Ink", commands = "Commands", tags = "Tags"
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Image(systemName: "magnifyingglass").foregroundStyle(Color.evAccent)
-                TextField("Search notes and handwriting, run a command…", text: $query)
-                    .font(.system(size: 18))
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(Color.evAccent)
+                TextField("Search notes, handwriting, commands…", text: $query)
+                    .font(.system(size: 15))
                     .foregroundStyle(Color.evFg)
                     .focused($focused)
                     .submitLabel(.go)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .onSubmit(runFirst)
-                Button("esc") { dismiss() }
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Color.evSubtle)
-                    .keyboardShortcut(.cancelAction)
+                Button { dismiss() } label: {
+                    StratusTagPill(text: "ESC", tint: .evSubtle, background: .evSurfacePill, monospaced: true)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
             }
-            .padding(.horizontal, 18)
-            .frame(height: 58)
-            Divider().overlay(Color.evBorder)
-            Picker("Show", selection: $filter) {
-                ForEach(Filter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
             .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .frame(height: 46)
+            .background(Color.evBgAlt, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(.horizontal, 14)
+            .padding(.top, 14)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(Filter.allCases, id: \.self) { f in
+                        StratusFilterPill(title: f.rawValue, isSelected: filter == f) {
+                            filter = f
+                        }
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+            }
+
             List {
                 ForEach(groups, id: \.title) { group in
                     Section {
                         ForEach(group.rows) { row in
                             Button { run(row) } label: { label(row) }
                                 .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
                         }
                     } header: {
                         if !group.title.isEmpty {
-                            Text(group.title).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.evSubtle)
+                            StratusSectionHeader(title: group.title)
                         }
                     }
                 }
@@ -70,8 +83,8 @@ struct CommandBar: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
         }
-        .background(Color(uiColor: UIColor(hex: "#1D1824")))
-        .presentationBackground(Color(uiColor: UIColor(hex: "#1D1824")))
+        .background(Color.evPalette)
+        .presentationBackground(Color.evPalette)
         .onAppear { focused = true }
         .task(id: query) {
             try? await Task.sleep(for: .milliseconds(140))
@@ -163,45 +176,61 @@ struct CommandBar: View {
     private func label(_ row: Row) -> some View {
         switch row {
         case .note(_, let title, let folder, let snippet):
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "doc.text").foregroundStyle(Color.evSubtle).frame(width: 20)
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 8) {
-                        Text(title).foregroundStyle(Color.evFg)
-                        if !folder.isEmpty { Text(folder).font(.footnote).foregroundStyle(Color.evSubtle).lineLimit(1) }
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.evAccent)
+                    .frame(width: 20)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Color.evFg)
+                    if let snippet {
+                        Text(Self.plain(snippet)).font(.system(size: 12)).foregroundStyle(Color.evDim).lineLimit(1)
+                    } else if !folder.isEmpty {
+                        Text(folder).font(.system(size: 11.5, design: .monospaced)).foregroundStyle(Color.evSubtle).lineLimit(1)
                     }
-                    if let snippet { Text(Self.plain(snippet)).font(.footnote).foregroundStyle(Color.evDim).lineLimit(1) }
-                }
-            }
-        case .create(let title):
-            Label("Create “\(title)”", systemImage: "plus").foregroundStyle(Color.evAccent)
-        case .ink(let page):
-            HStack(alignment: .top, spacing: 12) {
-                RoundedRectangle(cornerRadius: 2).fill(Color.evInk).frame(width: 9, height: 12).padding(.top, 4).frame(width: 20)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(page.title).foregroundStyle(Color.evFg)
-                    if !page.snippet.isEmpty { Text(page.snippet).font(.footnote).foregroundStyle(Color.evDim).lineLimit(1) }
                 }
                 Spacer()
-                Text("opens in Scribe").font(.footnote).foregroundStyle(Color.evSubtle)
+                StratusTagPill(text: "Note", tint: .evSubtle, background: .evSurfacePill)
             }
+            .padding(.vertical, 4)
+        case .create(let title):
+            HStack(spacing: 12) {
+                Image(systemName: "plus").foregroundStyle(Color.evAccent).frame(width: 20)
+                Text("Create “\(title)”").font(.system(size: 14, weight: .medium)).foregroundStyle(Color.evAccent)
+                Spacer()
+                StratusTagPill(text: "New", tint: .evAccent, background: .evAccent.opacity(0.14))
+            }
+            .padding(.vertical, 4)
+        case .ink(let page):
+            HStack(alignment: .center, spacing: 12) {
+                RoundedRectangle(cornerRadius: 2).fill(Color.evInk).frame(width: 9, height: 12).frame(width: 20)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(page.title).font(.system(size: 14, weight: .medium)).foregroundStyle(Color.evFg)
+                    if !page.snippet.isEmpty { Text(page.snippet).font(.system(size: 12)).foregroundStyle(Color.evDim).lineLimit(1) }
+                }
+                Spacer()
+                StratusTagPill(text: "Scribe", tint: .evInk, background: .evInk.opacity(0.14))
+            }
+            .padding(.vertical, 4)
         case .command(let c):
             HStack(spacing: 12) {
-                Image(systemName: c.icon).foregroundStyle(Color.evSubtle).frame(width: 20)
-                Text(c.name).foregroundStyle(Color.evFg)
+                Image(systemName: c.icon).font(.system(size: 13)).foregroundStyle(Color.evDim).frame(width: 20)
+                Text(c.name).font(.system(size: 14, weight: .medium)).foregroundStyle(Color.evFg)
                 Spacer()
                 if let s = c.shortcut {
-                    Text(s).font(.system(size: 11, weight: .medium)).foregroundStyle(Color.evDim)
-                        .padding(.horizontal, 7).padding(.vertical, 3)
-                        .background(Color.evBgSel, in: RoundedRectangle(cornerRadius: 6))
+                    StratusTagPill(text: s, tint: .evDim, background: .evBgSel, monospaced: true)
                 }
             }
+            .padding(.vertical, 4)
         case .tag(let tag, let count):
             HStack {
-                Text("#" + tag).foregroundStyle(Color.evTagText)
+                Text("#" + tag).font(.system(size: 14, weight: .medium, design: .monospaced)).foregroundStyle(Color.evTagText)
                 Spacer()
-                Text("\(count)").font(.footnote).foregroundStyle(Color.evSubtle).monospacedDigit()
+                StratusTagPill(text: "\(count)", tint: .evSubtle, background: .evSurfacePill, monospaced: true)
             }
+            .padding(.vertical, 4)
         }
     }
 

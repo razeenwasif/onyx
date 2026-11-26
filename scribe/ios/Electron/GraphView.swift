@@ -23,7 +23,7 @@ final class GraphModel {
 
         // Colours: the focused note in accent, then its tag's pastel, then by kind.
         // Scribe pages (index 5) in Scribe's coral.
-        var colors: [UIColor] = [EV.accent, EV.fg, EV.fgDim, EV.fgSubtle, EV.tag, UIColor(Color.velvetAccent)]
+        var colors: [UIColor] = [EV.accent, EV.fg, EV.fgDim, EV.fgSubtle, EV.tag, EV.ink]
         var byTag: [String: Int] = [:]
         var families: [String: Int] = [:]
         var groups: [Int] = []
@@ -155,7 +155,7 @@ struct GraphScreen: View {
                             .accessibilityLabel("Fit to screen")
                         }
                     }
-                    .toolbarBackground(Color.evBgAlt, for: .navigationBar)
+                    .toolbarBackground(Color.evPanel, for: .navigationBar)
                 }
             }
         }
@@ -360,9 +360,8 @@ struct GraphScreen: View {
         }
         .padding(16)
         .frame(maxWidth: 520)
-        .background(Color.evBgAlt, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.evBorder))
-        .shadow(color: .black.opacity(0.4), radius: 18, y: 6)
+        .background(Color.evPalette, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: .black.opacity(0.65), radius: 18, y: 6)
         .padding(16)
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
